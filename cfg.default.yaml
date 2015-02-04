@@ -1,0 +1,162 @@
+#
+# VMTP default configuration file
+#
+# This configuration file is ALWAYS loaded by VMTP and should never be modified by users.
+# To specify your own user-specific property values, always define them in a separate config file
+# and pass that file to the script using -c or --config <file>
+# Property values in that config file will override the default values in the current file
+#
+---
+
+# Name of the image to use for launching the test VMs. This name must be
+# the exact same name used in OpenStack (as shown from 'nova image-list')
+# Any image running Linux should work (Fedora, Ubuntu, CentOS...)
+image_name:  'Ubuntu Server 14.04'
+#image_name:  'Fedora 21'
+
+# User name to use to ssh to the test VMs
+# This is specific to the image being used
+ssh_vm_username: 'ubuntu'
+#ssh_vm_username: fedora
+
+# Name of the flavor to use for the test VMs
+# This name must be an exact match to a flavor name known by the target
+# OpenStack deployment (as shown from 'nova flavor-list')
+flavor_type: 'm1.small'
+
+# Name of the availability zone to use for the test VMs
+# Must be one of the zones listed by 'nova availability-zone-list'
+# If the zone selected contains more than 1 compute node, the script
+# will determine inter-node and intra-node throughput. If it contains only
+# 1 compute node, only intra-node troughput will be measured.
+availability_zone: 'nova'
+
+# DNS server IP addresses to use for the VM (list of 1 or more DNS servers)
+# This default DNS server is available on the Internet,
+# Change this to use a different DNS server if necessary,
+dns_nameservers: [ '8.8.8.8' ]
+
+# VMTP can automatically create a VM image if the image named by
+# image_name is missing, for that you need to specify a server IP address
+# from which the image can be retrieved using the wget protocol
+# These 2 properties are not used if the image is present
+server_ip_for_image: '172.29.172.152'
+image_path_in_server: 'downloads/trusty-server-cloudimg-amd64-disk1.qcow2'
+
+# -----------------------------------------------------------------------------
+# These variables are not likely to be changed
+
+# Set this variable to a network name if you want the script to reuse
+# a specific existing external network. If empty, the script will reuse the
+# first external network it can find (the cloud must have at least 1
+# external network defined and available for use)
+# When set, ignore floating ip creation and reuse existing management network for tests
+reuse_network_name :
+
+# Use of the script for special deployments
+floating_ip: True
+
+# Set this to an existing VM name if the script should not create new VM
+# and reuse existing VM
+reuse_existing_vm :
+
+# Default name for the router to use to connect the internal mgmt network
+# with the external network. If a router exists with this name it will be
+# reused, otherwise a new router will be created
+router_name: 'pns-router'
+
+# Defaul names for the internal networks used by the
+# script. If an existing network with this name exists it will be reused.
+# Otherwise a new internal network will be created with that name.
+# 2 networks are needed to test the case of network to network communication
+internal_network_name: ['pns-internal-net', 'pns-internal-net2']
+
+# Name of the subnets associated to the internal mgmt network
+internal_subnet_name: ['pns-internal-subnet', 'pns-internal-subnet2']
+
+# Default CIDRs to use for the internal mgmt subnet
+internal_cidr: ['192.168.1.0/24' , '192.168.2.0/24']
+
+# The public key to use to ssh to all targets (VMs, containers, hosts)
+# If starting with './' is relative to the location of the VMTP script
+# else can be an absolute path
+public_key_file: './ssh/id_rsa.pub'
+
+# File containing the private key to use along with the publick key
+# If starting with './' is relative to the location of the script
+# else can be an absolute path
+private_key_file: './ssh/id_rsa'
+
+# Name of the P&S public key in OpenStack
+public_key_name: 'pns_public_key'
+
+# name of the server VM
+vm_name_server:  'TestServer'
+
+# name of the client VM
+vm_name_client:   'TestClient'
+
+# name of the security group to create and use
+security_group_name: 'pns-security'
+
+# Location to the performance test tools.
+perf_tool_path: './tools'
+
+# ping variables
+ping_count: 2
+ping_pass_threshold: 80
+
+# Max retry count for ssh to a VM (5 seconds between retries)
+ssh_retry_count: 50 
+
+# General retry count
+generic_retry_count: 50 
+
+# Times to run when measuring TCP Throughput
+tcp_tp_loop_count: 3
+
+# TCP throughput list of packet sizes to measure
+# Can be overridden at the command line using --tcpbuf
+tcp_pkt_sizes: [65536]
+
+# UDP throughput list of packet sizes to measure
+# By default we measure for small, medium and large packets
+# Can be overridden at the command line using --udpbuf
+udp_pkt_sizes: [128, 1024, 8192]
+
+# UDP packet loss rate threshold in percentage beyond which bandwidth
+# iterations stop and below which iteration with a higher
+# bandwidth continues
+# The first number is the minimal loss rate (inclusive)
+# The second number is the maximum loss rate (inclusive)
+# Iteration to find the "optimal" bandwidth will stop as soon as the loss rate
+# falls within that range: min <= loss_rate <= max
+# The final throughput measurement may return a loss rate out of this range
+# as that measurement is taken on a longer time than when iterating to find
+# the optimal throughput
+#
+udp_loss_rate_range: [2, 5]
+
+# The default bandwidth limit (in Kbps) for TCP/UDP flow measurement
+# 0 means unlimited, which can be overridden at the command line using --bandwidth
+vm_bandwidth: 0
+
+#######################################
+# PNS MongoDB Connection information
+#######################################
+
+########################################
+# Default MongoDB port is 27017, to override
+#pns_mongod_port: <port no>
+
+########################################
+# MongoDB pns database.
+########################################
+pns_db: "pnsdb"
+
+########################################
+# MongoDB collection.
+# use "officialdata" for offical runs only.
+########################################
+pns_collection: "testdata"
+

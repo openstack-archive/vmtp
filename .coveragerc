@@ -1,0 +1,7 @@
+[run]
+branch = True
+source = vmtp
+omit = vmtp/tests/*,vmtp/openstack/*
+
+[report]
+ignore-errors = True

@@ -1,0 +1,17 @@
+[BASIC]
+# Allow constant names to be lower case
+const-rgx=[a-zA-Z_][a-zA-Z0-9_]{2,30}$
+module-rgx=[a-zA-Z_][a-zA-Z0-9_]{2,30}$
+max-line-length=100
+max-args=10
+max-branches=20
+max-locals=20
+good-names=az,ip,_,rc
+max-statements=100
+
+
+[MESSAGE CONTROL]
+disable=missing-docstring,too-many-public-methods,too-many-instance-attributes,star-args,pointless-string-statement,no-self-use,too-many-locals,superfluous-parens,too-few-public-methods,unused-argument
+
+[SIMILARITIES]
+min-similarity-lines=10

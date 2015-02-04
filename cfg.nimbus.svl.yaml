@@ -1,0 +1,14 @@
+# VM Throughput configuration for Nimbus (SVL6)
+---
+
+#image_name: 'ubuntu-trusty-server-cloudimg-amd64-disk1.2014-06-30'
+#image_name: 'rhel-6.5_x86_64-2014-06-23-v4'
+#image_name: 'centos-6.5_x86_64-2014-06-04-v3'
+image_name:  'Ubuntu Server 14.04'
+
+flavor_type: "Micro-Small"
+availability_zone: "svl6-csl-b"
+security_group_name: "pns-security1"
+ext_net_name: "public-floating-76"
+internal_cidr: ['192.168.10.0/24' , '192.168.20.0/24']
+
