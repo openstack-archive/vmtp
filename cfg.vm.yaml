@@ -1,0 +1,5 @@
+reuse_existing_vm  : True
+vm_server_external_ip : 172.29.87.27
+vm_server_internal_ip: 192.168.1.27
+vm_client_external_ip : 172.29.87.28
+vm_client_internal_ip : 192.168.1.28
