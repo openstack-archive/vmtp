@@ -1,9 +1,0 @@
-# VM Throughput configuration for Nimbus
----
-
-image_name: 'ubuntu-trusty-server-cloudimg-amd64-disk1.2014-09-27'
-#image_name: 'rhel-6.5_x86_64-2014-06-23-v4'
-#image_name: 'centos-6.5_x86_64-2014-06-04-v3'
-flavor_type: "GP-Small"
-availability_zone: "alln01-1-csx"
-
