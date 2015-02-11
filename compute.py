@@ -36,46 +36,27 @@ class Compute(object):
             print 'ERROR: Didnt find the image %s' % (image_name)
             return None
 
-    def copy_and_upload_image(self, final_image_name, server_ip, image_path):
+    def upload_image_via_url(self, final_image_name, image_url):
         '''
-        Copies locally via wget and Uploads image in Nova, if image is
-        not present on Nova post Upload, deletes it
+        Directly uploads image to Nova via URL if image is not present
         '''
 
-        wget_cmd = "wget --tries=1 http://" + str(server_ip) + "/" + str(image_path)
-        try:
-            subprocess.check_output(wget_cmd, shell=True)
-        except subprocess.CalledProcessError:
-            print 'ERROR: Failed to download, check filename %s via Wget' % (wget_cmd)
-            return 0
+        # upload in glance
+        glance_cmd = "glance image-create --name=\"" + str(final_image_name) + \
+            "\" --disk-format=qcow2" + " --container-format=bare " + \
+            " --is-public True --copy-from " + image_url
+        subprocess.check_output(glance_cmd, shell=True)
 
-        my_cwd = os.getcwd()
-        my_file_name = os.path.basename(image_path)
-        abs_fname_path = my_cwd + "/" + my_file_name
-        rm_file_cmd = "rm " + abs_fname_path
-        if os.path.isfile(abs_fname_path):
-            # upload in glance
-            glance_cmd = "glance image-create --name=\"" + str(final_image_name) + \
-                         "\" --disk-format=qcow2" + " --container-format=bare < " + \
-                         str(my_file_name)
-            subprocess.check_output(glance_cmd, shell=True)
-
-            # remove the image file from local dir
-            subprocess.check_output(rm_file_cmd, shell=True)
-
-            # check for the image in glance
-            glance_check_cmd = "glance image-list"
-            print "Will update image to glance via CLI: %s" % (glance_cmd)
-            result = subprocess.check_output(glance_check_cmd, shell=True)
-            if final_image_name in result:
-                print 'Image: %s successfully Uploaded in Nova' % (final_image_name)
-                return 1
-            else:
-                print 'Glance image status:\n %s' % (result)
-                print 'ERROR: Didnt find %s image in Nova' % (final_image_name)
-                return 0
+        # check for the image in glance
+        glance_check_cmd = "glance image-list"
+        print "Will update image to glance via CLI: %s" % (glance_cmd)
+        result = subprocess.check_output(glance_check_cmd, shell=True)
+        if final_image_name in result:
+            print 'Image: %s successfully Uploaded in Nova' % (final_image_name)
+            return 1
         else:
-            print 'ERROR: image %s not copied over locally via %s' % (my_file_name, wget_cmd)
+            print 'Glance image status:\n %s' % (result)
+            print 'ERROR: Didnt find %s image in Nova' % (final_image_name)
             return 0
 
     # Remove keypair name from openstack if exists
