@@ -36,6 +36,29 @@ class Compute(object):
             print 'ERROR: Didnt find the image %s' % (image_name)
             return None
 
+    def upload_image_via_url(self, final_image_name, image_url):
+        ''' Directly Uploads image in Nova via URL, if image is
+            not present on Nova
+        '''
+
+        # upload in glance
+        glance_cmd = "glance image-create --name=\"" + str(final_image_name) + \
+                "\" --disk-format=qcow2" + " --container-format=bare " + \
+                " --is-public True --copy-from " + image_url
+        subprocess.check_output(glance_cmd, shell=True)
+
+        # check for the image in glance
+        glance_check_cmd = "glance image-list"
+        print "Will update image to glance via CLI: %s" % (glance_cmd)
+        result = subprocess.check_output(glance_check_cmd, shell=True)
+        if final_image_name in result:
+            print 'Image: %s successfully Uploaded in Nova' % (final_image_name)
+            return 1
+        else:
+            print 'Glance image status:\n %s' % (result)
+            print 'ERROR: Didnt find %s image in Nova' % (final_image_name)
+            return 0
+
     def copy_and_upload_image(self, final_image_name, server_ip, image_path):
         '''
         Copies locally via wget and Uploads image in Nova, if image is

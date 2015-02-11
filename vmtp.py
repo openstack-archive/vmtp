@@ -24,6 +24,7 @@ import socket
 import stat
 import sys
 import traceback
+import time
 
 import compute
 import credentials
@@ -192,16 +193,15 @@ class VmtpTest(object):
                                      config.public_key_file)
 
             self.image_instance = self.comp.find_image(config.image_name)
-            if self.image_instance is None:
-                """
-                # Try to upload the image
-                print '%s: image not found, will try to upload it' % (config.image_name)
-                self.comp.copy_and_upload_image(config.image_name, config.server_ip_for_image,
-                                                config.image_path_in_server)
+            if self.image_instance is None and \
+                            config.pns_cloud_image_url is not None:
+                print '%s: image not found, will try to upload it' \
+                                % (config.image_name)
+                self.comp.upload_image_via_url(\
+                                config.image_name, config.pns_cloud_image_url)
                 time.sleep(10)
                 self.image_instance = self.comp.find_image(config.image_name)
-                """
-
+            elif self.image_instance is None:
                 # Exit the pogram
                 print '%s: image not found.' % (config.image_name)
                 sys.exit(1)
@@ -209,7 +209,6 @@ class VmtpTest(object):
             self.assert_true(self.image_instance)
             print 'Found image: %s' % (config.image_name)
             self.flavor_type = self.comp.find_flavor(config.flavor_type)
-
             self.net = network.Network(neutron, config)
 
         # Create a new security group for the test
@@ -573,6 +572,11 @@ if __name__ == '__main__':
                         action='store_true',
                         help='Stop and keep everything as-is on error (must cleanup manually)')
 
+    parser.add_argument('--cloud_image_url', dest='cloud_image_url',
+                        action='store',
+                        help='URL where the Ubuntu Cloud Image resides',
+                        metavar='http://web-ip/')
+
     (opts, args) = parser.parse_known_args()
 
     default_cfg_file = get_absolute_path_for_file("cfg.default.yaml")
@@ -617,6 +621,14 @@ if __name__ == '__main__':
         config.access_host = None
         config.access_username = None
         config.access_password = None
+
+    ###################################################
+    # Cloud Image URL
+    ###################################################
+    if opts.cloud_image_url:
+        config.pns_cloud_image_url = opts.cloud_image_url
+    else:
+        config.pns_cloud_image_url = None
 
     ###################################################
     # MongoDB Server connection info.
