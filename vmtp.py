@@ -34,6 +34,8 @@ import pns_mongo
 import sshutils
 
 import configure
+from glanceclient.v2 import client as glanceclient
+from keystoneclient.v2_0 import client as keystoneclient
 from neutronclient.v2_0 import client as neutronclient
 from novaclient.client import Client
 
@@ -186,30 +188,32 @@ class VmtpTest(object):
             neutron = neutronclient.Client(**creds)
 
             self.comp = compute.Compute(nova_client, config)
-
             # Add the script public key to openstack
             self.comp.add_public_key(config.public_key_name,
                                      config.public_key_file)
 
             self.image_instance = self.comp.find_image(config.image_name)
             if self.image_instance is None:
-                """
-                # Try to upload the image
-                print '%s: image not found, will try to upload it' % (config.image_name)
-                self.comp.copy_and_upload_image(config.image_name, config.server_ip_for_image,
-                                                config.image_path_in_server)
-                time.sleep(10)
-                self.image_instance = self.comp.find_image(config.image_name)
-                """
+                if config.vm_image_url is not None:
+                    print '%s: image for VM not found, uploading it ...' \
+                        % (config.image_name)
+                    keystone = keystoneclient.Client(**creds)
+                    glance_endpoint = keystone.service_catalog.url_for(
+                        service_type='image', endpoint_type='publicURL')
+                    glance_client = glanceclient.Client(
+                        glance_endpoint, token=keystone.auth_token)
+                    self.comp.upload_image_via_url(
+                        glance_client, config.image_name, config.vm_image_url)
+                else:
+                    # Exit the pogram
+                    print '%s: image to launch VM not found. ABORTING.' \
+                        % (config.image_name)
+                    sys.exit(1)
 
-                # Exit the pogram
-                print '%s: image not found.' % (config.image_name)
-                sys.exit(1)
-
+            self.image_instance = self.comp.find_image(config.image_name)
             self.assert_true(self.image_instance)
-            print 'Found image: %s' % (config.image_name)
+            print 'Found image %s to launch VM, will continue' % (config.image_name)
             self.flavor_type = self.comp.find_flavor(config.flavor_type)
-
             self.net = network.Network(neutron, config)
 
         # Create a new security group for the test
@@ -573,6 +577,11 @@ if __name__ == '__main__':
                         action='store_true',
                         help='Stop and keep everything as-is on error (must cleanup manually)')
 
+    parser.add_argument('--vm_image_url', dest='vm_image_url',
+                        action='store',
+                        help='URL to a Linux image in qcow2 format that can be downloaded from',
+                        metavar='<url_to_image>')
+
     (opts, args) = parser.parse_known_args()
 
     default_cfg_file = get_absolute_path_for_file("cfg.default.yaml")
@@ -617,6 +626,14 @@ if __name__ == '__main__':
         config.access_host = None
         config.access_username = None
         config.access_password = None
+
+    ###################################################
+    # Cloud Image URL
+    ###################################################
+    if opts.vm_image_url:
+        config.vm_image_url = opts.vm_image_url
+    else:
+        config.vm_image_url = None
 
     ###################################################
     # MongoDB Server connection info.

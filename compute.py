@@ -33,50 +33,73 @@ class Compute(object):
             image = self.novaclient.images.find(name=image_name)
             return image
         except novaclient.exceptions.NotFound:
-            print 'ERROR: Didnt find the image %s' % (image_name)
             return None
 
-    def copy_and_upload_image(self, final_image_name, server_ip, image_path):
+    def upload_image_via_url(self, glance_client, final_image_name, image_url, retry_count=60):
         '''
-        Copies locally via wget and Uploads image in Nova, if image is
-        not present on Nova post Upload, deletes it
+        Directly uploads image to Nova via URL if image is not present
         '''
 
-        wget_cmd = "wget --tries=1 http://" + str(server_ip) + "/" + str(image_path)
-        try:
-            subprocess.check_output(wget_cmd, shell=True)
-        except subprocess.CalledProcessError:
-            print 'ERROR: Failed to download, check filename %s via Wget' % (wget_cmd)
-            return 0
+        # Here is the deal:
+        # Idealy, we should better to use the python library glanceclient to perform the
+        # image uploades. However, due to a limitation of the v2.0 API right now, it is
+        # impossible to tell Glance to download the image from a URL directly.
+        #
+        # There are two steps to create the image:
+        # (1) Store the binary image data into Glance;
+        # (2) Store the metadata about the image into Glance;
+        # PS: The order does not matter.
+        #
+        # The REST API allows to do two steps in one if a Location header is provided with
+        # the POST request. (REF: http://developer.openstack.org/api-ref-image-v2.html)
+        #
+        # However the python API doesn't support a customized header in POST request.
+        # So we have to do two steps in two calls.
+        #
+        # The good thing is: the API does support (2) perfectly, but for (1) it is only
+        # accepting the data from local, not remote URL. So... Ur... Let's keep the CLI
+        # version as the workaround for now.
 
-        my_cwd = os.getcwd()
-        my_file_name = os.path.basename(image_path)
-        abs_fname_path = my_cwd + "/" + my_file_name
-        rm_file_cmd = "rm " + abs_fname_path
-        if os.path.isfile(abs_fname_path):
-            # upload in glance
-            glance_cmd = "glance image-create --name=\"" + str(final_image_name) + \
-                         "\" --disk-format=qcow2" + " --container-format=bare < " + \
-                         str(my_file_name)
-            subprocess.check_output(glance_cmd, shell=True)
+        # # upload in glance
+        # image = glance_client.images.create(
+        #     name=str(final_image_name), disk_format="qcow2", container_format="bare",
+        #     Location=image_url)
+        # glance_client.images.add_location(image.id, image_url, image)
 
-            # remove the image file from local dir
-            subprocess.check_output(rm_file_cmd, shell=True)
+        # sys.exit(0)
+        # for retry_attempt in range(retry_count):
+        #     if image.status == "active":
+        #         print 'Image: %s successfully uploaded to Nova' % (final_image_name)
+        #         return 1
+        #     # Sleep between retries
+        #     if self.config.debug:
+        #         print "Image is not yet active, retrying %s of %s... [%s]" \
+        #             % ((retry_attempt + 1), retry_count, image.status)
+        #     time.sleep(5)
 
-            # check for the image in glance
-            glance_check_cmd = "glance image-list"
+        # upload in glance
+        glance_cmd = "glance image-create --name=\"" + str(final_image_name) + \
+            "\" --disk-format=qcow2" + " --container-format=bare " + \
+            " --is-public True --copy-from " + image_url
+        if self.config.debug:
             print "Will update image to glance via CLI: %s" % (glance_cmd)
+        subprocess.check_output(glance_cmd, shell=True)
+
+        # check for the image in glance
+        glance_check_cmd = "glance image-list --name \"" + str(final_image_name) + "\""
+        for retry_attempt in range(retry_count):
             result = subprocess.check_output(glance_check_cmd, shell=True)
-            if final_image_name in result:
-                print 'Image: %s successfully Uploaded in Nova' % (final_image_name)
+            if "active" in result:
+                print 'Image: %s successfully uploaded to Nova' % (final_image_name)
                 return 1
-            else:
-                print 'Glance image status:\n %s' % (result)
-                print 'ERROR: Didnt find %s image in Nova' % (final_image_name)
-                return 0
-        else:
-            print 'ERROR: image %s not copied over locally via %s' % (my_file_name, wget_cmd)
-            return 0
+            # Sleep between retries
+            if self.config.debug:
+                print "Image not yet active, retrying %s of %s..." \
+                    % ((retry_attempt + 1), retry_count)
+            time.sleep(2)
+
+        print 'ERROR: Cannot upload image %s from URL: %s' % (final_image_name, image_url)
+        return 0
 
     # Remove keypair name from openstack if exists
     def remove_public_key(self, name):
@@ -166,7 +189,7 @@ class Compute(object):
                     return True
             # Sleep between retries
             if self.config.debug:
-                print "[%s] VM not yet found, retrying %s of %s" \
+                print "[%s] VM not yet found, retrying %s of %s..." \
                       % (vmname, (retry_attempt + 1), retry_count)
             time.sleep(2)
         print "[%s] VM not found, after %s attempts" % (vmname, retry_count)

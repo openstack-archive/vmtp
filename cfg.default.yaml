@@ -36,12 +36,13 @@ availability_zone: 'nova'
 # Change this to use a different DNS server if necessary,
 dns_nameservers: [ '8.8.8.8' ]
 
-# VMTP can automatically create a VM image if the image named by
-# image_name is missing, for that you need to specify a server IP address
-# from which the image can be retrieved using the wget protocol
-# These 2 properties are not used if the image is present
-server_ip_for_image: '172.29.172.152'
-image_path_in_server: 'downloads/trusty-server-cloudimg-amd64-disk1.qcow2'
+# VMTP can automatically download a VM image if the image named by
+# image_name is missing, for that you need to specify a URL where
+# the image can be retrieved
+#
+# A link to a Ubuntu Server 14.04 qcow2 image can be used here:
+# https://cloud-images.ubuntu.com/trusty/current/trusty-server-cloudimg-amd64-disk1.img
+vm_image_url: ''
 
 # -----------------------------------------------------------------------------
 # These variables are not likely to be changed
