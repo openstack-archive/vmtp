@@ -213,23 +213,136 @@ class Compute(object):
         flavor = self.novaclient.flavors.find(name=flavor_type)
         return flavor
 
-    #
-    #   Return a list of hosts which are in a specific availability zone
-    #   May fail per policy in that case return an empty list
-    def list_hypervisor(self, zone_info):
-        if self.config.hypervisors:
-            print 'Using hypervisors:' + ', '.join(self.config.hypervisors)
-            return self.config.hypervisors
+    def normalize_az_host(self, az, host):
+        if not az:
+            az = self.config.availability_zone
+        return az + ':' + host
 
+    def auto_fill_az(self, host_list, host):
+        '''
+        no az provided, if there is a host list we can auto-fill the az
+        else we use the configured az if available
+        else we return an error
+        '''
+        if host_list:
+            for hyp in host_list:
+                if hyp.host_name == host:
+                    return self.normalize_az_host(hyp.zone, host)
+            # no match on host
+            print('Error: passed host name does not exist: ' + host)
+            return None
+        if self.config.availability_zone:
+            return self.normalize_az_host(None, host)
+        print('Error: --hypervisor passed without an az and no az configured')
+        return None
+
+    def sanitize_az_host(self, host_list, az_host):
+        '''
+        host_list: list of hosts as retrieved from openstack (can be empty)
+        az_host: either a host or a az:host string
+        if a host, will check host is in the list, find the corresponding az and
+                    return az:host
+        if az:host is passed will check the host is in the list and az matches
+        if host_list is empty, will return the configured az if there is no
+                    az passed
+        '''
+        if ':' in az_host:
+            # no host_list, return as is (no check)
+            if not host_list:
+                return az_host
+            # if there is a host_list, extract and verify the az and host
+            az_host_list = az_host.split(':')
+            zone = az_host_list[0]
+            host = az_host_list[1]
+            for hyp in host_list:
+                if hyp.host_name == host:
+                    if hyp.zone == zone:
+                        # matches
+                        return az_host
+                    # else continue - another zone with same host name?
+            # no match
+            print('Error: no match for availability zone and host ' + az_host)
+            return None
+        else:
+            return self.auto_fill_az(host_list, az_host)
+
+    #
+    #   Return a list of 0, 1 or 2 az:host
+    #
+    #   The list is computed as follows:
+    #   The list of all hosts is retrieved first from openstack
+    #        if this fails, checks and az auto-fill are disabled
+    #
+    #   If the user provides a list of hypervisors (--hypervisor)
+    #       that list is checked and returned
+    #
+    #   If the user provides a configured az name (config.availability_zone)
+    #       up to the first 2 hosts from the list that match the az are returned
+    #
+    #   If the user did not configure an az name
+    #       up to the first 2 hosts from the list are returned
+    #   Possible return values:
+    #   [ az ]
+    #   [ az:hyp ]
+    #   [ az1:hyp1, az2:hyp2 ]
+    #   []  if an error occurred (error message printed to console)
+    #
+    def get_az_host_list(self):
         avail_list = []
+        host_list = []
+
         try:
             host_list = self.novaclient.hosts.list()
-            for host in host_list:
-                if host.zone == zone_info:
-                    avail_list.append(host.host_name)
         except novaclient.exceptions.Forbidden:
-            print ('Operation Forbidden: could not retrieve list of servers'
-                   ' in AZ (likely no permission)')
+            print ('Warning: Operation Forbidden: could not retrieve list of hosts'
+                   ' (likely no permission)')
+
+        # the user has specified a list of 1 or 2 hypervisors to use
+        if self.config.hypervisors:
+            for hyp in self.config.hypervisors:
+                hyp = self.sanitize_az_host(host_list, hyp)
+                if hyp:
+                    avail_list.append(hyp)
+                else:
+                    return []
+                # if the user did not specify an az, insert the configured az
+                if ':' not in hyp:
+                    if self.config.availability_zone:
+                        hyp = self.normalize_az_host(None, hyp)
+                    else:
+                        return []
+                # pick first 2 matches at most
+                if len(avail_list) == 2:
+                    break
+            print 'Using hypervisors:' + ', '.join(avail_list)
+        else:
+            for host in host_list:
+                # this host must be a compute node
+                if host._info['service'] != 'compute':
+                    continue
+                candidate = None
+                if self.config.availability_zone:
+                    if host.zone == self.config.availability_zone:
+                        candidate = self.normalize_az_host(None, host.host_name)
+                else:
+                    candidate = self.normalize_az_host(host.zone, host.host_name)
+                if candidate:
+                    avail_list.append(candidate)
+                    # pick first 2 matches at most
+                    if len(avail_list) == 2:
+                        break
+
+        # if empty we insert the configured az
+        if not avail_list:
+
+            if not self.config.availability_zone:
+                print('Error: availability_zone must be configured')
+            elif host_list:
+                print('Error: no host matching the selection for availability zone: '
+                      + self.config.availability_zone)
+                avail_list = []
+            else:
+                avail_list = [self.config.availability_zone]
         return avail_list
 
     # Given 2 VMs test if they are running on same Host or not

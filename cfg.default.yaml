@@ -2,7 +2,7 @@
 # VMTP default configuration file
 #
 # This configuration file is ALWAYS loaded by VMTP and should never be modified by users.
-# To specify your own user-specific property values, always define them in a separate config file
+# To specify your own property values, always define them in a separate config file
 # and pass that file to the script using -c or --config <file>
 # Property values in that config file will override the default values in the current file
 #
@@ -29,7 +29,10 @@ flavor_type: 'm1.small'
 # If the zone selected contains more than 1 compute node, the script
 # will determine inter-node and intra-node throughput. If it contains only
 # 1 compute node, only intra-node troughput will be measured.
-availability_zone: 'nova'
+# If empty (default), VMTP will automatically pick the first 2 hosts
+# that are compute nodes regardless of the availability zone
+#availability_zone: 'nova'
+availability_zone:
 
 # DNS server IP addresses to use for the VM (list of 1 or more DNS servers)
 # This default DNS server is available on the Internet,

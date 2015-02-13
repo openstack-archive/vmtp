@@ -153,18 +153,26 @@ The default behavior for both TCP/UDP are unlimited. For TCP, we are leveraging 
 This is useful when running vmtp on production clouds. The test tool will use up all the bandwidth that may be needed by any other live VMs if we don't set any bandwidth limit. This feature will help to prevent impacting other VMs while running the test tool.
 
 
-Host Selection in Availability Zone
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Host Selection and Availability Zone
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The *--hypervisor* argument can be used to specify explicitly where to run the test VM in the configured availability zone.
+VMTP requires 1 physical host to perform intra-node tests and 2 hosts to perform inter-node tests.
+There are multiple ways to specify the placement of test VMs to VMTP. By default, VMTP will pick the first 2 compute hosts it can find, regardless of the availability zone.
 
-This can be handy for example when exact VM placement can impact the data path performance (for example rack based placement when the availability zone spans across multiple racks).
+It is possible to limit the host selection to a specific availability zone by specifying its name in the yaml configuration file ('availability_name' parameter).
 
+The *--hypervisor* argument can also be used to specify explicitly on which hosts to run the test VMs.
 The first *--hypervisor* argument specifies on which host to run the test server VM. The second *--hypervisor* argument (in the command line) specifies on which host to run the test client VMs.
+The syntax to use for the argument value is either availability_zone and host name separated by a column (e.g. "--hypervisor nova:host26") or host name (e.g. "--hypervisor host12").
+In the latter case, VMTP will automaticaly pick the availability zone of the host.
 
-The value of the argument must match the hypervisor host name as known by OpenStack (or as displayed using "nova hypervisor-list")
+Picking a particular host can be handy for example when exact VM placement can impact the data path performance (for example rack based placement).
 
-Example of usage is given below.
+The first --hypervisor argument specifies on which host to run the test server VM. The second --hypervisor argument specifies on which host to run the test client VMs.
+
+The value of the argument must match the hypervisor host name as known by OpenStack (or as displayed using "nova hypervisor-list").
+If an availability zone is provided, VMTP will check that the host name exists in that availability zone.
+
 
 Upload Images to Glance
 ^^^^^^^^^^^^^^^^^^^^^^^
