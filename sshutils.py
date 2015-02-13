@@ -386,11 +386,11 @@ class SSH(object):
                 return None
 
             for line in data.splitlines():
-                mobj = re.match(r'PRETTY_NAME=(.*)', line)
+                mobj = re.match(r'NAME=(.*)', line)
                 if mobj:
                     name = mobj.group(1).strip("\"")
 
-                mobj = re.match(r'VERSION.*=(.*)', line)
+                mobj = re.match(r'VERSION_ID=(.*)', line)
                 if mobj:
                     version = mobj.group(1).strip("\"")
 
@@ -433,28 +433,41 @@ class SSH(object):
 
         return None
 
+    def get_openstack_release(self, ver_str):
+        '''
+        Get the release series name from the package version
+        Refer to here for release tables:
+        https://wiki.openstack.org/wiki/Releases
+        '''
+        ver_table = {"2015.1": "Kilo",
+                     "2014.2": "Juno",
+                     "2014.1": "Icehouse",
+                     "2013.2": "Havana",
+                     "2013.1": "Grizzly",
+                     "2012.2": "Folsom",
+                     "2012.1": "Essex",
+                     "2011.3": "Diablo",
+                     "2011.2": "Cactus",
+                     "2011.1": "Bexar",
+                     "2010.1": "Austin"}
+
+        ver_prefix = re.search(r"20\d\d\.\d", ver_str).group(0)
+        if ver_prefix in ver_table:
+            return ver_table[ver_prefix]
+        else:
+            return "Unknown"
+
     def check_openstack_version(self):
         '''
         Identify the openstack version running on the controller.
         '''
-        version_file = "/tmp/version.txt"
-        nova_cmd = "nova --version >> " + version_file
-
+        nova_cmd = "nova-manage --version"
         (status, _, err_output) = self.execute(nova_cmd)
+
         if status:
-            return None
-
-        if err_output.strip() == "2.17.0":
-            return "icehouse"
+            return "Unknown"
         else:
-            return "juno"
-
-
-
-
-
-
-
+            return self.get_openstack_release(err_output)
 
 
 ##################################################
@@ -467,9 +480,12 @@ def main():
     print 'ID=' + ssh.distro_id
     print 'ID_LIKE=' + ssh.distro_id_like
     print 'VERSION_ID=' + ssh.distro_version
+
     ssh.wait()
     print ssh.pidof('bash')
     print ssh.stat('/tmp')
+
+    print ssh.check_openstack_version()
 
 if __name__ == "__main__":
     main()

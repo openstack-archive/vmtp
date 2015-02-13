@@ -111,21 +111,36 @@ class ResultsCollector(object):
     def pprint(self, res):
         self.ppr.pprint(res)
 
-    def save(self, filename):
+    def save(self, cfg):
         '''Save results in json format file.'''
-        print('Saving results in json file: ' + filename)
-        with open(filename, 'w') as jfp:
+        print('Saving results in json file: ' + cfg.json_file + "...")
+        if cfg.access_username and cfg.access_host:
+            print 'Fetching OpenStack deployment details...'
+            sshcon = sshutils.SSH(cfg.access_username,
+                                  cfg.access_host,
+                                  password=cfg.access_password)
+            if sshcon is not None:
+                self.results['distro'] = sshcon.get_host_os_version()
+                self.results['openstack_version'] = sshcon.check_openstack_version()
+            else:
+                print 'ERROR: Cannot connect to the controlloer node.'
+
+        with open(cfg.json_file, 'w') as jfp:
             json.dump(self.results, jfp, indent=4, sort_keys=True)
 
     def save_to_db(self, cfg):
         '''Save resutls to MongoDB database.'''
-        print "Saving results to MongoDB database."
-        sshcon = sshutils.SSH(cfg.access_username,
-                              cfg.access_host,
-                              password=cfg.access_password)
-        if sshcon is not None:
-            self.results['distro'] = sshcon.get_host_os_version()
-            self.results['openstack_version'] = sshcon.check_openstack_version()
+        print "Saving results to MongoDB database..."
+        if cfg.access_username and cfg.access_host:
+            print 'Fetching OpenStack deployment details...'
+            sshcon = sshutils.SSH(cfg.access_username,
+                                  cfg.access_host,
+                                  password=cfg.access_password)
+            if sshcon is not None:
+                self.results['distro'] = sshcon.get_host_os_version()
+                self.results['openstack_version'] = sshcon.check_openstack_version()
+            else:
+                print 'ERROR: Cannot connect to the controlloer node.'
 
         post_id = pns_mongo.\
             pns_add_test_result_to_mongod(cfg.pns_mongod_ip,
@@ -501,8 +516,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--access_info', dest='access_info',
                         action='store',
-                        help='access info for control host',
-                        metavar='{host:<hostip>, user:<user>, password:<pass>}')
+                        help='access info for the controller node',
+                        metavar='\'{"host":"<hostip>", "user":"<user>", "password":"<pass>"}\'')
 
     parser.add_argument('--mongod_server', dest='mongod_server',
                         action='store',
@@ -779,7 +794,7 @@ if __name__ == '__main__':
         vmtp.run()
 
     if config.json_file:
-        rescol.save(config.json_file)
+        rescol.save(config)
 
     if config.pns_mongod_ip:
         rescol.save_to_db(config)
