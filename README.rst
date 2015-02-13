@@ -57,7 +57,6 @@ For running VMTP Docker Image
 
 Docker is installed. See `here <https://docs.docker.com/installation/#installation/>`_ for instructions.
 
-
 Sample Results Output
 ---------------------
 

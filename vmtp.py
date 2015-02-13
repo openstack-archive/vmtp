@@ -261,28 +261,21 @@ class VmtpTest(object):
             self.assert_true(self.net.vm_int_net)
 
         # Get hosts for the availability zone to use
-        avail_list = self.comp.list_hypervisor(config.availability_zone)
+        # avail_list = self.comp.list_hypervisor(config.availability_zone)
+        avail_list = self.comp.get_az_host_list()
+        if not avail_list:
+            sys.exit(5)
 
         # compute the list of client vm placements to run
-        if avail_list:
-            server_az = config.availability_zone + ":" + avail_list[0]
-            if len(avail_list) > 1:
-                # can do intra + inter
-                if config.inter_node_only:
-                    # inter-node only
-                    self.client_az_list = [config.availability_zone +
-                                           ":" + avail_list[1]]
-                else:
-                    self.client_az_list = [server_az, config.availability_zone +
-                                           ":" + avail_list[1]]
-            else:
-                # can only do intra
-                self.client_az_list = [server_az]
-        else:
-            # cannot get the list of hosts
-            # can do intra or inter (cannot know)
-            server_az = config.availability_zone
-            self.client_az_list = [server_az]
+        # the first host is always where the server runs
+        server_az = avail_list[0]
+        if len(avail_list) > 1:
+            # 2 hosts are known
+            if config.inter_node_only:
+                # in this case we do not want the client to run on the same host
+                # as the server
+                avail_list.pop(0)
+        self.client_az_list = avail_list
 
         self.server = PerfInstance(config.vm_name_server,
                                    config,
@@ -537,8 +530,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--hypervisor', dest='hypervisors',
                         action='append',
-                        help='hypervisor to use in the avail zone (1 per arg, up to 2 args)',
-                        metavar='name')
+                        help='hypervisor to use (1 per arg, up to 2 args)',
+                        metavar='[az:]hostname')
 
     parser.add_argument('--inter-node-only', dest='inter_node_only',
                         default=False,
