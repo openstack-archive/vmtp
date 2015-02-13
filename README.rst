@@ -167,7 +167,7 @@ Print VMTP Usage
                    [-m <gmond_ip>[:<port>]] [-p <password>] [-t <time>]
                    [--host <user>@<host_ssh_ip>[:<server-listen-if-name>]]
                    [--external-host <user>@<ext_host_ssh_ip>]
-                   [--access_info {host:<hostip>, user:<user>, password:<pass>}]
+                   [--access_info '{"host":"<hostip>", "user":"<user>", "password":"<pass>"}']
                    [--mongod_server <server ip>] [--json <file>]
                    [--tp-tool nuttcp|iperf] [--hypervisor name]
                    [--inter-node-only] [--protocols T|U|I]
@@ -193,8 +193,8 @@ Print VMTP Usage
                             native host throughput (targets requires ssh key)
       --external-host <user>@<ext_host_ssh_ip>
                             external-VM throughput (target requires ssh key)
-      --access_info {host:<hostip>, user:<user>, password:<pass>}
-                            access info for control host
+      --access_info '{"host":"<hostip>", "user":"<user>", "password":"<pass>"}'
+                            access info for the controller node
       --mongod_server <server ip>
                             provide mongoDB server IP to store results
       --json <file>         store results in json format file
@@ -222,6 +222,7 @@ Print VMTP Usage
                             URL to a Linux image in qcow2 format that can be
                             downloaded from
 
+
 Configuration File
 ^^^^^^^^^^^^^^^^^^
 
@@ -245,7 +246,7 @@ Create one configuration file for your specific cloud and use the *-c* option to
 **Note:** the configuration file is not needed if the VMTP only runs the native host throughput option (*--host*)
 
 
-OpenStack openrc file
+OpenStack openrc File
 ^^^^^^^^^^^^^^^^^^^^^
 
 VMTP requires downloading an "openrc" file from the OpenStack Dashboard (Project|Acces&Security!Api Access|Download OpenStack RC File)
@@ -253,6 +254,12 @@ VMTP requires downloading an "openrc" file from the OpenStack Dashboard (Project
 This file should then be passed to VMTP using the *-r* option or should be sourced prior to invoking VMTP.
 
 **Note:** the openrc file is not needed if VMTP only runs the native host throughput option (*--host*)
+
+
+Access Info for Controller Node
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default, VMTP is not able to get the Linux distro nor the OpenStack version of the cloud deployment. However, by providing the credentials of the controller node, VMTP will try to fetch these information, and output them along in the JSON file or to the MongoDB server.
 
 
 Bandwidth Limit for TCP/UDP Flow Measurements
@@ -343,16 +350,27 @@ This run will generate 8 sets of performance data, the standard 6 sets mentioned
 
 **Note:** In order to perform the upload/download performance test, an external server must be specified and configured with SSH password-less access. See below for more info.
 
-Example 3: Specify which availability zone to spawn VMs
+
+Example 3: Store the OpenStack deployment details
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Run VMTP on an OpenStack cloud, fetch the defails of the deployment and store it to JSON file. Assume the controlloer node is on 192.168.12.34 with admin/admin.
+
+.. code::
+
+    pythn vmtp.py -r admin-openrc.sh -p admin --json res.json --access_info '{"host":"192.168.12.34", "user":"admin", "password":"admin"}'
+
+
+Example 4: Specify which availability zone to spawn VMs
 """""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 Run VMTP on an OpenStack cloud, spawn the test server VM on tme212, and the test client VM on tme210. Save the result, and perform the inter-node measurement only.
 
 .. code::
 
-    python vmtp.py -r admin-openrc.sh -p lab --inter-node-only --json res.json --hypervisor tme212 --hypervisor tme210
+    python vmtp.py -r admin-openrc.sh -p admin --inter-node-only --json res.json --hypervisor tme212 --hypervisor tme210
 
-Example 4: Collect native host performance data
+Example 5: Collect native host performance data
 """""""""""""""""""""""""""""""""""""""""""""""
 
 Run VMTP to get native host throughput between 172.29.87.29 and 172.29.87.30 using the localadmin ssh username and run each tcp/udp test session for 120 seconds (instead of the default 10 seconds):
@@ -363,7 +381,7 @@ Run VMTP to get native host throughput between 172.29.87.29 and 172.29.87.30 usi
 
 **Note:** This command requires each host to have the VMTP public key (ssh/id_rsa.pub) inserted into the ssh/authorized_keys file in the username home directory, i.e. SSH password-less access. See below for more info.
 
-Example 5: Measurement on pre-existing VMs
+Example 6: Measurement on pre-existing VMs
 """"""""""""""""""""""""""""""""""""""""""
 
 It is possible to run VMTP between pre-existing VMs that are accessible through SSH (using floating IP).
