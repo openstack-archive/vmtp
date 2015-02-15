@@ -87,3 +87,7 @@ VMTP will display the results to stdout with the following data:
     |   |   |  average, min, max and stddev round trip time in ms
 
 Detailed results can also be stored in a file in JSON format using the *--json* command line argument.
+
+Documentation
+^^^^^^^^^^^^^
+For more information, see the `VMTP online documentation <http://vmtp.readthedocs.org>`_

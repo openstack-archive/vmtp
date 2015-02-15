@@ -14,7 +14,6 @@
 #
 
 import argparse
-import ast
 import datetime
 import json
 import os
@@ -42,8 +41,6 @@ from novaclient.client import Client
 __version__ = '2.0.0'
 
 from perf_instance import PerfInstance as PerfInstance
-# Global external host info
-ext_host_list = []
 
 # Check IPv4 address syntax - not completely fool proof but will catch
 # some invalid formats
@@ -111,36 +108,32 @@ class ResultsCollector(object):
     def pprint(self, res):
         self.ppr.pprint(res)
 
-    def save(self, cfg):
-        '''Save results in json format file.'''
-        if cfg.access_username and cfg.access_host:
+    def get_controller_info(self, cfg):
+        if cfg.ctrl_username and cfg.ctrl_host:
             print 'Fetching OpenStack deployment details...'
-            sshcon = sshutils.SSH(cfg.access_username,
-                                  cfg.access_host,
-                                  password=cfg.access_password)
+            if cfg.ctrl_password:
+                sshcon = sshutils.SSH(cfg.ctrl_username,
+                                      cfg.ctrl_host,
+                                      password=cfg.ctrl_password)
+            else:
+                sshcon = sshutils.SSH(cfg.ctrl_username,
+                                      cfg.ctrl_host,
+                                      key_filename=cfg.private_key_file,
+                                      connect_retry_count=cfg.ssh_retry_count)
             if sshcon is not None:
                 self.results['distro'] = sshcon.get_host_os_version()
                 self.results['openstack_version'] = sshcon.check_openstack_version()
             else:
-                print 'ERROR: Cannot connect to the controlloer node.'
+                print 'ERROR: Cannot connect to the controller node.'
 
+    def save(self, cfg):
+        '''Save results in json format file.'''
         print('Saving results in json file: ' + cfg.json_file + "...")
         with open(cfg.json_file, 'w') as jfp:
             json.dump(self.results, jfp, indent=4, sort_keys=True)
 
     def save_to_db(self, cfg):
-        '''Save resutls to MongoDB database.'''
-        if cfg.access_username and cfg.access_host:
-            print 'Fetching OpenStack deployment details...'
-            sshcon = sshutils.SSH(cfg.access_username,
-                                  cfg.access_host,
-                                  password=cfg.access_password)
-            if sshcon is not None:
-                self.results['distro'] = sshcon.get_host_os_version()
-                self.results['openstack_version'] = sshcon.check_openstack_version()
-            else:
-                print 'ERROR: Cannot connect to the controlloer node.'
-
+        '''Save results to MongoDB database.'''
         print "Saving results to MongoDB database..."
         post_id = pns_mongo.\
             pns_add_test_result_to_mongod(cfg.pns_mongod_ip,
@@ -465,6 +458,28 @@ def test_native_tp(nhosts):
                 client.dispose()
     server.dispose()
 
+def extract_user_host_pwd(user_host_pwd):
+    '''
+        splits user@host[:pwd] into a 3 element tuple
+        'hugo@1.1.1.1:secret' -> ('hugo', '1.1.1.1', 'secret')
+        'huggy@2.2.2.2' -> ('huggy', '2.2.2.2', None)
+        None ->(None, None, None)
+        Examples of fatal errors (will call exit):
+        'hutch@q.1.1.1' (invalid IP)
+        '@3.3.3.3' (missing username)
+        'hiro@' or 'buggy' (missing host IP)
+    '''
+    if not user_host_pwd:
+        return (None, None, None)
+    match = re.search(r'^([^@]+)@([0-9\.]+):?(.*)$', user_host_pwd)
+    if not match:
+        print('Invalid argument: ' + user_host_pwd)
+        sys.exit(3)
+    if not is_ipv4(match.group(2)):
+        print 'Invalid IPv4 address ' + match.group(2)
+        sys.exit(4)
+    return match.groups()
+
 if __name__ == '__main__':
 
     fpr = FlowPrinter()
@@ -504,13 +519,13 @@ if __name__ == '__main__':
 
     parser.add_argument('--external-host', dest='ext_host',
                         action='store',
-                        help='external-VM throughput (target requires ssh key)',
-                        metavar='<user>@<ext_host_ssh_ip>')
+                        help='external-VM throughput (host requires public key if no password)',
+                        metavar='<user>@<host_ssh_ip>[:password>]')
 
-    parser.add_argument('--access_info', dest='access_info',
+    parser.add_argument('--controller-node', dest='controller_node',
                         action='store',
-                        help='access info for the controller node',
-                        metavar='\'{"host":"<hostip>", "user":"<user>", "password":"<pass>"}\'')
+                        help='controller node ssh (host requires public key if no password)',
+                        metavar='<user>@<host_ssh_ip>[:<password>]')
 
     parser.add_argument('--mongod_server', dest='mongod_server',
                         action='store',
@@ -528,10 +543,12 @@ if __name__ == '__main__':
                         help='transport perf tool to use (default=nuttcp)',
                         metavar='nuttcp|iperf')
 
+    # note there is a bug in argparse that causes an AssertionError
+    # when the metavar is set to '[<az>:]<hostname>', hence had to insert a space
     parser.add_argument('--hypervisor', dest='hypervisors',
                         action='append',
                         help='hypervisor to use (1 per arg, up to 2 args)',
-                        metavar='[az:]hostname')
+                        metavar='[<az>:] <hostname>')
 
     parser.add_argument('--inter-node-only', dest='inter_node_only',
                         default=False,
@@ -590,6 +607,7 @@ if __name__ == '__main__':
                         help='URL to a Linux image in qcow2 format that can be downloaded from',
                         metavar='<url_to_image>')
 
+
     (opts, args) = parser.parse_known_args()
 
     default_cfg_file = get_absolute_path_for_file("cfg.default.yaml")
@@ -622,21 +640,16 @@ if __name__ == '__main__':
         config.json_file = None
 
     ###################################################
-    # Access info for the server to collect metadata for
+    # controller node ssh access to collect metadata for
     # the run.
     ###################################################
-    if opts.access_info:
-        access_info = ast.literal_eval(opts.access_info)
-        config.access_host = access_info['host']
-        config.access_username = access_info['user']
-        config.access_password = access_info['password']
-    else:
-        config.access_host = None
-        config.access_username = None
-        config.access_password = None
+    (config.ctrl_username, config.ctrl_host, config.ctrl_password) = \
+        extract_user_host_pwd(opts.controller_node)
+    # Add the external host info to a list
+    ext_host_list = list(extract_user_host_pwd(opts.ext_host))
 
     ###################################################
-    # Cloud Image URL
+    # VM Image URL
     ###################################################
     if opts.vm_image_url:
         config.vm_image_url = opts.vm_image_url
@@ -761,17 +774,6 @@ if __name__ == '__main__':
             native_hosts.append(elem_list)
         test_native_tp(native_hosts)
 
-    # Add the external host info to a list
-    # if username is not given assume root as user
-    if opts.ext_host:
-        elem_list = opts.ext_host.split("@")
-        if len(elem_list) == 1:
-            elem_list.insert(0, 'root')
-        if not is_ipv4(elem_list[1]):
-            print 'Invalid IPv4 address ' + elem_list[1]
-            sys.exit(1)
-        ext_host_list = elem_list[:]
-
     cred = credentials.Credentials(opts.rc, opts.pwd, opts.no_env)
 
     # replace all command line arguments (after the prog name) with
@@ -785,6 +787,8 @@ if __name__ == '__main__':
         rescol.add_property('auth_url', cred.rc_auth_url)
         vmtp = VmtpTest()
         vmtp.run()
+
+    rescol.get_controller_info(config)
 
     if config.json_file:
         rescol.save(config)

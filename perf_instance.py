@@ -71,7 +71,7 @@ class PerfInstance(Instance):
             ping_res = None
 
         # TCP/UDP throughput with tp_tool, returns a list of dict
-        if self.tp_tool and 'error' not in ping_res:
+        if self.tp_tool and (not ping_res or 'error' not in ping_res):
             tp_tool_res = self.tp_tool.run_client(dest_ip,
                                                   target_instance,
                                                   mss=mss,
