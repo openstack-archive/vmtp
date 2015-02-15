@@ -66,7 +66,7 @@ class NuttcpTool(PerfTool):
 
         # For UDP reverse direction we need to start the server on self.instance
         # and run the client on target_instance
-        if bidirectional:
+        if bidirectional and 'U' in self.instance.config.protocols:
             # Start the server on the client (this tool instance)
             self.instance.display('Start UDP server for reverse dir')
             if self.start_server():
