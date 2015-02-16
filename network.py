@@ -16,7 +16,8 @@
 import time
 
 # Module containing a helper class for operating on OpenStack networks
-import neutronclient.common.exceptions as neutron_exceptions
+from neutronclient.common.exceptions import NetworkInUseClient
+from neutronclient.common.exceptions import NeutronException
 
 class Network(object):
 
@@ -149,7 +150,7 @@ class Network(object):
                     self.neutron_client.delete_network(network['id'])
                     print 'Network %s deleted' % (name)
                     break
-                except neutron_exceptions.NetworkInUseClient:
+                except NetworkInUseClient:
                     time.sleep(1)
 
     # Add a network/subnet to a logical router
@@ -187,8 +188,13 @@ class Network(object):
                 body = {
                     'subnet_id': int_net['subnets'][0]
                 }
-                self.neutron_client.remove_interface_router(self.ext_router['id'],
-                                                            body)
+                try:
+                    self.neutron_client.remove_interface_router(self.ext_router['id'],
+                                                                body)
+                except NeutronException:
+                    # May fail with neutronclient.common.exceptions.Conflict
+                    # if there are floating IP in use - just ignore
+                    print('Router interface may have floating IP in use: not deleted')
 
     # Lookup network given network name
     def lookup_network(self, network_name):

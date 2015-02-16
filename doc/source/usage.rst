@@ -72,10 +72,12 @@ VMTP Usage
                             throughput test duration in seconds (default 10 sec)
       --host <user>@<host_ssh_ip>[:<server-listen-if-name>]
                             native host throughput (targets requires ssh key)
-      --external-host <user>@<ext_host_ssh_ip>
-                            external-VM throughput (target requires ssh key)
-      --access_info '{"host":"<hostip>", "user":"<user>", "password":"<pass>"}'
-                            access info for the controller node
+      --external-host <user>@<host_ssh_ip>[:password>]
+                            external-VM throughput (host requires public key if no
+                            password)
+      --controller-node <user>@<host_ssh_ip>[:<password>]
+                            controller node ssh (host requires public key if no
+                            password)
       --mongod_server <server ip>
                             provide mongoDB server IP to store results
       --json <file>         store results in json format file

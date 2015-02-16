@@ -37,6 +37,7 @@ from glanceclient.v2 import client as glanceclient
 from keystoneclient.v2_0 import client as keystoneclient
 from neutronclient.v2_0 import client as neutronclient
 from novaclient.client import Client
+from novaclient.exceptions import ClientException
 
 __version__ = '2.0.0'
 
@@ -370,7 +371,7 @@ class VmtpTest(object):
                 self.client = None
 
         # If external network is specified run that case
-        if ext_host_list:
+        if ext_host_list[0]:
             self.ext_host_tp_test()
 
     def teardown(self):
@@ -388,7 +389,11 @@ class VmtpTest(object):
         if self.comp:
             self.comp.remove_public_key(config.public_key_name)
         # Finally remove the security group
-        self.comp.security_group_delete(self.sec_group)
+        try:
+            self.comp.security_group_delete(self.sec_group)
+        except ClientException:
+            # May throw novaclient.exceptions.BadRequest if in use
+            print('Security group in use: not deleted')
 
     def run(self):
         error_flag = False
@@ -398,10 +403,7 @@ class VmtpTest(object):
             self.measure_vm_flows()
         except KeyboardInterrupt:
             traceback.format_exc()
-        except VmtpException:
-            traceback.format_exc()
-            error_flag = True
-        except sshutils.SSHError:
+        except (VmtpException, sshutils.SSHError, ClientException):
             traceback.format_exc()
             error_flag = True
 
