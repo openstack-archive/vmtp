@@ -1,9 +1,6 @@
-===============================
-VMTP
-===============================
-
-What is VMTP
-============
+========
+Overview
+========
 
 VMTP is a data path performance tool for OpenStack clouds.
 
@@ -88,6 +85,11 @@ VMTP will display the results to stdout with the following data:
 
 Detailed results can also be stored in a file in JSON format using the *--json* command line argument.
 
-Documentation
-^^^^^^^^^^^^^
-For more information, see the `VMTP online documentation <http://vmtp.readthedocs.org>`_
+=====
+Links
+=====
+
+* Documentation: http://vmtp.readthedocs.org/en/latest
+* Source: http://git.openstack.org/cgit/stackforge/vmtp
+* Bugs: http://bugs.launchpad.net/vmtp
+

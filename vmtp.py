@@ -790,7 +790,9 @@ if __name__ == '__main__':
         vmtp = VmtpTest()
         vmtp.run()
 
-    rescol.get_controller_info(config)
+    # If saving the results to JSON or MongoDB, get additional details:
+    if config.json_file or config.pns_mongod_ip:
+        rescol.get_controller_info(config)
 
     if config.json_file:
         rescol.save(config)
