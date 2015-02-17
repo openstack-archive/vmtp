@@ -145,6 +145,7 @@ class Compute(object):
     # if exists delete and recreate
     def create_server(self, vmname, image, flavor, key_name,
                       nic, sec_group, avail_zone=None, user_data=None,
+                      config_drive=None,
                       retry_count=10):
 
         # Also attach the created security group for the test
@@ -155,6 +156,7 @@ class Compute(object):
                                                   nics=nic,
                                                   availability_zone=avail_zone,
                                                   userdata=user_data,
+                                                  config_drive=config_drive,
                                                   security_groups=[sec_group.id])
         flag_exist = self.find_server(vmname, retry_count)
         if flag_exist:
