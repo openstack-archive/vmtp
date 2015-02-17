@@ -95,6 +95,7 @@ class Instance(object):
                                                 sec_group,
                                                 az,
                                                 user_data,
+                                                self.config_drive,
                                                 self.config.generic_retry_count)
         if user_data:
             user_data.close()
