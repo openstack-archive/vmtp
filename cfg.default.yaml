@@ -64,6 +64,9 @@ floating_ip: True
 # and reuse existing VM
 reuse_existing_vm :
 
+#Set config drive to true to bypass metadata service and use config drive
+config_drive: 
+
 # Default name for the router to use to connect the internal mgmt network
 # with the external network. If a router exists with this name it will be
 # reused, otherwise a new router will be created

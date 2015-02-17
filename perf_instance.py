@@ -30,6 +30,10 @@ class PerfInstance(Instance):
             self.tp_tool = config.tp_tool(self, config.perf_tool_path)
         else:
             self.tp_tool = None
+        if config.config_drive:
+            self.config_drive = True
+        else:
+            self.config_drive = None
 
     # No args is reserved for native host server
     def create(self, image=None, flavor_type=None,
