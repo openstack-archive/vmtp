@@ -173,8 +173,9 @@ class PerfTool(object):
             if (measured_kbps * 100 / kbps) < 80:
                 # the measured bw is too far away from the requested bw
                 # take half the distance or 3x the measured bw whichever is lowest
-                kbps = min(measured_kbps + (kbps - measured_kbps) / 2,
-                           measured_kbps * 3)
+                kbps = measured_kbps + (kbps - measured_kbps) / 2
+                if measured_kbps:
+                    kbps = min(kbps, measured_kbps * 3)
                 max_kbps = kbps
                 continue
             # The measured bw is within striking distance from the requested bw
