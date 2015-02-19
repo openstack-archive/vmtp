@@ -14,6 +14,8 @@ Contents:
    readme
    installation
    usage
+   setup
+   implementation
    contributing
 
 .. Indices and tables
