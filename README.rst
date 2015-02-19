@@ -85,9 +85,16 @@ VMTP will display the results to stdout with the following data:
 
 Detailed results can also be stored in a file in JSON format using the *--json* command line argument.
 
-=====
+
+License
+-------
+
+iperf: BSD License (https://iperf.fr/license.html)
+nuttcp: GPL v2 License (http://nuttcp.net/nuttcp/beta/LICENSE)
+
+
 Links
-=====
+-----
 
 * Documentation: http://vmtp.readthedocs.org/en/latest
 * Source: http://git.openstack.org/cgit/stackforge/vmtp
