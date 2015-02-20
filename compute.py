@@ -395,6 +395,12 @@ class Compute(object):
                                                     ip_protocol="icmp",
                                                     from_port=-1,
                                                     to_port=-1)
+        if self.config.ipv6_mode: 
+            self.novaclient.security_group_rules.create(group.id,
+                                                    ip_protocol="icmp",
+                                                    from_port=-1,
+                                                    to_port=-1,
+                                                    cidr="::/0") 
         # Allow SSH traffic
         self.novaclient.security_group_rules.create(group.id,
                                                     ip_protocol="tcp",
@@ -404,11 +410,24 @@ class Compute(object):
         # 5001: Data traffic (standard iperf data port)
         # 5002: Control traffic (non standard)
         # note that 5000/tcp is already picked by openstack keystone
-        self.novaclient.security_group_rules.create(group.id,
+        if not self.config.ipv6_mode:
+            self.novaclient.security_group_rules.create(group.id,
                                                     ip_protocol="tcp",
                                                     from_port=5001,
                                                     to_port=5002)
-        self.novaclient.security_group_rules.create(group.id,
+            self.novaclient.security_group_rules.create(group.id,
                                                     ip_protocol="udp",
                                                     from_port=5001,
                                                     to_port=5001)
+        else:
+            # IPV6 rules addition
+            self.novaclient.security_group_rules.create(group.id,
+                                                    ip_protocol="tcp",
+                                                    from_port=5001,
+                                                    to_port=5002,
+                                                    cidr="::/0")
+            self.novaclient.security_group_rules.create(group.id,
+                                                    ip_protocol="udp",
+                                                    from_port=5001,
+                                                    to_port=5001,
+                                                    cidr="::/0") 

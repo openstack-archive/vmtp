@@ -238,7 +238,10 @@ class PingTool(PerfTool):
             5 packets transmitted, 5 received, 0% packet loss, time 3998ms
             rtt min/avg/max/mdev = 0.455/0.528/0.596/0.057 ms
         '''
-        cmd = "ping -c " + str(ping_count) + " " + str(target_ip)
+        if self.instance.config.ipv6_mode:
+            cmd = "ping6 -c " + str(ping_count) + " " + str(target_ip)
+        else:
+            cmd = "ping -c " + str(ping_count) + " " + str(target_ip)
         cmd_out = self.instance.exec_command(cmd)
         if not cmd_out:
             res = {'protocol': 'ICMP',

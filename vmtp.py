@@ -364,7 +364,8 @@ class VmtpTest(object):
 
                 self.measure_flow("VM to VM different network fixed IP",
                                   self.server.internal_ip)
-                self.measure_flow("VM to VM different network floating IP",
+                if not config.ipv6_mode:
+                    self.measure_flow("VM to VM different network floating IP",
                                   self.server.ssh_ip)
 
                 self.client.dispose()

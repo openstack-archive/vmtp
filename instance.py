@@ -20,7 +20,7 @@ import subprocess
 
 import monitor
 import sshutils
-
+from netaddr import *
 # a dictionary of sequence number indexed by a name prefix
 prefix_seq = {}
 
@@ -108,7 +108,20 @@ class Instance(object):
         # Assume management network has direct access
         if self.config.reuse_network_name:
             self.ssh_ip = self.instance.networks[internal_network_name][0]
+            self.internal_ip = self.ssh_ip
         else:
+            # Debug added for internal ip
+            for ip_address in self.instance.networks[internal_network_name]:
+                ip=IPAddress(ip_address)
+                if self.config.ipv6_mode:
+                    if ip.version == 6:
+                        self.internal_ip = ip_address
+                    else:
+                        ipv4_fixed_address = ip_address
+                else:
+                    if ip.version == 4:
+                        self.internal_ip = ip_address
+                        ipv4_fixed_address = ip_address
             fip = self.net.create_floating_ip()
             if not fip:
                 self.display('Floating ip creation failed')
@@ -117,9 +130,8 @@ class Instance(object):
             self.ssh_ip_id = fip['floatingip']['id']
             self.buginf('Floating IP %s created', self.ssh_ip)
             self.buginf('Started - associating floating IP %s', self.ssh_ip)
-            self.instance.add_floating_ip(self.ssh_ip)
+            self.instance.add_floating_ip(self.ssh_ip,ipv4_fixed_address)
         # extract the IP for the data network
-        self.internal_ip = self.instance.networks[internal_network_name][0]
         self.buginf('Internal network IP: %s', self.internal_ip)
         self.buginf('SSH IP: %s', self.ssh_ip)
 

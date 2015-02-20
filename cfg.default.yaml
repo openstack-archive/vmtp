@@ -66,7 +66,12 @@ reuse_existing_vm :
 
 # Set config drive to true to bypass metadata service and use config drive
 # An option of config_drive to True is provided to nova boot to enable this
-config_drive:
+config_drive: True
+
+# ipv6 mode. Set this to one of the following 3 modes
+# slaac, dhcpv6-stateful, dhcpv6-stateless
+ipv6_mode: slaac 
+
 
 # Default name for the router to use to connect the internal mgmt network
 # with the external network. If a router exists with this name it will be
@@ -82,8 +87,14 @@ internal_network_name: ['pns-internal-net', 'pns-internal-net2']
 # Name of the subnets associated to the internal mgmt network
 internal_subnet_name: ['pns-internal-subnet', 'pns-internal-subnet2']
 
+# Name of the subnets for ipv6
+internal_subnet_name_ipv6: ['pns-internal-v6-subnet','pns-internal-v6-subnet2']
+
 # Default CIDRs to use for the internal mgmt subnet
 internal_cidr: ['192.168.1.0/24' , '192.168.2.0/24']
+
+# Default CIDRs to use for data network for ipv6
+internal_cidr_v6: ['2001:45::/64','2001:46::/64']
 
 # The public key to use to ssh to all targets (VMs, containers, hosts)
 # If starting with './' is relative to the location of the VMTP script

@@ -40,6 +40,8 @@ class Network(object):
         # - second for network to network communication
         self.vm_int_net = []
         self.ext_router_name = None
+        # Store state if the network is ipv4/ipv6 dual stack
+        self.ipv6_enabled = False
 
         # If reusing existing management network just find this network
         if self.config.reuse_network_name:
@@ -94,13 +96,27 @@ class Network(object):
             print '[%s] Created ext router' % (self.ext_router_name)
             self.ext_router_created = True
 
-        # Create the 2 internal networks
-        for (net, subnet, cidr) in zip(config.internal_network_name,
+        if config.ipv6_mode:
+            self.ipv6_enabled = True
+
+        #Create the networks and subnets depending on v4 or v6
+        if config.ipv6_mode:
+            for (net, subnet, cidr, subnet_ipv6, cidr_ipv6) in zip(config.internal_network_name,
+                                                                        config.internal_subnet_name,
+                                                                        config.internal_cidr,
+                                                                        config.internal_subnet_name_ipv6,
+                                                                        config.internal_cidr_v6):
+                int_net = self.create_net(net, subnet, cidr,
+                                          config.dns_nameservers,
+                                          subnet_ipv6, cidr_ipv6, config.ipv6_mode)
+                self.vm_int_net.append(int_net)
+        else:
+            for (net, subnet, cidr) in zip(config.internal_network_name,
                                        config.internal_subnet_name,
                                        config.internal_cidr):
-            int_net = self.create_net(net, subnet, cidr,
+                int_net = self.create_net(net, subnet, cidr,
                                       config.dns_nameservers)
-            self.vm_int_net.append(int_net)
+                self.vm_int_net.append(int_net)
 
         # Add both internal networks to router interface to enable network to network connectivity
         self.__add_router_interface()
@@ -109,7 +125,8 @@ class Network(object):
     # Check first if a network with the same name exists, if it exists
     # return that network.
     # dns_nameservers: a list of name servers e.g. ['8.8.8.8']
-    def create_net(self, network_name, subnet_name, cidr, dns_nameservers):
+    def create_net(self, network_name, subnet_name, cidr, dns_nameservers,
+                   subnet_name_ipv6=None,cidr_ipv6=None,ipv6_mode=None):
 
         for network in self.networks:
             if network['name'] == network_name:
@@ -137,6 +154,22 @@ class Network(object):
         subnet = self.neutron_client.create_subnet(body)['subnet']
         # add subnet id to the network dict since it has just been added
         network['subnets'] = [subnet['id']]
+        # If ipv6 is enabled than create and add ipv6 network
+        if ipv6_mode:
+            body = {
+                'subnet': {
+                    'name': subnet_name_ipv6,
+                    'cidr': cidr_ipv6,
+                    'network_id': network['id'],
+                    'enable_dhcp': True,
+                    'ip_version': 6,
+                    'ipv6_ra_mode': ipv6_mode,
+                    'ipv6_address_mode': ipv6_mode
+                }
+            }
+            subnet = self.neutron_client.create_subnet(body)['subnet']
+            #add the subnet id to the network dict
+            network['subnets'].append(subnet['id'])
         print 'Created internal network: %s' % (network_name)
         return network
 
@@ -180,11 +213,24 @@ class Network(object):
             self.neutron_client.add_interface_router(self.ext_router['id'], body)
             if self.config.debug:
                 print 'Ext router associated to ' + int_net['name']
+            # If ipv6 is enabled than add second subnet
+            if self.ipv6_enabled:
+                body = {
+                    'subnet_id' : int_net['subnets'][1]
+                }
+                self.neutron_client.add_interface_router(self.ext_router['id'], body)
 
     # Detach the ext router from the mgmt network
     def __remove_router_interface(self):
         for int_net in self.vm_int_net:
             if int_net:
+                # If ipv6 is enabled remove that subnet too
+                if self.ipv6_enabled:
+                    body = {
+                        'subnet_id' : int_net['subnets'][1]
+                    }
+                    self.neutron_client.remove_interface_router(self.ext_router['id'],
+                                                                body)
                 body = {
                     'subnet_id': int_net['subnets'][0]
                 }
@@ -195,6 +241,7 @@ class Network(object):
                     # May fail with neutronclient.common.exceptions.Conflict
                     # if there are floating IP in use - just ignore
                     print('Router interface may have floating IP in use: not deleted')
+                 
 
     # Lookup network given network name
     def lookup_network(self, network_name):
