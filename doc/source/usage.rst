@@ -13,7 +13,7 @@ To run VMTP directly from the host shell (may require "sudo" up front if not roo
 
 To run VMTP from the Docker image shell::
 
-    docker run <vmtp-docker-image-name> /bin/bash
+    docker run <vmtp-docker-image-name>
     cd /vmtp.py
     python vmtp.py <args>
 
@@ -21,7 +21,7 @@ To run VMTP from the Docker image shell::
 
 
 Docker Shared Volume to Share Files with the Container
-------------------------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 VMTP can accept files as input (e.g. configuration and openrc file) and can generate json results into a file.
 
@@ -33,11 +33,17 @@ To get a copy of the VMTP default configuration file from the container::
 
     docker run -v $PWD:/vmtp/shared:rw <docker-vmtp-image-name>  cp /vmtp/cfg.default.yaml /vmtp/shared/mycfg.yaml
 
-Assume you have edited the configuration file "mycfg.yaml" and retrieved an openrc file "admin-openrc.sh" from Horizon on the local directory and would like to get results back in the "res.json" file, you can export the current directory ($PWD), map it to /vmtp/shared in the container in read/write mode, then run the script in the container by using files from the shared directory::
+Assume you have edited the configuration file "mycfg.yaml" and retrieved an openrc file "admin-openrc.sh" from Horizon on the local directory and would like to get results back in the "res.json" file, you can export the current directory ($PWD), map it to /vmtp/shared in the container in read/write mode, then run the script in the container by using files from the shared directory.
+From the host:
 
     docker run -v $PWD:/vmtp/shared:rw -t <docker-vmtp-image-name> python /vmtp/vmtp.py -c shared/mycfg.yaml -r shared/admin-openrc.sh -p admin --json shared/res.json
     cat res.json
 
+Or from inside the container shell:
+
+    docker run -v $PWD:/vmtp/shared:rw -t <docker-vmtp-image-name>
+    python /vmtp/vmtp.py -c shared/mycfg.yaml -r shared/admin-openrc.sh -p admin --json shared/res.json
+    cat shared/res.json
 
 VMTP Usage
 ----------
