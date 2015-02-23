@@ -25,7 +25,6 @@ Optionally, VMTP can extract automatically CPU usage from all native hosts in th
 
 For VM-related flows, VMTP will automatically create the necessary OpenStack resources (router, networks, subnets, key pairs, security groups, test VMs), perform the throughput measurements then cleanup all related resources before exiting.
 
-In the case involving pre-existing native or virtual hosts, VMTP will SSH to the targeted hosts to perform measurements.
 
 Pre-requisite to run VMTP
 -------------------------
@@ -52,7 +51,7 @@ For pre-existing native host throughputs
 For running VMTP Docker Image
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Docker is installed. See `here <https://docs.docker.com/installation/#installation/>`_ for instructions.
+* Docker is installed. See `here <https://docs.docker.com/installation/#installation/>`_ for instructions.
 
 Sample Results Output
 ---------------------
@@ -88,6 +87,8 @@ Detailed results can also be stored in a file in JSON format using the *--json* 
 
 License
 -------
+
+Below are the benchmark tools that are used in VMTP, and you must accept the license of each tool before using VMTP.
 
 * iperf: BSD License (https://iperf.fr/license.html)
 * nuttcp: GPL v2 License (http://nuttcp.net/nuttcp/beta/LICENSE)

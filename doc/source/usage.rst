@@ -2,49 +2,6 @@
 Usage
 =====
 
-VMTP Docker Image
------------------
-
-In its Docker image form, VMTP is located under the /vmtp directory in the container and can either take arguments from the host shell, or can be executed from inside the Docker image shell.
-
-To run VMTP directly from the host shell (may require "sudo" up front if not root)::
-
-    docker run <vmtp-docker-image-name> python /vmtp/vmtp.py <args>
-
-To run VMTP from the Docker image shell::
-
-    docker run <vmtp-docker-image-name>
-    cd /vmtp.py
-    python vmtp.py <args>
-
-(then type exit to exit and terminate the container instance)
-
-
-Docker Shared Volume to Share Files with the Container
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-VMTP can accept files as input (e.g. configuration and openrc file) and can generate json results into a file.
-
-It is possible to use the VMTP Docker image with files persisted on the host by using Docker shared volumes.
-
-For example, one can decide to mount the current host directory as /vmtp/shared in the container in read-write mode.
-
-To get a copy of the VMTP default configuration file from the container::
-
-    docker run -v $PWD:/vmtp/shared:rw <docker-vmtp-image-name>  cp /vmtp/cfg.default.yaml /vmtp/shared/mycfg.yaml
-
-Assume you have edited the configuration file "mycfg.yaml" and retrieved an openrc file "admin-openrc.sh" from Horizon on the local directory and would like to get results back in the "res.json" file, you can export the current directory ($PWD), map it to /vmtp/shared in the container in read/write mode, then run the script in the container by using files from the shared directory.
-From the host:
-
-    docker run -v $PWD:/vmtp/shared:rw -t <docker-vmtp-image-name> python /vmtp/vmtp.py -c shared/mycfg.yaml -r shared/admin-openrc.sh -p admin --json shared/res.json
-    cat res.json
-
-Or from inside the container shell:
-
-    docker run -v $PWD:/vmtp/shared:rw -t <docker-vmtp-image-name>
-    python /vmtp/vmtp.py -c shared/mycfg.yaml -r shared/admin-openrc.sh -p admin --json shared/res.json
-    cat shared/res.json
-
 VMTP Usage
 ----------
 
@@ -115,21 +72,11 @@ VMTP Usage
 Configuration File
 ^^^^^^^^^^^^^^^^^^
 
-VMTP configuration files follow the yaml syntax and contain variables used by VMTP to run and collect performance data.
-
-The default configuration is stored in the cfg.default.yaml file.
+VMTP configuration files follow the yaml syntax and contain variables used by VMTP to run and collect performance data. The default configuration is stored in the cfg.default.yaml file.
 
 Default values should be overwritten for any cloud under test by defining new variable values in a new configuration file that follows the same format. Variables that are not defined in the new configuration file will retain their default values.
 
-Parameters that you are most certainly required to change are:
-
-* The VM image name to use to run the performance tools, you will need to specify any standard Linux image (Ubuntu 12.04, 14.04, Fedora, RHEL7, CentOS...) - if needed you will need to upload an image to OpenStack manually prior to running VMTP
-* VM SSH user name to use (specific to the image)
-* The flavor name to use (often specific to each cloud)
-
 Check the content of cfg.default.yaml file as it contains the list of configuration variables and instructions on how to set them.
-
-Create one configuration file for your specific cloud and use the *-c* option to pass that file name to VMTP.
 
 **Note:** the configuration file is not needed if the VMTP only runs the native host throughput option (*--host*)
 
@@ -147,7 +94,7 @@ This file should then be passed to VMTP using the *-r* option or should be sourc
 Access Info for Controller Node
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-By default, VMTP is not able to get the Linux distro nor the OpenStack version of the cloud deployment under test. However, by providing the credentials of the controller node, VMTP will try to fetch these information, and output them along in the JSON file or to the MongoDB server.
+By default, VMTP is not able to get the Linux distro nor the OpenStack version of the cloud deployment under test. However, by providing the credentials of the controller node under test, VMTP will try to fetch these information, and output them along in the JSON file or to the MongoDB server.
 
 
 Bandwidth Limit for TCP/UDP Flow Measurements
@@ -189,15 +136,29 @@ There is a candidate image defined in the default config already. It has been ve
 **NOTE:** Due to the limitation of the Python glanceclient API (v2.0), it is not able to create the image directly from a remote URL. So the implementation of this feature used a glance CLI command instead. Be sure to source the OpenStack rc file first before running VMTP with this feature.
 
 
-Examples of running VMTP on an OpenStack Cloud
+Quick guide to run VMTP on an OpenStack Cloud
 ----------------------------------------------
 
 Preparation
 ^^^^^^^^^^^
 
+* Step 1)
+
 Download the openrc file from OpenStack Dashboard, and saved it to your local file system. (In Horizon dashboard: Project|Acces&Security!Api Access|Download OpenStack RC File)
 
-Upload the Linux image to the OpenStack controller node, so that OpenStack is able to spawning VMs. You will be prompted an error if the Ubuntu image is not available to use when running the tool. The image can be uploaded using either Horizon dashboard, or the command below:
+* Step 2)
+
+Create one configuration file for your specific cloud and use the *-c* option to pass that file name to VMTP. Parameters that you are most certainly required to change are:
+
+    **image_name**: The name of the Linux image that will run the test VMs created by vmtp. It must be set to an existing image available in openstack (check the name with Horizon or using "nova image-list" from the shell). Any recent Ubuntu or CentOS/Fedora image should work -- if needed you will need to upload an image to OpenStack manually prior to running VMTP.
+
+    **ssh_vm_username**: VM SSH username to use (specific to the image)
+
+    **flavor_type**: The flavor name to use (often specific to each cloud)
+
+* Step 3)
+
+Upload the Linux image to the OpenStack controller node, so that OpenStack is able to spawning VMs. You will be prompted an error if the image defined in the config file is not available to use when running the tool. The image can be uploaded using either Horizon dashboard, or the command below:
 
 .. code::
 
@@ -205,10 +166,13 @@ Upload the Linux image to the OpenStack controller node, so that OpenStack is ab
 
 **Note:** Currently, VMTP only supports the Linux image in qcow2 format.
 
-If executing a VMTP Docker image "docker run" (or "sudo docker run") must be placed in front of these commands unless you run a shell script directly from inside the container.
+
+Examples of running VMTP on an OpenStack Cloud
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Example 1: Typical Run
 """"""""""""""""""""""
+
 Run VMTP on an OpenStack cloud with the default configuration file, use "admin-openrc.sh" as the rc file, and "admin" as the password::
 
     python vmtp.py -r admin-openrc.sh -p admin
@@ -221,11 +185,12 @@ This will generate 6 standard sets of performance data:
 (5) VM to VM different network (inter-node, L3 fixed IP)
 (6) VM to VM different network and tenant (inter-node, floating IP)
 
-By default, the performance data of all three protocols (TCP/UDP/ICMP) will be measured for each scenario mentioned above. However, it can be overridden by providing *--protocols*. E.g.::
+By default, the performance data of all three protocols (TCP/UDP/ICMP) will be measured for each scenario mentioned above. However, it can be overridden by providing *--protocols*::
 
     python vmtp.py -r admin-openrc.sh -p admin --protocols IT
 
-This will tell VMTP to only collect only ICMP and TCP measurements.
+This will tell VMTP to only collect ICMP and TCP measurements.
+
 
 Example 2: Cloud upload/download performance measurement
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -254,6 +219,7 @@ Run VMTP on an OpenStack cloud, spawn the test server VM on tme212, and the test
 
     python vmtp.py -r admin-openrc.sh -p admin --inter-node-only --json res.json --hypervisor tme212 --hypervisor tme210
 
+
 Example 5: Collect native host performance data
 """""""""""""""""""""""""""""""""""""""""""""""
 
@@ -262,6 +228,7 @@ Run VMTP to get native host throughput between 172.29.87.29 and 172.29.87.30 usi
     python vmtp.py --host localadmin@172.29.87.29 --host localadmin@172.29.87.30 --time 120
 
 **Note:** This command requires each host to have the VMTP public key (ssh/id_rsa.pub) inserted into the ssh/authorized_keys file in the username home directory, i.e. SSH password-less access. See below for more info.
+
 
 Example 6: Measurement on pre-existing VMs
 """"""""""""""""""""""""""""""""""""""""""
@@ -273,3 +240,4 @@ The first IP passed (*--host*) is always the one running the server side. Option
     python vmtp.py --host localadmin@172.29.87.29:eth5 --host localadmin@172.29.87.30
 
 **Note:** Prior to running, the VMTP public key must be installed on each VM.
+
