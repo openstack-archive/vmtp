@@ -4,17 +4,18 @@ MAINTAINER openstack-systems-group <openstack-systems-group@cisco.com>
 
 # Install VMTP script and dependencies
 RUN apt-get update && apt-get install -y \
-   lib32z1-dev \
-   libffi-dev \
-   libssl-dev \
-   libxml2-dev \
-   libxslt1-dev \
-   libyaml-dev \
-   openssh-client \
-   python \
-   python-dev \
-   python-lxml \
-   python-pip
+       lib32z1-dev \
+       libffi-dev \
+       libssl-dev \
+       libxml2-dev \
+       libxslt1-dev \
+       libyaml-dev \
+       openssh-client \
+       python \
+       python-dev \
+       python-lxml \
+       python-pip \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY . /vmtp/
 

@@ -89,6 +89,8 @@ Detailed results can also be stored in a file in JSON format using the *--json* 
 License
 -------
 
+Below are the benchmark tools that are used in VMTP, and you must accept the license of each tool before using VMTP.
+
 * iperf: BSD License (https://iperf.fr/license.html)
 * nuttcp: GPL v2 License (http://nuttcp.net/nuttcp/beta/LICENSE)
 
