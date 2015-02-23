@@ -13,7 +13,7 @@ To run VMTP directly from the host shell (may require "sudo" up front if not roo
 
 To run VMTP from the Docker image shell::
 
-    docker run <vmtp-docker-image-name> /bin/bash
+    docker run <vmtp-docker-image-name>
     cd /vmtp.py
     python vmtp.py <args>
 
@@ -21,7 +21,7 @@ To run VMTP from the Docker image shell::
 
 
 Docker Shared Volume to Share Files with the Container
-------------------------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 VMTP can accept files as input (e.g. configuration and openrc file) and can generate json results into a file.
 
@@ -33,11 +33,17 @@ To get a copy of the VMTP default configuration file from the container::
 
     docker run -v $PWD:/vmtp/shared:rw <docker-vmtp-image-name>  cp /vmtp/cfg.default.yaml /vmtp/shared/mycfg.yaml
 
-Assume you have edited the configuration file "mycfg.yaml" and retrieved an openrc file "admin-openrc.sh" from Horizon on the local directory and would like to get results back in the "res.json" file, you can export the current directory ($PWD), map it to /vmtp/shared in the container in read/write mode, then run the script in the container by using files from the shared directory::
+Assume you have edited the configuration file "mycfg.yaml" and retrieved an openrc file "admin-openrc.sh" from Horizon on the local directory and would like to get results back in the "res.json" file, you can export the current directory ($PWD), map it to /vmtp/shared in the container in read/write mode, then run the script in the container by using files from the shared directory.
+From the host:
 
     docker run -v $PWD:/vmtp/shared:rw -t <docker-vmtp-image-name> python /vmtp/vmtp.py -c shared/mycfg.yaml -r shared/admin-openrc.sh -p admin --json shared/res.json
     cat res.json
 
+Or from inside the container shell:
+
+    docker run -v $PWD:/vmtp/shared:rw -t <docker-vmtp-image-name>
+    python /vmtp/vmtp.py -c shared/mycfg.yaml -r shared/admin-openrc.sh -p admin --json shared/res.json
+    cat shared/res.json
 
 VMTP Usage
 ----------
@@ -120,7 +126,6 @@ Parameters that you are most certainly required to change are:
 * The VM image name to use to run the performance tools, you will need to specify any standard Linux image (Ubuntu 12.04, 14.04, Fedora, RHEL7, CentOS...) - if needed you will need to upload an image to OpenStack manually prior to running VMTP
 * VM SSH user name to use (specific to the image)
 * The flavor name to use (often specific to each cloud)
-* Name of the availability zone to use for running the performance test VMs (also specific to each cloud)
 
 Check the content of cfg.default.yaml file as it contains the list of configuration variables and instructions on how to set them.
 
@@ -142,7 +147,7 @@ This file should then be passed to VMTP using the *-r* option or should be sourc
 Access Info for Controller Node
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-By default, VMTP is not able to get the Linux distro nor the OpenStack version of the cloud deployment. However, by providing the credentials of the controller node, VMTP will try to fetch these information, and output them along in the JSON file or to the MongoDB server.
+By default, VMTP is not able to get the Linux distro nor the OpenStack version of the cloud deployment under test. However, by providing the credentials of the controller node, VMTP will try to fetch these information, and output them along in the JSON file or to the MongoDB server.
 
 
 Bandwidth Limit for TCP/UDP Flow Measurements
@@ -220,7 +225,7 @@ By default, the performance data of all three protocols (TCP/UDP/ICMP) will be m
 
     python vmtp.py -r admin-openrc.sh -p admin --protocols IT
 
-This will tell VMTP to only collect ICMP and TCP measurements.
+This will tell VMTP to only collect only ICMP and TCP measurements.
 
 Example 2: Cloud upload/download performance measurement
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -242,8 +247,8 @@ Run VMTP on an OpenStack cloud, fetch the defails of the deployment and store it
     python vmtp.py -r admin-openrc.sh -p admin --json res.json --controller-node root@192.168.12.34:admin
 
 
-Example 4: Specify which availability zone to spawn VMs
-"""""""""""""""""""""""""""""""""""""""""""""""""""""""
+Example 4: Specify which compute nodes to spawn VMs
+"""""""""""""""""""""""""""""""""""""""""""""""""""
 
 Run VMTP on an OpenStack cloud, spawn the test server VM on tme212, and the test client VM on tme210. Save the result, and perform the inter-node measurement only::
 
