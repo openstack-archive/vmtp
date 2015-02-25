@@ -171,6 +171,7 @@ class VmtpTest(object):
         self.sec_group = None
         self.image_instance = None
         self.flavor_type = None
+        self.agent_type = None
 
     # Create an instance on a particular availability zone
     def create_instance(self, inst, az, int_net):
@@ -195,6 +196,7 @@ class VmtpTest(object):
             # Create the nova and neutron instances
             nova_client = Client(**creds_nova)
             neutron = neutronclient.Client(**creds)
+
 
             self.comp = compute.Compute(nova_client, config)
             # Add the script public key to openstack
@@ -224,6 +226,7 @@ class VmtpTest(object):
             print 'Found image %s to launch VM, will continue' % (config.image_name)
             self.flavor_type = self.comp.find_flavor(config.flavor_type)
             self.net = network.Network(neutron, config)
+            rescol.add_property('Agent', self.net.agent_type)
 
         # Create a new security group for the test
         self.sec_group = self.comp.security_group_create()
