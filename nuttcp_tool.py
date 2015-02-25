@@ -25,7 +25,10 @@ class NuttcpTool(PerfTool):
 
     def get_server_launch_cmd(self):
         '''Return the commands to launch the server side.'''
-        return [self.dest_path + ' -P5002 -S --single-threaded &']
+        if self.instance.config.ipv6_mode:
+            return [self.dest_path + ' -P5002 -S --single-threaded -6 &']
+        else:
+            return [self.dest_path + ' -P5002 -S --single-threaded &']
 
     def run_client(self, target_ip, target_instance,
                    mss=None, bandwidth=0, bidirectional=False):
@@ -117,6 +120,8 @@ class NuttcpTool(PerfTool):
             opts += " -F -r"
         if length:
             opts += " -l" + str(length)
+        if self.instance.config.ipv6_mode:
+            opts += " -6 "
         if udp:
             opts += " -u"
             # for UDP if the bandwidth is not provided we need to calculate

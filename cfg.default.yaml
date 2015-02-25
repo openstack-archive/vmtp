@@ -68,6 +68,14 @@ reuse_existing_vm :
 # An option of config_drive to True is provided to nova boot to enable this
 config_drive:
 
+# ipv6 mode. Set this to one of the following 3 modes
+# slaac : VM obtains IPV6 address from Openstack radvd using SLAAC
+# dhcpv6-stateful : VM obtains ipv6 address from dnsmasq using DHCPv6 stateful
+# dhcpv6-stateless : VM obtains ipv6 address from Openstack radvd using SLAAC and options from dnsmasq
+# If left blank use ipv4
+ipv6_mode:
+
+
 # Default name for the router to use to connect the internal mgmt network
 # with the external network. If a router exists with this name it will be
 # reused, otherwise a new router will be created
@@ -82,8 +90,14 @@ internal_network_name: ['pns-internal-net', 'pns-internal-net2']
 # Name of the subnets associated to the internal mgmt network
 internal_subnet_name: ['pns-internal-subnet', 'pns-internal-subnet2']
 
+# Name of the subnets for ipv6
+internal_subnet_name_ipv6: ['pns-internal-v6-subnet','pns-internal-v6-subnet2']
+
 # Default CIDRs to use for the internal mgmt subnet
 internal_cidr: ['192.168.1.0/24' , '192.168.2.0/24']
+
+# Default CIDRs to use for data network for ipv6
+internal_cidr_v6: ['2001:45::/64','2001:46::/64']
 
 # The public key to use to ssh to all targets (VMs, containers, hosts)
 # If starting with './' is relative to the location of the VMTP script
