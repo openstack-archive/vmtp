@@ -26,8 +26,8 @@ Optionally, VMTP can extract automatically CPU usage from all native hosts in th
 For VM-related flows, VMTP will automatically create the necessary OpenStack resources (router, networks, subnets, key pairs, security groups, test VMs), perform the throughput measurements then cleanup all related resources before exiting.
 
 
-Pre-requisite to run VMTP
--------------------------
+Pre-requisite
+-------------
 
 For VM related performance measurements
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -16,6 +16,7 @@ Contents:
    usage
    setup
    implementation
+   issue
    contributing
 
 .. Indices and tables
