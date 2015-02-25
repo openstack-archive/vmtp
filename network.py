@@ -43,6 +43,9 @@ class Network(object):
         # Store state if the network is ipv4/ipv6 dual stack
         self.ipv6_enabled = False
 
+        self.agent_type = self._get_agent_type()
+        print 'Agent: ' + self.agent_type
+
         # If reusing existing management network just find this network
         if self.config.reuse_network_name:
             # An existing management network must be reused
@@ -312,3 +315,15 @@ class Network(object):
                               (self.ext_router['name'])
                 except TypeError:
                     print "No external router set"
+
+    def _get_agent_type(self):
+        '''
+        Retrieve the list of agents
+        return 'Linux bridge agent' or 'Open vSwitch agent' or 'Unknown agent'
+        '''
+        agents = self.neutron_client.list_agents(fields='agent_type')['agents']
+        for agent in agents:
+            agent_type = agent['agent_type']
+            if 'Linux bridge' in agent_type or 'Open vSwitch' in agent_type:
+                return agent_type
+        return 'Unknown agent'
