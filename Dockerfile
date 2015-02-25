@@ -1,6 +1,6 @@
 # docker file for creating a container that has vmtp installed and ready to use
 FROM ubuntu:14.04
-MAINTAINER openstack-systems-group <openstack-systems-group@cisco.com>
+MAINTAINER vmtp-core <vmtp-core@lists.launchpad.net>
 
 # Install VMTP script and dependencies
 RUN apt-get update && apt-get install -y \

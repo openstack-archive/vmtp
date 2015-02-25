@@ -8,8 +8,7 @@ VMTP is a data path performance tool for OpenStack clouds.
 Features
 --------
 
-If you need a quick and simple way to get VM level or host level single-flow throughput and latency numbers from any OpenStack cloud, and take into account various Neutron topologies, this is the tool to use.
-VMTP is a python application that will automatically perform ping connectivity, ping round trip time measurement (latency) and TCP/UDP throughput measurement for the following flows on any OpenStack deployment:
+If you need a quick and simple way to get VM level or host level single-flow throughput and latency numbers from any OpenStack cloud, and take into account various Neutron topologies, this is the tool to use. VMTP is a python application that will automatically perform ping connectivity, ping round trip time measurement (latency) and TCP/UDP throughput measurement for the following flows on any OpenStack deployment:
 
 * VM to VM same network (private fixed IP)
 * VM to VM different network same tenant (intra-tenant L3 fixed IP)
@@ -29,8 +28,8 @@ For VM-related flows, VMTP will automatically create the necessary OpenStack res
 
 See the usage page for the description of all the command line arguments supported by VMTP.
 
-Pre-requisite to run VMTP
--------------------------
+Pre-requisite
+-------------
 
 VMTP runs on any Python 2.X envirnment (validated on Linux and MacOSX).
 
@@ -89,17 +88,20 @@ VMTP will display the results to stdout with the following data:
 
 Detailed results can also be stored in a file in JSON format using the *--json* command line argument and/or stored directly into a MongoDB server.
 
+
 Limitations and Caveats
 -----------------------
 
-VMTP only measures performance for single-flows at the socket/TCP/UDP level (in a VM or natively).
-Measured numbers therefore reflect what most applications will see.
+VMTP only measures performance for single-flows at the socket/TCP/UDP level (in a VM or natively). Measured numbers therefore reflect what most applications will see.
+
 It is not designed to measure driver level data path performance from inside a VM (such as bypassing the kernel TCP stack and write directly to virtio), there are better tools that can address this type of mesurement.
 
 
 License
 -------
+
 VMTP is licensed under Apache License 2.0.
+
 Below are the benchmark tools that are used in VMTP, and you must accept the license of each tool before using VMTP.
 
 * iperf: BSD License (https://iperf.fr/license.html)

@@ -133,7 +133,7 @@ VMTP requires a Linux image available in Glance to spawn VMs. It could be upload
 
 There is a candidate image defined in the default config already. It has been verified working, but of course it is OK to try other Linux distro as well.
 
-**NOTE:** Due to the limitation of the Python glanceclient API (v2.0), it is not able to create the image directly from a remote URL. So the implementation of this feature used a glance CLI command instead. Be sure to source the OpenStack rc file first before running VMTP with this feature.
+**Note:** Due to the limitation of the Python glanceclient API (v2.0), it is not able to create the image directly from a remote URL. So the implementation of this feature used a glance CLI command instead. Be sure to source the OpenStack rc file first before running VMTP with this feature.
 
 
 Quick guide to run VMTP on an OpenStack Cloud
@@ -158,10 +158,7 @@ Create one configuration file for your specific cloud and use the *-c* option to
 
 * Step 3)
 
-Upload the Linux image to the OpenStack controller node, so that OpenStack is able to spawning VMs. You will be prompted an error if the image defined in the config file is not available to use when running the tool. The image can be uploaded using either Horizon dashboard, or the command below:
-
-.. code::
-
+Upload the Linux image to the OpenStack controller node, so that OpenStack is able to spawning VMs. You will be prompted an error if the image defined in the config file is not available to use when running the tool. The image can be uploaded using either Horizon dashboard, or the command below::
     python vmtp.py -r admin-openrc.sh -p admin --vm_image_url http://<url_to_the_image>
 
 **Note:** Currently, VMTP only supports the Linux image in qcow2 format.

@@ -21,9 +21,9 @@ Once the docker.io is installed, download the latest VMTP image from Docker Hub:
 The new image will be shown in the list::
 
     $ sudo docker images
-    REPOSITORY           TAG                 IMAGE ID            CREATED             VIRTUAL SIZE
-    ahothan/vmtp         1.0.3               8223008be44d        23 hours ago        515.9 MB
-    ahothan/vmtp         latest              8223008be44d        23 hours ago        515.9 MB
+    REPOSITORY          TAG                 IMAGE ID            CREATED             VIRTUAL SIZE
+    ahothan/vmtp        2.0.0               9f08056496d7        27 hours ago        494.6 MB
+    ahothan/vmtp        latest              9f08056496d7        27 hours ago        494.6 MB
 
 Alternatively, for development or test purpose, a binary image could be loaded from a filesystem as well::
 
@@ -71,10 +71,13 @@ Or from the Docker image shell::
     $ cat shared/res.json
 
 
+.. _git_installation:
+
 GitHub/StackForge Repository based Installation
 -----------------------------------------------
 
 It is recommended to run VMTP inside a virtual environment. However, it can be skipped if installed in a dedicated VM.
+
 
 Super quick installation on Ubuntu/Debian
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
