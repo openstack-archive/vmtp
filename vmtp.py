@@ -124,6 +124,7 @@ class ResultsCollector(object):
             if sshcon is not None:
                 self.results['distro'] = sshcon.get_host_os_version()
                 self.results['openstack_version'] = sshcon.check_openstack_version()
+                self.results['cpu_info'] = sshcon.get_cpu_info()
             else:
                 print 'ERROR: Cannot connect to the controller node.'
 

@@ -471,6 +471,28 @@ class SSH(object):
         release_str = self.get_openstack_release(err_output)
         return release_str + " (" + ver_str + ")"
 
+    def get_cpu_info(self):
+        '''
+        Get the CPU info of the controller.
+
+        Note: Here we are assuming the controller node has the exact
+              hardware as the compute nodes.
+        '''
+
+        cmd = 'cat /proc/cpuinfo | grep -m1 "model name"'
+        (status, std_output, _) = self.execute(cmd)
+        if status:
+            return "Unknown"
+        model_name = re.search(r":\s(.*)", std_output).group(1)
+
+        cmd = 'cat /proc/cpuinfo | grep "model name" | wc -l'
+        (status, std_output, _) = self.execute(cmd)
+        if status:
+            return "Unknown"
+        cores = std_output.strip()
+
+        return (cores + " * " + model_name)
+
 
 ##################################################
 # Only invoke the module directly for test purposes. Should be
@@ -487,6 +509,7 @@ def main():
     print ssh.pidof('bash')
     print ssh.stat('/tmp')
     print ssh.check_openstack_version()
+    print ssh.get_cpu_info()
 
 if __name__ == "__main__":
     main()
