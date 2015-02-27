@@ -493,6 +493,70 @@ class SSH(object):
 
         return (cores + " * " + model_name)
 
+    def get_nic_name(self, agent_type, encap):
+        '''
+        Get the NIC info of the controller.
+
+        Note: Here we are assuming the controller node has the exact
+              hardware as the compute nodes.
+        '''
+
+        # Figure out which interface is for internal traffic
+        if 'Linux bridge' in agent_type:
+            cmd = "brctl show | grep 'br-inst' | awk -F' ' '{print $4}'"
+            # [root@gg34-2 ~]# brctl show
+            # bridge name     bridge id               STP enabled     interfaces
+            # br-inst         8000.f872eaad26c7       no              eth0
+            # brq8b0e63e6-d6  8000.ea1393ff32ca       no              eth1
+            #                                                         tap9e06a20b-28
+            (status, std_output, _) = self.execute(cmd)
+            if status:
+                return "Unknown"
+            ifname = std_output.strip()
+        elif 'Open vSwitch' in agent_type:
+            if encap == 'vlan':
+                # [root@hh23-10 ~]# ovs-vsctl list-ports br-inst
+                # eth1
+                # phy-br-inst
+                cmd = 'ovs-vsctl list-ports br-inst | grep "eth"'
+                (status, std_output, _) = self.execute(cmd)
+                if status:
+                    return "Unknown"
+                ifname = std_output.strip()
+            elif encap == 'vxlan' or encap == 'gre':
+                # This is complicated. We need to first get the local IP address on
+                # br-tun, then do a reverse lookup to get the physical interface.
+                #
+                # [root@hh23-4 ~]# ovs-vsctl show | grep -E -m1 -o 'local_ip="[^"]+"'
+                # local_ip="23.23.2.14"
+                # [root@hh23-4 ~]# ip addr show to "23.23.2.14"
+                # 3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP qlen 1000
+                #    inet 23.23.2.14/24 brd 23.23.2.255 scope global eth1
+                #       valid_lft forever preferred_lft forever
+                cmd = "ovs-vsctl show | grep -E -m1 -o 'local_ip=\"[^\"]+\"'"
+                cmd = cmd + " | sed -r 's/local_ip=\"([^\"]+)\"/\\1/'"
+                cmd = "ip addr show to `" + cmd + "`"
+                cmd = cmd + " | grep -E -m1 -o 'eth[0-9]+'"
+                (status, std_output, _) = self.execute(cmd)
+                if status:
+                    return "Unknown"
+                ifname = std_output.strip()
+
+        cmd = 'ethtool -i ' + ifname + ' | grep bus-info'
+        (status, std_output, _) = self.execute(cmd)
+        if status:
+            return "Unknown"
+        bus_info = re.search(r":\s(.*)", std_output).group(1)
+
+        cmd = 'lspci -s ' + bus_info
+        (status, std_output, _) = self.execute(cmd)
+        if status:
+            return "Unknown"
+        nic_name = re.search(r"Ethernet controller:\s(.*)", std_output).group(1)
+
+        return (nic_name)
+
+
 
 ##################################################
 # Only invoke the module directly for test purposes. Should be
@@ -505,11 +569,12 @@ def main():
     print 'ID_LIKE=' + ssh.distro_id_like
     print 'VERSION_ID=' + ssh.distro_version
 
-    ssh.wait()
-    print ssh.pidof('bash')
-    print ssh.stat('/tmp')
+    # ssh.wait()
+    # print ssh.pidof('bash')
+    # print ssh.stat('/tmp')
     print ssh.check_openstack_version()
     print ssh.get_cpu_info()
+    # print ssh.get_nic_name("Linux bridge", "vxlan")
 
 if __name__ == "__main__":
     main()

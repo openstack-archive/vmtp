@@ -44,7 +44,6 @@ class Network(object):
         self.ipv6_enabled = False
 
         self.agent_type = self._get_agent_type()
-        print 'Agent: ' + self.agent_type
 
         # If reusing existing management network just find this network
         if self.config.reuse_network_name:

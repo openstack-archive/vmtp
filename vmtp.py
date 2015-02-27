@@ -125,6 +125,11 @@ class ResultsCollector(object):
                 self.results['distro'] = sshcon.get_host_os_version()
                 self.results['openstack_version'] = sshcon.check_openstack_version()
                 self.results['cpu_info'] = sshcon.get_cpu_info()
+                if 'agent_type' in self.results and 'encapsulation' in self.results:
+                    self.results['nic_name'] = sshcon.get_nic_name(
+                        self.results['agent_type'], self.results['encapsulation'])
+                else:
+                    self.results['nic_name'] = "Unknown"
             else:
                 print 'ERROR: Cannot connect to the controller node.'
 
@@ -227,7 +232,16 @@ class VmtpTest(object):
             print 'Found image %s to launch VM, will continue' % (config.image_name)
             self.flavor_type = self.comp.find_flavor(config.flavor_type)
             self.net = network.Network(neutron, config)
+
             rescol.add_property('agent_type', self.net.agent_type)
+            print "OpenStack agent: " + self.net.agent_type
+            try:
+                network_type = self.net.vm_int_net[0]['provider:network_type']
+                print "OpenStack network type: " + network_type
+                rescol.add_property('encapsulation', network_type)
+            except KeyError as exp:
+                network_type = 'Unknown'
+                print "Provider network type not found: ", str(exp)
 
         # Create a new security group for the test
         self.sec_group = self.comp.security_group_create()
@@ -340,16 +354,6 @@ class VmtpTest(object):
         rescol.add_flow_result(perf_output)
 
     def measure_vm_flows(self):
-        network_type = 'Unknown'
-        try:
-            network_type = self.net.vm_int_net[0]['provider:network_type']
-
-            print "OpenStack network type: " + network_type
-            rescol.add_property('encapsulation', network_type)
-        except KeyError as exp:
-            network_type = 'Unknown'
-            print "Provider network type not found: ", str(exp)
-
         # scenarios need to be tested for both inter and intra node
         # 1. VM to VM on same data network
         # 2. VM to VM on seperate networks fixed-fixed
