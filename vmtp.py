@@ -39,7 +39,7 @@ from neutronclient.v2_0 import client as neutronclient
 from novaclient.client import Client
 from novaclient.exceptions import ClientException
 
-__version__ = '2.0.0'
+__version__ = '2.0.1'
 
 from perf_instance import PerfInstance as PerfInstance
 

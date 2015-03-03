@@ -19,7 +19,7 @@ VMTP Usage
                    [--udpbuf <udp_pkt_size1,...>] [--no-env] [-d] [-v]
                    [--stop-on-error] [--vm_image_url <url_to_image>]
 
-    OpenStack VM Throughput V2.0.0
+    OpenStack VM Throughput V2.0.1
 
     optional arguments:
       -h, --help            show this help message and exit
