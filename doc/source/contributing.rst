@@ -91,6 +91,12 @@ For exchanging purposes, the image could be saved to a tar archive. You can dist
 
     $ sudo docker save <IMAGE_ID> -o <IMAGE_FILE>
 
+To publish the image to Docker Hub::
+
+    $ sudo docker login
+    $ sudo docker push $USER/vmtp:2.0.0
+    $ sudo docker push $USER/vmtp:latest
+
 
 .. _developer_guide_of_openstack:
 

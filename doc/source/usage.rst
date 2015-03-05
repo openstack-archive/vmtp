@@ -18,8 +18,9 @@ VMTP Usage
                    [--bandwidth <bandwidth>] [--tcpbuf <tcp_pkt_size1,...>]
                    [--udpbuf <udp_pkt_size1,...>] [--no-env] [-d] [-v]
                    [--stop-on-error] [--vm_image_url <url_to_image>]
+                   [--test_description <test_description>]
 
-    OpenStack VM Throughput V2.0.1
+    OpenStack VM Throughput V2.0.2
 
     optional arguments:
       -h, --help            show this help message and exit
@@ -67,6 +68,8 @@ VMTP Usage
       --vm_image_url <url_to_image>
                             URL to a Linux image in qcow2 format that can be
                             downloaded from
+      --test_description <test_description>
+                            The test description to be stored in JSON or MongoDB
 
 
 Configuration File
@@ -207,6 +210,16 @@ Example 3: Store the OpenStack deployment details
 Run VMTP on an OpenStack cloud, fetch the defails of the deployment and store it to JSON file. Assume the controlloer node is on 192.168.12.34 with admin/admin::
 
     python vmtp.py -r admin-openrc.sh -p admin --json res.json --controller-node root@192.168.12.34:admin
+
+In addition, VMTP also supports to store the results to a MongoDB server::
+    
+    python vmtp.py -r admin-openrc.sh -p admin --json res.json --mongod_server 172.29.87.29 --controller-node root@192.168.12.34:admin
+
+Before storing info into MongoDB, some configurations are needed to change to fit in your environment. By default, VMTP will store to database "client_db" with collection name "pns_web_entry", and of course they can be changed in the configuration file. Below are the fields related to accessing MongoDB::
+
+   vmtp_mongod_port
+   vmtp_db
+   vmtp_collection
 
 
 Example 4: Specify which compute nodes to spawn VMs

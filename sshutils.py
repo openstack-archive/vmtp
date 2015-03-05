@@ -493,7 +493,7 @@ class SSH(object):
 
         return (cores + " * " + model_name)
 
-    def get_nic_name(self, agent_type, encap):
+    def get_nic_name(self, agent_type, encap, internal_iface_dict):
         '''
         Get the NIC info of the controller.
 
@@ -501,24 +501,30 @@ class SSH(object):
               hardware as the compute nodes.
         '''
 
+        # The internal_ifac_dict is a dictionary contains the mapping between
+        # hostname and the internal interface name like below:
+        # {u'hh23-4': u'eth1', u'hh23-5': u'eth1', u'hh23-6': u'eth1'}
+
+        cmd = "hostname"
+        (status, std_output, _) = self.execute(cmd)
+        if status:
+            return "Unknown"
+        hostname = std_output.strip()
+
+        if hostname in internal_iface_dict:
+            iface = internal_iface_dict[hostname]
+        else:
+            return "Unknown"
+
         # Figure out which interface is for internal traffic
         if 'Linux bridge' in agent_type:
-            cmd = "brctl show | grep 'br-inst' | awk -F' ' '{print $4}'"
-            # [root@gg34-2 ~]# brctl show
-            # bridge name     bridge id               STP enabled     interfaces
-            # br-inst         8000.f872eaad26c7       no              eth0
-            # brq8b0e63e6-d6  8000.ea1393ff32ca       no              eth1
-            #                                                         tap9e06a20b-28
-            (status, std_output, _) = self.execute(cmd)
-            if status:
-                return "Unknown"
-            ifname = std_output.strip()
+            ifname = iface
         elif 'Open vSwitch' in agent_type:
             if encap == 'vlan':
                 # [root@hh23-10 ~]# ovs-vsctl list-ports br-inst
                 # eth1
                 # phy-br-inst
-                cmd = 'ovs-vsctl list-ports br-inst | grep "eth"'
+                cmd = 'ovs-vsctl list-ports ' + iface + ' | grep -E "^[^phy].*"'
                 (status, std_output, _) = self.execute(cmd)
                 if status:
                     return "Unknown"
@@ -527,20 +533,17 @@ class SSH(object):
                 # This is complicated. We need to first get the local IP address on
                 # br-tun, then do a reverse lookup to get the physical interface.
                 #
-                # [root@hh23-4 ~]# ovs-vsctl show | grep -E -m1 -o 'local_ip="[^"]+"'
-                # local_ip="23.23.2.14"
                 # [root@hh23-4 ~]# ip addr show to "23.23.2.14"
                 # 3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP qlen 1000
                 #    inet 23.23.2.14/24 brd 23.23.2.255 scope global eth1
                 #       valid_lft forever preferred_lft forever
-                cmd = "ovs-vsctl show | grep -E -m1 -o 'local_ip=\"[^\"]+\"'"
-                cmd = cmd + " | sed -r 's/local_ip=\"([^\"]+)\"/\\1/'"
-                cmd = "ip addr show to `" + cmd + "`"
-                cmd = cmd + " | grep -E -m1 -o 'eth[0-9]+'"
+                cmd = "ip addr show to " + iface + " | awk -F: '{print $2}'"
                 (status, std_output, _) = self.execute(cmd)
                 if status:
                     return "Unknown"
                 ifname = std_output.strip()
+        else:
+            return "Unknown"
 
         cmd = 'ethtool -i ' + ifname + ' | grep bus-info'
         (status, std_output, _) = self.execute(cmd)
@@ -556,6 +559,27 @@ class SSH(object):
 
         return (nic_name)
 
+    def get_l2agent_version(self, agent_type):
+        '''
+        Get the L2 agent version of the controller.
+
+        Note: Here we are assuming the controller node has the exact
+              hardware as the compute nodes.
+        '''
+        if 'Linux bridge' in agent_type:
+            cmd = "brctl --version | awk -F',' '{print $2}'"
+            ver_string = "Linux Bridge "
+        elif 'Open vSwitch' in agent_type:
+            cmd = "ovs-vsctl --version | awk -F')' '{print $2}'"
+            ver_string = "OVS "
+        else:
+            return "Unknown"
+
+        (status, std_output, _) = self.execute(cmd)
+        if status:
+            return "Unknown"
+
+        return ver_string + std_output.strip()
 
 
 ##################################################
@@ -565,6 +589,7 @@ class SSH(object):
 def main():
     # ssh = SSH('localadmin', '172.29.87.29', key_filename='./ssh/id_rsa')
     ssh = SSH('localadmin', '172.22.191.173', key_filename='./ssh/id_rsa')
+
     print 'ID=' + ssh.distro_id
     print 'ID_LIKE=' + ssh.distro_id_like
     print 'VERSION_ID=' + ssh.distro_version
@@ -574,7 +599,7 @@ def main():
     # print ssh.stat('/tmp')
     print ssh.check_openstack_version()
     print ssh.get_cpu_info()
-    # print ssh.get_nic_name("Linux bridge", "vxlan")
+    print ssh.get_l2agent_version("Open vSwitch agent")
 
 if __name__ == "__main__":
     main()
