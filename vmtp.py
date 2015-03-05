@@ -39,7 +39,7 @@ from neutronclient.v2_0 import client as neutronclient
 from novaclient.client import Client
 from novaclient.exceptions import ClientException
 
-__version__ = '2.0.1'
+__version__ = '2.0.2'
 
 from perf_instance import PerfInstance as PerfInstance
 
@@ -109,7 +109,7 @@ class ResultsCollector(object):
     def pprint(self, res):
         self.ppr.pprint(res)
 
-    def get_controller_info(self, cfg):
+    def get_controller_info(self, cfg, net):
         if cfg.ctrl_username and cfg.ctrl_host:
             print 'Fetching OpenStack deployment details...'
             if cfg.ctrl_password:
@@ -125,13 +125,29 @@ class ResultsCollector(object):
                 self.results['distro'] = sshcon.get_host_os_version()
                 self.results['openstack_version'] = sshcon.check_openstack_version()
                 self.results['cpu_info'] = sshcon.get_cpu_info()
-                if 'agent_type' in self.results and 'encapsulation' in self.results:
+                if 'l2agent_type' in self.results and 'encapsulation' in self.results:
                     self.results['nic_name'] = sshcon.get_nic_name(
-                        self.results['agent_type'], self.results['encapsulation'])
+                        self.results['l2agent_type'], self.results['encapsulation'],
+                        net.internal_iface_dict)
+                    self.results['l2agent_version'] = sshcon.get_l2agent_version(
+                        self.results['l2agent_type'])
                 else:
                     self.results['nic_name'] = "Unknown"
             else:
                 print 'ERROR: Cannot connect to the controller node.'
+
+    def mask_credentials(self):
+        args = self.results['args']
+        if not args:
+            return
+
+        list = ['-p', '--host', '--external-host', '--controller-node']
+        for keyword in list:
+            pattern = keyword + r'\s+[^\s]+'
+            string = keyword + ' <MASKED>'
+            args = re.sub(pattern, string, args)
+
+        self.results['args'] = args
 
     def save(self, cfg):
         '''Save results in json format file.'''
@@ -143,10 +159,10 @@ class ResultsCollector(object):
         '''Save results to MongoDB database.'''
         print "Saving results to MongoDB database..."
         post_id = pns_mongo.\
-            pns_add_test_result_to_mongod(cfg.pns_mongod_ip,
-                                          cfg.pns_mongod_port,
-                                          cfg.pns_db,
-                                          cfg.pns_collection,
+            pns_add_test_result_to_mongod(cfg.vmtp_mongod_ip,
+                                          cfg.vmtp_mongod_port,
+                                          cfg.vmtp_db,
+                                          cfg.vmtp_collection,
                                           self.results)
         if post_id is None:
             print "ERROR: Failed to add result to DB"
@@ -177,7 +193,6 @@ class VmtpTest(object):
         self.sec_group = None
         self.image_instance = None
         self.flavor_type = None
-        self.agent_type = None
 
     # Create an instance on a particular availability zone
     def create_instance(self, inst, az, int_net):
@@ -233,8 +248,8 @@ class VmtpTest(object):
             self.flavor_type = self.comp.find_flavor(config.flavor_type)
             self.net = network.Network(neutron, config)
 
-            rescol.add_property('agent_type', self.net.agent_type)
-            print "OpenStack agent: " + self.net.agent_type
+            rescol.add_property('l2agent_type', self.net.l2agent_type)
+            print "OpenStack agent: " + self.net.l2agent_type
             try:
                 network_type = self.net.vm_int_net[0]['provider:network_type']
                 print "OpenStack network type: " + network_type
@@ -618,6 +633,11 @@ if __name__ == '__main__':
                         help='URL to a Linux image in qcow2 format that can be downloaded from',
                         metavar='<url_to_image>')
 
+    parser.add_argument('--test_description', dest='test_description',
+                        action='store',
+                        help='The test description to be stored in JSON or MongoDB',
+                        metavar='<test_description>')
+
 
     (opts, args) = parser.parse_known_args()
 
@@ -668,16 +688,22 @@ if __name__ == '__main__':
         config.vm_image_url = None
 
     ###################################################
+    # Test Description
+    ###################################################
+    if opts.test_description:
+        rescol.add_property('test_description', opts.test_description)
+
+    ###################################################
     # MongoDB Server connection info.
     ###################################################
     if opts.mongod_server:
-        config.pns_mongod_ip = opts.mongod_server
+        config.vmtp_mongod_ip = opts.mongod_server
     else:
-        config.pns_mongod_ip = None
+        config.vmtp_mongod_ip = None
 
-    if 'pns_mongod_port' not in config:
+    if 'vmtp_mongod_port' not in config:
         # Set MongoDB default port if not set.
-        config.pns_mongod_port = 27017
+        config.vmtp_mongod_port = 27017
 
     # the bandwidth limit for VMs
     if opts.vm_bandwidth:
@@ -801,10 +827,11 @@ if __name__ == '__main__':
 
     # If saving the results to JSON or MongoDB, get additional details:
     if config.json_file or config.pns_mongod_ip:
-        rescol.get_controller_info(config)
+        rescol.get_controller_info(config, vmtp.net)
+        rescol.mask_credentials()
 
     if config.json_file:
         rescol.save(config)
 
-    if config.pns_mongod_ip:
+    if config.vmtp_mongod_ip:
         rescol.save_to_db(config)

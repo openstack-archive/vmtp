@@ -164,21 +164,21 @@ udp_loss_rate_range: [2, 5]
 vm_bandwidth: 0
 
 #######################################
-# PNS MongoDB Connection information
+# VMTP MongoDB Connection information
 #######################################
 
 ########################################
 # Default MongoDB port is 27017, to override
-#pns_mongod_port: <port no>
+#vmtp_mongod_port: <port no>
 
 ########################################
 # MongoDB pns database.
+# use "official_db" for offical runs only.
 ########################################
-pns_db: "pnsdb"
+vmtp_db: "client_db"
 
 ########################################
-# MongoDB collection.
-# use "officialdata" for offical runs only.
+# MongoDB collection name.
 ########################################
-pns_collection: "testdata"
+vmtp_collection: "pns_web_entry"
 

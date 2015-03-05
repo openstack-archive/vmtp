@@ -43,8 +43,6 @@ class Network(object):
         # Store state if the network is ipv4/ipv6 dual stack
         self.ipv6_enabled = False
 
-        self.agent_type = self._get_agent_type()
-
         # If reusing existing management network just find this network
         if self.config.reuse_network_name:
             # An existing management network must be reused
@@ -119,6 +117,9 @@ class Network(object):
                 int_net = self.create_net(net, subnet, cidr,
                                           config.dns_nameservers)
                 self.vm_int_net.append(int_net)
+
+        self.l2agent_type = self._get_l2agent_type()
+        self.internal_iface_dict = self._get_internal_iface_dict()
 
         # Add both internal networks to router interface to enable network to network connectivity
         self.__add_router_interface()
@@ -315,7 +316,7 @@ class Network(object):
                 except TypeError:
                     print "No external router set"
 
-    def _get_agent_type(self):
+    def _get_l2agent_type(self):
         '''
         Retrieve the list of agents
         return 'Linux bridge agent' or 'Open vSwitch agent' or 'Unknown agent'
@@ -325,4 +326,45 @@ class Network(object):
             agent_type = agent['agent_type']
             if 'Linux bridge' in agent_type or 'Open vSwitch' in agent_type:
                 return agent_type
+
         return 'Unknown agent'
+
+    def _get_internal_iface_dict(self):
+        '''
+        return a dictionary which contains the information needed to determine
+        which pysical interface(s) are holding the internal traffic
+
+        For Linux Bridge, the Neutron L2 Agent will automatically put the
+        configurations from Linux Bridge into Neutron config. So just use
+        the Neutron API to fetch it.
+
+        For OVS, the Neutron L2 Agent is not pushing all information to Neutron
+        config, so we need a second step look-up which will happen in
+        sshutils.get_nic_name(). Here we just maintain:
+
+        In the case of VLAN:
+            { '<HOSTNAME>' : '<The bridge which has the interface for internal traffic>' }
+        In the case of GRE/VxLAN:
+            { '<HOSTNAME>' : '<IP Address of local interface>
+        '''
+
+        agents = self.neutron_client.list_agents()['agents']
+        internal_iface_dict = {}
+        for agent in agents:
+            agent_type = agent['agent_type']
+            hostname = agent['host']
+            if 'Linux bridge' in agent_type:
+                agent_detail = self.neutron_client.show_agent(agent['id'])['agent']
+                ifname = agent_detail['configurations']['interface_mappings']['physnet1']
+                internal_iface_dict[hostname] = ifname
+            elif 'Open vSwitch' in agent_type:
+                network_type = self.vm_int_net[0]['provider:network_type']
+                agent_detail = self.neutron_client.show_agent(agent['id'])['agent']
+                if network_type == "vlan":
+                    brname = agent_detail['configurations']['bridge_mappings']['physnet1']
+                    internal_iface_dict[hostname] = brname
+                elif network_type == "vxlan" or network_type == 'gre':
+                    ipaddr = agent_detail['configurations']['tunneling_ip']
+                    internal_iface_dict[hostname] = ipaddr
+
+        return internal_iface_dict
