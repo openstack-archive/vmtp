@@ -8,23 +8,27 @@ VMTP is a data path performance tool for OpenStack clouds.
 Features
 --------
 
-If you need a quick and simple way to get VM level or host level single-flow throughput and latency numbers from any OpenStack cloud, and take into account various Neutron topologies, this is the tool to use. VMTP is a python application that will automatically perform ping connectivity, ping round trip time measurement (latency) and TCP/UDP throughput measurement for the following flows on any OpenStack deployment:
+Have you ever had the need for a quick, simple and automatable way to get VM-level or host-level single-flow throughput and latency numbers from any OpenStack cloud, and take into account various Neutron topologies?
+Or check whether some OpenStack configuration option, Neutron plug-in performs to expectation or if there is any data path impact for upgrading to a different OpenStack release?
+VMTP is a small python application that will automatically perform ping connectivity, round trip time measurement (latency) and TCP/UDP throughput measurement for the following East/West flows on any OpenStack deployment:
 
-* VM to VM same network (private fixed IP)
-* VM to VM different network same tenant (intra-tenant L3 fixed IP)
-* VM to VM different network and tenant (floating IP inter-tenant L3)
+* VM to VM same network (private fixed IP, flow #1)
+* VM to VM different network using fixed IP (same as intra-tenant L3 fixed IP, flow #2)
+* VM to VM different network using floating IP and NAT (same as floating IP inter-tenant L3, flow #3)
 
-Optionally, when an external Linux host is available:
+Optionally, when an external Linux host is available for testing North/South flows:
 
-* External host/VM download and upload throughput/latency (L3/floating IP)
+* External host/VM download and upload throughput/latency (L3/floating IP, flow #4 and #5)
+
+.. image:: images/flows.png
 
 Optionally, when SSH login to any Linux host (native or virtual) is available:
 
-* Host to host throughput (intra-node and inter-node)
+* Host to host process-level throughput/latency (intra-node and inter-node)
 
 Optionally, VMTP can extract automatically CPU usage from all native hosts in the cloud during the throughput tests, provided the Ganglia monitoring service (gmond) is installed and enabled on those hosts.
 
-For VM-related flows, VMTP will automatically create the necessary OpenStack resources (router, networks, subnets, key pairs, security groups, test VMs), perform the throughput measurements then cleanup all related resources before exiting.
+For VM-related flows, VMTP will automatically create the necessary OpenStack resources (router, networks, subnets, key pairs, security groups, test VMs) using the public OpenStack API, install the test tools then orchestrate them to gather the throughput measurements then cleanup all related resources before exiting.
 
 See the usage page for the description of all the command line arguments supported by VMTP.
 
