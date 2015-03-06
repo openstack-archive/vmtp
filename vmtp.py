@@ -15,6 +15,7 @@
 
 import argparse
 import datetime
+import hashlib
 import json
 import os
 import pprint
@@ -148,6 +149,10 @@ class ResultsCollector(object):
             args = re.sub(pattern, string, args)
 
         self.results['args'] = args
+
+    def generate_runid(self):
+        key = self.results['args'] + self.results['date'] + self.results['version']
+        self.results['run_id'] = hashlib.md5(key).hexdigest()[:7]
 
     def save(self, cfg):
         '''Save results in json format file.'''
@@ -829,6 +834,7 @@ if __name__ == '__main__':
     if config.json_file or config.pns_mongod_ip:
         rescol.get_controller_info(config, vmtp.net)
         rescol.mask_credentials()
+        rescol.generate_runid()
 
     if config.json_file:
         rescol.save(config)

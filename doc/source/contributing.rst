@@ -54,7 +54,7 @@ Submit Review
 
 7. Submit the review::
 
-    $ git review
+    $ git review <TOPIC-BRANCH>
 
 The members in the VMTP team will get notified once the Jenkin verification is passed. So watch your email from the review site, as it will contain the updates for your submission.
 

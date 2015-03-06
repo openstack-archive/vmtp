@@ -8,8 +8,8 @@ VMTP is a data path performance tool for OpenStack clouds.
 Features
 --------
 
-Have you ever had the need for a quick, simple and automatable way to get VM-level or host-level single-flow throughput and latency numbers from any OpenStack cloud, and take into account various Neutron topologies?
-Or check whether some OpenStack configuration option, Neutron plug-in performs to expectation or if there is any data path impact for upgrading to a different OpenStack release?
+Have you ever had the need for a quick, simple and automatable way to get VM-level or host-level single-flow throughput and latency numbers from any OpenStack cloud, and take into account various Neutron topologies? Or check whether some OpenStack configuration option, Neutron plug-in performs to expectation or if there is any data path impact for upgrading to a different OpenStack release?
+
 VMTP is a small python application that will automatically perform ping connectivity, round trip time measurement (latency) and TCP/UDP throughput measurement for the following East/West flows on any OpenStack deployment:
 
 * VM to VM same network (private fixed IP, flow #1)
@@ -31,6 +31,7 @@ Optionally, VMTP can extract automatically CPU usage from all native hosts in th
 For VM-related flows, VMTP will automatically create the necessary OpenStack resources (router, networks, subnets, key pairs, security groups, test VMs) using the public OpenStack API, install the test tools then orchestrate them to gather the throughput measurements then cleanup all related resources before exiting.
 
 See the usage page for the description of all the command line arguments supported by VMTP.
+
 
 Pre-requisite
 -------------
@@ -117,5 +118,6 @@ Links
 
 * Documentation: http://vmtp.readthedocs.org/en/latest
 * Source: http://git.openstack.org/cgit/stackforge/vmtp
-* Bugs: http://bugs.launchpad.net/vmtp
+* Supports/Bugs: https://launchpad.net/vmtp
+* Mailing List: vmtp-core@lists.launchpad.net
 
