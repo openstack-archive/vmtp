@@ -1,0 +1,7 @@
+This is for VMTP scale testing
+This is work in progress for now
+The idea is to be able to 
+1. Create tenant and users to load the cloud
+2. Create resources like routers, networks, security groups, keypairs, instances within
+the context of each user
+3. Provide ability to clean up the cloud by default
