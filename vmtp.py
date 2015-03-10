@@ -831,7 +831,7 @@ if __name__ == '__main__':
         vmtp.run()
 
     # If saving the results to JSON or MongoDB, get additional details:
-    if config.json_file or config.pns_mongod_ip:
+    if config.json_file or config.vmtp_mongod_ip:
         rescol.get_controller_info(config, vmtp.net)
         rescol.mask_credentials()
         rescol.generate_runid()
