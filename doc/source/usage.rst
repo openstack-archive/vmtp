@@ -13,15 +13,16 @@ VMTP Usage
                    [--external-host <user>@<host_ssh_ip>[:password>]]
                    [--controller-node <user>@<host_ssh_ip>[:<password>]]
                    [--mongod_server <server ip>] [--json <file>]
-                   [--tp-tool nuttcp|iperf] [--hypervisor [<az>:] <hostname>]
-                   [--inter-node-only] [--protocols T|U|I]
+                   [--tp-tool <nuttcp|iperf>] [--hypervisor [<az>:] <hostname>]
+                   [--inter-node-only] [--protocols <T|U|I>]
                    [--bandwidth <bandwidth>] [--tcpbuf <tcp_pkt_size1,...>]
-                   [--udpbuf <udp_pkt_size1,...>] [--no-env] [-d] [-v]
+                   [--udpbuf <udp_pkt_size1,...>] [--no-env]
+                   [--vnic-type <direct|macvtap|normal>] [-d] [-v]
                    [--stop-on-error] [--vm_image_url <url_to_image>]
                    [--test_description <test_description>]
-
-    OpenStack VM Throughput V2.0.2
-
+    
+    OpenStack VM Throughput V2.0.3
+    
     optional arguments:
       -h, --help            show this help message and exit
       -c <config_file>, --config <config_file>
@@ -45,12 +46,12 @@ VMTP Usage
       --mongod_server <server ip>
                             provide mongoDB server IP to store results
       --json <file>         store results in json format file
-      --tp-tool nuttcp|iperf
+      --tp-tool <nuttcp|iperf>
                             transport perf tool to use (default=nuttcp)
       --hypervisor [<az>:] <hostname>
                             hypervisor to use (1 per arg, up to 2 args)
       --inter-node-only     only measure inter-node
-      --protocols T|U|I     protocols T(TCP), U(UDP), I(ICMP) - default=TUI (all)
+      --protocols <T|U|I>   protocols T(TCP), U(UDP), I(ICMP) - default=TUI (all)
       --bandwidth <bandwidth>
                             the bandwidth limit for TCP/UDP flows in K/M/Gbps,
                             e.g. 128K/32M/5G. (default=no limit)
@@ -61,6 +62,8 @@ VMTP Usage
                             list of buffer length when transmitting over UDP in
                             Bytes, e.g. --udpbuf 128,2048. (default=128,1024,8192)
       --no-env              do not read env variables
+      --vnic-type <direct|macvtap|normal>
+                            binding vnic type for test VMs
       -d, --debug           debug flag (very verbose)
       -v, --version         print version of this script and exit
       --stop-on-error       Stop and keep everything as-is on error (must cleanup
@@ -70,7 +73,6 @@ VMTP Usage
                             downloaded from
       --test_description <test_description>
                             The test description to be stored in JSON or MongoDB
-
 
 Configuration File
 ^^^^^^^^^^^^^^^^^^
@@ -138,6 +140,12 @@ There is a candidate image defined in the default config already. It has been ve
 
 **Note:** Due to the limitation of the Python glanceclient API (v2.0), it is not able to create the image directly from a remote URL. So the implementation of this feature used a glance CLI command instead. Be sure to source the OpenStack rc file first before running VMTP with this feature.
 
+VNIC Type
+^^^^^^^^^
+
+By default test VMs will be created with ports that have a "normal" VNIC type.
+To create test VMs with ports that use PCI passthrough SRIOV, specify "--vnic_type direct". This will assume that the host where the VM are instantiated have SRIOV capable NIC.
+An exception will be thrown if a test VM is lauched on a host that does not have SRIOV capable NIC or has not been configured to use such feature.
 
 Quick guide to run VMTP on an OpenStack Cloud
 ----------------------------------------------

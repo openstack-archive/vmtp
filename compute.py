@@ -142,12 +142,16 @@ class Compute(object):
         return net
 
     # Create a server instance with name vmname
-    # if exists delete and recreate
+    # and check that it gets into the ACTIVE state
     def create_server(self, vmname, image, flavor, key_name,
                       nic, sec_group, avail_zone=None, user_data=None,
                       config_drive=None,
                       retry_count=10):
 
+        if sec_group:
+            security_groups = [sec_group.id]
+        else:
+            security_groups = None
         # Also attach the created security group for the test
         instance = self.novaclient.servers.create(name=vmname,
                                                   image=image,
@@ -157,12 +161,26 @@ class Compute(object):
                                                   availability_zone=avail_zone,
                                                   userdata=user_data,
                                                   config_drive=config_drive,
-                                                  security_groups=[sec_group.id])
-        flag_exist = self.find_server(vmname, retry_count)
-        if flag_exist:
-            return instance
-        else:
+                                                  security_groups=security_groups)
+        if not instance:
             return None
+        # Verify that the instance gets into the ACTIVE state
+        for retry_attempt in range(retry_count):
+            instance = self.novaclient.servers.get(instance.id)
+            if instance.status == 'ACTIVE':
+                return instance
+            if instance.status == 'ERROR':
+                print 'Instance creation error:' + instance.fault['message']
+                break
+            if self.config.debug:
+                print "[%s] VM status=%s, retrying %s of %s..." \
+                      % (vmname, instance.status, (retry_attempt + 1), retry_count)
+            time.sleep(2)
+
+        # instance not in ACTIVE state
+        print('Instance failed status=' + instance.status)
+        self.delete_server(instance)
+        return None
 
     def get_server_list(self):
         servers_list = self.novaclient.servers.list()

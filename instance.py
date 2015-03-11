@@ -49,6 +49,7 @@ class Instance(object):
         self.ssh_user = config.ssh_vm_username
         self.instance = None
         self.ssh = None
+        self.port = None
         if config.gmond_svr_ip:
             self.gmond_svr = config.gmond_svr_ip
         else:
@@ -75,7 +76,7 @@ class Instance(object):
     # and extract internal network IP
     # Retruns True if success, False otherwise
     def create(self, image, flavor_type,
-               keypair, nics,
+               keypair, int_net,
                az,
                internal_network_name,
                sec_group,
@@ -90,6 +91,20 @@ class Instance(object):
             user_data = open(init_file_name)
         else:
             user_data = None
+
+        if self.config.vnic_type:
+            # create the VM by passing a port ID instead of a net ID
+            self.port = self.net.create_port(int_net['id'],
+                                             [sec_group.id],
+                                             self.config.vnic_type)
+            nics = [{'port-id': self.port['id']}]
+            # no need to create server with a security group since
+            # we already have the port created with it
+            sec_group = None
+        else:
+            # create the VM by passing a net ID
+            nics = [{'net-id': int_net['id']}]
+
         self.instance = self.comp.create_server(self.name,
                                                 image,
                                                 flavor_type,
@@ -104,7 +119,6 @@ class Instance(object):
             user_data.close()
         if not self.instance:
             self.display('Server creation failed')
-            self.dispose()
             return False
 
         # If reusing existing management network skip the floating ip creation and association to VM
@@ -134,6 +148,7 @@ class Instance(object):
             self.buginf('Floating IP %s created', self.ssh_ip)
             self.buginf('Started - associating floating IP %s', self.ssh_ip)
             self.instance.add_floating_ip(self.ssh_ip, ipv4_fixed_address)
+
         # extract the IP for the data network
         self.buginf('Internal network IP: %s', self.internal_ip)
         self.buginf('SSH IP: %s', self.ssh_ip)
@@ -295,6 +310,8 @@ class Instance(object):
             self.comp.delete_server(self.instance)
             self.buginf('Instance deleted')
             self.instance = None
+        if self.port:
+            self.net.delete_port(self.port)
         if self.ssh:
             self.ssh.close()
             self.ssh = None

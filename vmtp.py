@@ -40,7 +40,7 @@ from neutronclient.v2_0 import client as neutronclient
 from novaclient.client import Client
 from novaclient.exceptions import ClientException
 
-__version__ = '2.0.2'
+__version__ = '2.0.3'
 
 from perf_instance import PerfInstance as PerfInstance
 
@@ -201,11 +201,10 @@ class VmtpTest(object):
 
     # Create an instance on a particular availability zone
     def create_instance(self, inst, az, int_net):
-        nics = [{'net-id': int_net['id']}]
         self.assert_true(inst.create(self.image_instance,
                                      self.flavor_type,
                                      config.public_key_name,
-                                     nics,
+                                     int_net,
                                      az,
                                      int_net['name'],
                                      self.sec_group))
@@ -222,7 +221,6 @@ class VmtpTest(object):
             # Create the nova and neutron instances
             nova_client = Client(**creds_nova)
             neutron = neutronclient.Client(**creds)
-
 
             self.comp = compute.Compute(nova_client, config)
             # Add the script public key to openstack
@@ -419,7 +417,8 @@ class VmtpTest(object):
             self.comp.remove_public_key(config.public_key_name)
         # Finally remove the security group
         try:
-            self.comp.security_group_delete(self.sec_group)
+            if self.comp:
+                self.comp.security_group_delete(self.sec_group)
         except ClientException:
             # May throw novaclient.exceptions.BadRequest if in use
             print('Security group in use: not deleted')
@@ -432,8 +431,9 @@ class VmtpTest(object):
             self.measure_vm_flows()
         except KeyboardInterrupt:
             traceback.format_exc()
-        except (VmtpException, sshutils.SSHError, ClientException):
-            traceback.format_exc()
+        except (VmtpException, sshutils.SSHError, ClientException, Exception):
+            print 'print_exc:'
+            traceback.print_exc()
             error_flag = True
 
         if opts.stop_on_error and error_flag:
@@ -572,7 +572,7 @@ if __name__ == '__main__':
                         action='store',
                         default='nuttcp',
                         help='transport perf tool to use (default=nuttcp)',
-                        metavar='nuttcp|iperf')
+                        metavar='<nuttcp|iperf>')
 
     # note there is a bug in argparse that causes an AssertionError
     # when the metavar is set to '[<az>:]<hostname>', hence had to insert a space
@@ -590,7 +590,7 @@ if __name__ == '__main__':
                         action='store',
                         default='TUI',
                         help='protocols T(TCP), U(UDP), I(ICMP) - default=TUI (all)',
-                        metavar='T|U|I')
+                        metavar='<T|U|I>')
 
     parser.add_argument('--bandwidth', dest='vm_bandwidth',
                         action='store',
@@ -617,6 +617,12 @@ if __name__ == '__main__':
                         default=False,
                         action='store_true',
                         help='do not read env variables')
+
+    parser.add_argument('--vnic-type', dest='vnic_type',
+                        default=None,
+                        action='store',
+                        help='binding vnic type for test VMs',
+                        metavar='<direct|macvtap|normal>')
 
     parser.add_argument('-d', '--debug', dest='debug',
                         default=False,
@@ -661,6 +667,12 @@ if __name__ == '__main__':
     # debug flag
     config.debug = opts.debug
     config.inter_node_only = opts.inter_node_only
+
+    # direct: use SR-IOV ports for all the test VMs
+    if opts.vnic_type not in [None, 'direct', 'macvtap', 'normal']:
+        print('Invalid vnic-type: ' + opts.vnic_type)
+        sys.exit(1)
+    config.vnic_type = opts.vnic_type
 
     config.hypervisors = opts.hypervisors
 

@@ -284,6 +284,26 @@ class Network(object):
         router = self.neutron_client.update_router(router_id, body)
         return router['router']
 
+    # Create a port
+    def create_port(self, net_id, sec_group_list, vnic_type):
+        body = {
+            "port": {
+                "network_id": net_id,
+                "security_groups": sec_group_list
+            }
+        }
+        if vnic_type:
+            body['port']['binding:vnic_type'] = vnic_type
+        port = self.neutron_client.create_port(body)
+        if self.config.debug:
+            print 'Created port ' + port['port']['id']
+        return port['port']
+
+    def delete_port(self, port):
+        if self.config.debug:
+            print 'Deleting port ' + port['id']
+        self.neutron_client.delete_port(port['id'])
+
     # Create a floating ip on the external network and return it
     def create_floating_ip(self):
         body = {
