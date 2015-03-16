@@ -102,16 +102,15 @@ VMTP only measures performance for single-flows at the socket/TCP/UDP level (in 
 It is not designed to measure driver level data path performance from inside a VM (such as bypassing the kernel TCP stack and write directly to virtio), there are better tools that can address this type of mesurement.
 
 
-License
--------
+Licensing
+---------
 
-VMTP is licensed under Apache License 2.0.
+VMTP is licensed under Apache License 2.0 and comes packaged with the following tools for convenience:
 
-Below are the benchmark tools that are used in VMTP, and you must accept the license of each tool before using VMTP.
+* iperf: BSD License (https://iperf.fr/license.html, source code: https://iperf.fr)
+* nuttcp: GPL v2 License (http://nuttcp.net/nuttcp/beta/LICENSE, source code: http://nuttcp.net/nuttcp/beta/nuttcp-7.3.2.c)
 
-* iperf: BSD License (https://iperf.fr/license.html)
-* nuttcp: GPL v2 License (http://nuttcp.net/nuttcp/beta/LICENSE)
-
+Redistribution of nuttcp and iperf is governed by their respective licenses. Please make sure you read and understand each one before further redistributing VMTP downstream.
 
 Links
 -----
