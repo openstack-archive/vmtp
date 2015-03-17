@@ -261,13 +261,9 @@ The first IP passed (*--host*) is always the one running the server side. Option
 **Note:** Prior to running, the VMTP public key must be installed on each VM.
 
 Example 7: IPV6 throughput measurement
-""""""""""""""""""""""""""""""""""""""""
+""""""""""""""""""""""""""""""""""""""
 
-It is possible to use VMTP to measure throughput for ipv6
+It is possible to use VMTP to measure throughput for IPv6
 
-Set ipv6_mode to slaac, dhcpv6-stateful or dhcpv6-stateless. If SLAAC or DHCPv6 stateless is enabled make sure to have
-radvd packaged in as part of openstack install. For DHCPv6 stateful you need dnsmasq version >= 2.68. The test creates
-2 networks and creates 1 ipv4 and 1 ipv6 subnet inside each of these networks. The subnets are created based on the ipv6
-mode that you set in the configuration file. The floatingip result case is skipped for ipv6 since there is no concept of
-a floating ip with ipv6. 
+Set ipv6_mode to slaac, dhcpv6-stateful or dhcpv6-stateless. If SLAAC or DHCPv6 stateless is enabled make sure to have radvd packaged in as part of openstack install. For DHCPv6 stateful you need dnsmasq version >= 2.68. The test creates 2 networks and creates 1 IPv4 and 1 IPv6 subnet inside each of these networks. The subnets are created based on the IPv6 mode that you set in the configuration file. The Floating IP result case is skipped for IPv6 since there is no concept of a floating ip with IPv6. 
 

@@ -701,8 +701,6 @@ if __name__ == '__main__':
     ###################################################
     if opts.vm_image_url:
         config.vm_image_url = opts.vm_image_url
-    else:
-        config.vm_image_url = None
 
     ###################################################
     # Test Description

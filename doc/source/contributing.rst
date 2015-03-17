@@ -89,7 +89,7 @@ The images should be available for use::
 
 For exchanging purposes, the image could be saved to a tar archive. You can distribute the VMTP Docker image among your servers easily with this feature::
 
-    $ sudo docker save <IMAGE_ID> -o <IMAGE_FILE>
+    $ sudo docker save -o <IMAGE_FILE> <IMAGE_ID>
 
 To publish the image to Docker Hub::
 
