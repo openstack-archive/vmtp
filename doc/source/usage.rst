@@ -77,13 +77,21 @@ VMTP Usage
 Configuration File
 ^^^^^^^^^^^^^^^^^^
 
-VMTP configuration files follow the yaml syntax and contain variables used by VMTP to run and collect performance data. The default configuration is stored in the cfg.default.yaml file.
+VMTP configuration files follow the yaml syntax and contain variables used by VMTP to run and collect performance data.
+The default configuration is stored in the cfg.default.yaml file.
 
-Default values should be overwritten for any cloud under test by defining new variable values in a new configuration file that follows the same format. Variables that are not defined in the new configuration file will retain their default values.
+Default values should be overwritten for any cloud under test by defining new variable values in a new configuration file that follows the same format.
+Variables that are not defined in the new configuration file will retain their default values.
 
+The precedence order for configuration files is as follows:
+- the command line argument "-c <file>" has highest precedence
+- $HOME/.vmtp.yaml if the file exists in the user home directory
+- cfg.default.yaml has the lowest precedence (always exists in the VMTP package root directory)
+
+To override a default value set in cfg.default.yaml, simply redefine that value in the configuration file passed in -c or in the $HOME/.vmtp.yaml file.
 Check the content of cfg.default.yaml file as it contains the list of configuration variables and instructions on how to set them.
 
-**Note:** the configuration file is not needed if the VMTP only runs the native host throughput option (*--host*)
+**Note:** the configuration file is not needed if VMTP only runs the native host throughput option (*--host*)
 
 
 OpenStack openrc File
