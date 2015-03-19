@@ -40,7 +40,7 @@ from neutronclient.v2_0 import client as neutronclient
 from novaclient.client import Client
 from novaclient.exceptions import ClientException
 
-__version__ = '2.0.3'
+__version__ = '2.0.4'
 
 from perf_instance import PerfInstance as PerfInstance
 
@@ -511,6 +511,30 @@ def extract_user_host_pwd(user_host_pwd):
         sys.exit(4)
     return match.groups()
 
+def _merge_config(file, source_config, required=False):
+    '''
+    returns the merged config or exits if the file does not exist and is required
+    '''
+    dest_config = source_config
+
+    fullname = os.path.expanduser(file)
+    if os.path.isfile(fullname):
+        print('Loading ' + fullname + '...')
+        try:
+            alt_config = configure.Configuration.from_file(fullname).configure()
+            dest_config = source_config.merge(alt_config)
+
+        except configure.ConfigurationError:
+            # this is in most cases when the config file passed is empty
+            # configure.ConfigurationError: unconfigured
+            # in case of syntax error, another exception is thrown:
+            # TypeError: string indices must be integers, not str
+            pass
+    elif required:
+        print('Error: configration file %s does not exist' % (fullname))
+        sys.exit(1)
+    return dest_config
+
 if __name__ == '__main__':
 
     fpr = FlowPrinter()
@@ -655,10 +679,15 @@ if __name__ == '__main__':
     default_cfg_file = get_absolute_path_for_file("cfg.default.yaml")
 
     # read the default configuration file and possibly an override config file
+    # the precedence order is as follows:
+    # $HOME/.vmtp.yaml if exists
+    # -c <file> from command line if provided
+    # cfg.default.yaml
     config = configure.Configuration.from_file(default_cfg_file).configure()
+    config = _merge_config('~/.vmtp.yaml', config)
+
     if opts.config:
-        alt_config = configure.Configuration.from_file(opts.config).configure()
-        config = config.merge(alt_config)
+        config = _merge_config(opts.config, config, required=True)
 
     if opts.version:
         print('Version ' + __version__)
