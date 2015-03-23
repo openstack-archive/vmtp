@@ -30,6 +30,10 @@ class PerfInstance(Instance):
             self.tp_tool = config.tp_tool(self, config.perf_tool_path)
         else:
             self.tp_tool = None
+        if config.http_tool:
+            self.http_tool = config.http_tool(self, config.perf_tool_path)
+        else:
+            self.http_tool = None
         # Override the config drive option to save in instance
         if config.config_drive:
             self.config_drive = True

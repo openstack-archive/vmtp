@@ -32,6 +32,7 @@ import network
 import nuttcp_tool
 import pns_mongo
 import sshutils
+import wrk_tool
 
 import configure
 from glanceclient.v2 import client as glanceclient
@@ -574,6 +575,12 @@ if __name__ == '__main__':
                         help='transport perf tool to use (default=nuttcp)',
                         metavar='<nuttcp|iperf>')
 
+    parser.add_argument('--http-tool', dest='http_tool',
+                        action='store',
+                        default='wrk',
+                        help='http perf tool to use (default=wrk)',
+                        metavar='<wrk>')
+
     # note there is a bug in argparse that causes an AssertionError
     # when the metavar is set to '[<az>:]<hostname>', hence had to insert a space
     parser.add_argument('--hypervisor', dest='hypervisors',
@@ -801,6 +808,13 @@ if __name__ == '__main__':
             sys.exit(1)
     else:
         config.tp_tool = None
+
+    # Check the http-tool name
+    if opts.http_tool == 'wrk':
+        config.http_tool = wrk_tool.WrkTool
+    else:
+        print 'Invalid http tool: ' + opts.http_tool
+        sys.exit(1)
 
     # 3 forms are accepted:
     # --host 1.1.1.1

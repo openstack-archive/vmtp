@@ -82,13 +82,14 @@ class PerfTool(object):
     def parse_error(self, msg):
         return {'error': msg, 'tool': self.name}
 
-    def parse_results(self, protocol, throughput, lossrate=None, retrans=None,
-                      rtt_ms=None, reverse_dir=False,
-                      msg_size=None,
-                      cpu_load=None):
-        res = {'throughput_kbps': throughput,
-               'protocol': protocol,
-               'tool': self.name}
+    def parse_results(self, protocol=None, throughput=None, lossrate=None, retrans=None,
+                      rtt_ms=None, reverse_dir=False, msg_size=None, cpu_load=None,
+                      http_rps=None, http_rates=None, http_sock_err=None, http_err=None):
+        res = {'tool': self.name}
+        if throughput is not None:
+            res['throughput_kbps'] = throughput
+        if protocol is not None:
+            res['protocol'] = protocol
         if self.instance.config.vm_bandwidth:
             res['bandwidth_limit_kbps'] = self.instance.config.vm_bandwidth
         if lossrate is not None:
@@ -103,16 +104,18 @@ class PerfTool(object):
             res['pkt_size'] = msg_size
         if cpu_load:
             res['cpu_load'] = cpu_load
+        if http_rps:
+            res['http_rps'] = http_rps
+        if http_rates:
+            res['http_rates'] = http_rates
+        if http_sock_err:
+            res['http_sock_err'] = http_sock_err
+        if http_err:
+            res['http_err'] = http_err
         return res
 
     @abc.abstractmethod
-    def run_client_dir(self, target_ip,
-                       mss,
-                       reverse_dir=False,
-                       bandwidth_kbps=0,
-                       udp=False,
-                       length=0,
-                       no_cpu_timed=0):
+    def run_client(**kwargs):
         # must be implemented by sub classes
         return None
 
@@ -279,15 +282,5 @@ class PingTool(PerfTool):
         return res
 
     def get_server_launch_cmd(self):
-        # not applicable
-        return None
-
-    def run_client_dir(self, target_ip,
-                       mss,
-                       reverse_dir=False,
-                       bandwidth_kbps=0,
-                       udp=False,
-                       length=0,
-                       no_cpu_timed=0):
         # not applicable
         return None
