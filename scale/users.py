@@ -74,7 +74,6 @@ class User(object):
         1. Creates the routers
         2. Creates the neutron and nova client objects
         """
-
         # Create a new neutron client for this User with correct credentials
         creden = {}
         creden['username'] = self.user_name
@@ -95,13 +94,16 @@ class User(object):
         self.nova = Client(**creden_nova)
 
         # Find the external network that routers need to attach to
-        external_network = base_network.find_external_network(self.neutron)
+        if config_scale['use_floatingip']:
+            external_network = base_network.find_external_network(self.neutron)
+        else:
+            external_network = None
         # Create the required number of routers and append them to router list
         print "Creating routers for user %s" % (self.user_name)
-        for router_count in range(config_scale.routers_per_user):
+        for router_count in range(config_scale['routers_per_user']):
             router_instance = base_network.Router(self.neutron, self.nova, self.user_name)
             self.router_list.append(router_instance)
-            router_name = "kloudbuster_router_" + "_" + str(router_count)
+            router_name = "kloudbuster_router_" + self.user_name + "_" + str(router_count)
             # Create the router and also attach it to external network
             router_instance.create_router(router_name, external_network)
             # Now create the network resources inside the router
