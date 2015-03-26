@@ -44,10 +44,10 @@ class Tenant(object):
         """
 
         # Loop over the required number of users and create resources
-        for user_count in xrange(config_scale.users_per_tenant):
+        for user_count in xrange(config_scale['users_per_tenant']):
             user_name = "kloudbuster_user_" + self.tenant_name + "_" + str(user_count)
             print "Creating user %s" % (user_name)
-            user_instance = users.User(user_name, config_scale.keystone_admin_role,
+            user_instance = users.User(user_name, config_scale['keystone_admin_role'],
                                        self.tenant_id, self.tenant_name,
                                        self.keystone_client,
                                        self.auth_url)

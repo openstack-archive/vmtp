@@ -1,31 +1,65 @@
 # KloudBuster Default configuration file
+server: 
+    # Number of tenants to be created on the cloud
+    number_tenants: 1 
 
-# Number of tenants to be created on the cloud
-number_tenants: 1 
+    # Number of Users to be created inside the tenant
+    users_per_tenant: 1
 
-# Number of Users to be created inside the tenant
-users_per_tenant: 1
+    # Number of networks to be created within the context of each Router
+    # Assumes 1 subnet per network
+    networks_per_router: 1
 
-# Number of networks to be created within the context of each Router
-# Assumes 1 subnet per network
-networks_per_router: 2 
+    # Number of routers to be created within the context of each User
+    # For now support only 1 router per user
+    routers_per_user: 1
 
-# Number of routers to be created within the context of each User
-# For now support only 1 router per user
-routers_per_user: 1
+    # Number of VM instances to be created within the context of each User
+    vms_per_network: 1 
 
-# Number of VM instances to be created within the context of each User
-vms_per_network: 1 
+    # Number of security groups per user
+    secgroups_per_network: 1
 
-# Number of security groups per user
-secgroups_per_network: 1
+    # Number of keypairs per user
+    keypairs_per_network: 1
+    
+    use_floatingip: True
 
-# Number of keypairs per user
-keypairs_per_network: 1
+    #Configs that remain constant
+    keystone_admin_role: "admin"
+    cleanup_resources : True
+    public_key_file : '../ssh/id_rsa.pub'
+    image_name : 'Ubuntu Server 14.04'
+    flavor_type: 'm1.small'
+    
+client:
+    # Number of tenants to be created on the cloud
+    number_tenants: 1 
 
-#Configs that remain constant
-keystone_admin_role: "admin"
-cleanup_resources : True
-public_key_file : '../ssh/id_rsa.pub'
-image_name : 'Ubuntu Server 14.04'
-flavor_type: 'm1.small'
+    # Number of Users to be created inside the tenant
+    users_per_tenant: 1
+
+    # Number of networks to be created within the context of each Router
+    # Assumes 1 subnet per network
+    networks_per_router: 1 
+
+    # Number of routers to be created within the context of each User
+    # For now support only 1 router per user
+    routers_per_user: 1
+
+    # Number of VM instances to be created within the context of each User
+    vms_per_network: 1 
+
+    # Number of security groups per user
+    secgroups_per_network: 1
+
+    # Number of keypairs per user
+    keypairs_per_network: 1
+
+    use_floatingip: True
+    #Configs that remain constant
+    keystone_admin_role: "admin"
+    cleanup_resources : True
+    public_key_file : '../ssh/id_rsa.pub'
+    image_name : 'Ubuntu Server 14.04'
+    flavor_type: 'm1.small'

@@ -94,42 +94,44 @@ class BaseNetwork(object):
         3. Keypairs
         """
         # Create the security groups first
-        for secgroup_count in range(config_scale.secgroups_per_network):
+        for secgroup_count in range(config_scale['secgroups_per_network']):
             secgroup_instance = base_compute.SecGroup(self.nova_client)
             self.secgroup_list.append(secgroup_instance)
             secgroup_name = "kloudbuster_secgroup" + "_" + self.network['id'] + str(secgroup_count)
             secgroup_instance.create_secgroup_with_rules(secgroup_name)
 
         # Create the keypair list
-        for keypair_count in range(config_scale.keypairs_per_network):
+        for keypair_count in range(config_scale['keypairs_per_network']):
             keypair_instance = base_compute.KeyPair(self.nova_client)
             self.keypair_list.append(keypair_instance)
             keypair_name = "kloudbuster_keypair" + "_" + self.network['id'] + str(keypair_count)
-            keypair_instance.add_public_key(keypair_name, config_scale.public_key_file)
+            keypair_instance.add_public_key(keypair_name, config_scale['public_key_file'])
 
         # Create the required number of VMs
         # Create the VMs on  specified network, first keypair, first secgroup
-        external_network = find_external_network(self.neutron_client)
+        if config_scale['use_floatingip']:
+            external_network = find_external_network(self.neutron_client)
         print "Creating Virtual machines for user %s" % (self.user_name)
-        for instance_count in range(config_scale.vms_per_network):
+        for instance_count in range(config_scale['vms_per_network']):
             nova_instance = base_compute.BaseCompute(self.nova_client, self.user_name)
             self.instance_list.append(nova_instance)
             vm_name = "kloudbuster_vm" + "_" + self.network['id'] + str(instance_count)
             nic_used = [{'net-id': self.network['id']}]
-            nova_instance.create_server(vm_name, config_scale.image_name,
-                                        config_scale.flavor_type,
+            nova_instance.create_server(vm_name, config_scale['image_name'],
+                                        config_scale['flavor_type'],
                                         self.keypair_list[0].keypair_name,
                                         nic_used,
                                         self.secgroup_list[0].secgroup,
-                                        config_scale.public_key_file,
+                                        config_scale['public_key_file'],
                                         None,
                                         None,
                                         None)
             # Create the floating ip for the instance store it and the ip address in instance object
-            nova_instance.fip = create_floating_ip(self.neutron_client, external_network)
-            nova_instance.fip_ip = nova_instance.fip['floatingip']['floating_ip_address']
-            # Associate the floating ip with this instance
-            nova_instance.instance.add_floating_ip(nova_instance.fip_ip)
+            if config_scale['use_floatingip']:
+                nova_instance.fip = create_floating_ip(self.neutron_client, external_network)
+                nova_instance.fip_ip = nova_instance.fip['floatingip']['floating_ip_address']
+                # Associate the floating ip with this instance
+                nova_instance.instance.add_floating_ip(nova_instance.fip_ip)
 
     def delete_compute_resources(self):
         """
@@ -139,7 +141,8 @@ class BaseNetwork(object):
         # Delete the instances first
         for instance in self.instance_list:
             instance.delete_server()
-            delete_floating_ip(self.neutron_client, instance.fip['floatingip']['id'])
+            if instance.fip:
+                delete_floating_ip(self.neutron_client, instance.fip['floatingip']['id'])
 
         # Delete all security groups
         for secgroup_instance in self.secgroup_list:
@@ -218,16 +221,17 @@ class Router(object):
         Also triggers the creation of compute resources inside each
         network
         """
-        for network_count in range(config_scale.networks_per_router):
+        for network_count in range(config_scale['networks_per_router']):
             network_instance = BaseNetwork(self.neutron_client, self.nova_client, self.user_name)
             self.network_list.append(network_instance)
             # Create the network and subnet
-            network_name = "kloudbuster_network" + "_" + str(network_count)
+            network_name = "kloudbuster_network" + self.user_name + "_" + str(network_count)
             network_instance.create_network_and_subnet(network_name)
             # Attach the created network to router interface
             self.attach_router_interface(network_instance)
             # Create the compute resources in the network
             network_instance.create_compute_resources(config_scale)
+
 
     def delete_network_resources(self):
         """
@@ -247,15 +251,24 @@ class Router(object):
         Create the router and attach it to
         external network
         """
-        body = {
-            "router": {
-                "name": router_name,
-                "admin_state_up": True,
-                "external_gateway_info": {
-                    "network_id": ext_net['id']
+        # Attach an external network if available
+        if ext_net:
+            body = {
+                "router": {
+                    "name": router_name,
+                    "admin_state_up": True,
+                    "external_gateway_info": {
+                        "network_id": ext_net['id']
+                    }
                 }
             }
-        }
+        else:
+            body = {
+                "router": {
+                    "name": router_name,
+                    "admin_state_up": True
+                }
+            }
         self.router = self.neutron_client.create_router(body)
         return self.router['router']
 
