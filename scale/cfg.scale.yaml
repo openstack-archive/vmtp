@@ -23,7 +23,7 @@ server:
     # Number of keypairs per user
     keypairs_per_network: 1
     
-    use_floatingip: True
+    use_floatingip: False
 
     #Configs that remain constant
     keystone_admin_role: "admin"
@@ -57,6 +57,8 @@ client:
     keypairs_per_network: 1
 
     use_floatingip: True
+    # Specify whether the testing cloud is running in same cloud
+    run_on_same_cloud: True
     #Configs that remain constant
     keystone_admin_role: "admin"
     cleanup_resources : True

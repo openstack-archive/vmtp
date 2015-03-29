@@ -27,6 +27,11 @@ class BaseCompute(object):
         self.instance = None
         self.fip = None
         self.fip_ip = None
+        self.subnet_ip = None
+        self.fixed_ip = None
+        self.ssh_ip = None
+        # Shared interface ip for tested and testing cloud
+        self.shared_interface_ip = None
 
 
     # Create a server instance with associated

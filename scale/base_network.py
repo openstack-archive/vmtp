@@ -72,7 +72,7 @@ class BaseNetwork(object):
 
 
 
-    def __init__(self, neutron_client, nova_client, user_name):
+    def __init__(self, neutron_client, nova_client, user_name, shared_interface_ip=None):
         """
         Store the neutron client
         User name for this network
@@ -85,6 +85,8 @@ class BaseNetwork(object):
         self.instance_list = []
         self.secgroup_list = []
         self.keypair_list = []
+        # Store the shared interface ip of router for tested and testing cloud
+        self.shared_interface_ip = shared_interface_ip
 
     def create_compute_resources(self, config_scale):
         """
@@ -126,12 +128,26 @@ class BaseNetwork(object):
                                         None,
                                         None,
                                         None)
+            # Store the subnet info and fixed ip address in instance
+            nova_instance.subnet_ip = self.network['subnet_ip']
+            nova_instance.fixed_ip = nova_instance.instance.networks.values()[0][0]
+            if self.shared_interface_ip:
+                nova_instance.shared_interface_ip = self.shared_interface_ip
             # Create the floating ip for the instance store it and the ip address in instance object
             if config_scale['use_floatingip']:
                 nova_instance.fip = create_floating_ip(self.neutron_client, external_network)
                 nova_instance.fip_ip = nova_instance.fip['floatingip']['floating_ip_address']
                 # Associate the floating ip with this instance
                 nova_instance.instance.add_floating_ip(nova_instance.fip_ip)
+                nova_instance.ssh_ip = nova_instance.fip_ip
+            else:
+                # Store the fixed ip as ssh ip since there is no floating ip
+                nova_instance.ssh_ip = nova_instance.fixed_ip
+            print "VM Information"
+            print "SSH IP:%s" % (nova_instance.ssh_ip)
+            print "Subnet Info: %s" % (nova_instance.subnet_ip)
+            if self.shared_interface_ip:
+                print "Shared router interface ip %s" % (self.shared_interface_ip)
 
     def delete_compute_resources(self):
         """
@@ -179,6 +195,7 @@ class BaseNetwork(object):
         subnet = self.neutron_client.create_subnet(body)['subnet']
         # add subnet id to the network dict since it has just been added
         self.network['subnets'] = [subnet['id']]
+        self.network['subnet_ip'] = cidr
 
     def generate_cidr(self):
         """Generate next CIDR for network or subnet, without IP overlapping.
@@ -207,13 +224,18 @@ class Router(object):
     of network interfaces to router
     """
 
-    def __init__(self, neutron_client, nova_client, user_name):
+    def __init__(self, neutron_client, nova_client, user_name, shared_network=None):
         self.neutron_client = neutron_client
         self.nova_client = nova_client
         self.router = None
         self.user_name = user_name
         # Stores the list of networks
         self.network_list = []
+        # Store the shared network
+        self.shared_network = shared_network
+        self.shared_port_id = None
+        # Store the interface ip of shared network attached to router
+        self.shared_interface_ip = None
 
     def create_network_resources(self, config_scale):
         """
@@ -221,8 +243,13 @@ class Router(object):
         Also triggers the creation of compute resources inside each
         network
         """
+        # If a shared network exists create a port on this
+        # network and attach to router interface
+        if self.shared_network:
+            self.attach_router_interface(self.shared_network, use_port=True)
         for network_count in range(config_scale['networks_per_router']):
-            network_instance = BaseNetwork(self.neutron_client, self.nova_client, self.user_name)
+            network_instance = BaseNetwork(self.neutron_client, self.nova_client, self.user_name,
+                                           self.shared_interface_ip)
             self.network_list.append(network_instance)
             # Create the network and subnet
             network_name = "kloudbuster_network" + self.user_name + "_" + str(network_count)
@@ -231,6 +258,7 @@ class Router(object):
             self.attach_router_interface(network_instance)
             # Create the compute resources in the network
             network_instance.create_compute_resources(config_scale)
+
 
 
     def delete_network_resources(self):
@@ -244,7 +272,10 @@ class Router(object):
             network.delete_compute_resources()
             self.remove_router_interface(network)
             network.delete_network()
-
+        # Also delete the shared port and remove it from router interface
+        if self.shared_network:
+            self.remove_router_interface(self.shared_network, use_port=True)
+            self.shared_network = None
 
     def create_router(self, router_name, ext_net):
         """
@@ -281,22 +312,51 @@ class Router(object):
         self.delete_network_resources()
         self.neutron_client.delete_router(self.router['router']['id'])
 
+    def _port_create_neutron(self, network_instance):
+        """
+        Creates a port on a specific network
+        """
+        body = {
+            "port": {
+                "admin_state_up": True,
+                "network_id": network_instance.network['id']
+            }
+        }
+        post_output = self.neutron_client.create_port(body)
+        self.shared_interface_ip = post_output['port']['fixed_ips'][0]['ip_address']
+        return post_output['port']['id']
 
-    def attach_router_interface(self, network_instance):
+    def _port_delete_neutron(self, port):
+        self.neutron_client.delete_port(port)
+
+    def attach_router_interface(self, network_instance, use_port=False):
         """
         Attach a network interface to the router
         """
-        body = {
-            'subnet_id': network_instance.network['subnets'][0]
-        }
+        # If shared port is specified use that
+        if use_port:
+            self.shared_port_id = self._port_create_neutron(network_instance)
+            body = {
+                'port_id': self.shared_port_id
+            }
+        else:
+            body = {
+                'subnet_id': network_instance.network['subnets'][0]
+            }
         self.neutron_client.add_interface_router(self.router['router']['id'], body)
 
 
-    def remove_router_interface(self, network_instance):
+
+    def remove_router_interface(self, network_instance, use_port=False):
         """
         Remove the network interface from router
         """
-        body = {
-            'subnet_id': network_instance.network['subnets'][0]
-        }
+        if use_port:
+            body = {
+                'port_id': self.shared_port_id
+            }
+        else:
+            body = {
+                'subnet_id': network_instance.network['subnets'][0]
+            }
         self.neutron_client.remove_interface_router(self.router['router']['id'], body)

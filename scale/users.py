@@ -23,7 +23,7 @@ class User(object):
     """
 
     def __init__(self, user_name, user_role, tenant_id, tenant_name, keystone_client,
-                 auth_url):
+                 auth_url, shared_network):
         """
         Store all resources
         1. Keystone client object
@@ -41,6 +41,8 @@ class User(object):
         # Store the neutron and nova client
         self.neutron = None
         self.nova = None
+        # Store the shared network
+        self.shared_network = shared_network
 
 
         # Create the user within the given tenant associate
@@ -101,7 +103,8 @@ class User(object):
         # Create the required number of routers and append them to router list
         print "Creating routers for user %s" % (self.user_name)
         for router_count in range(config_scale['routers_per_user']):
-            router_instance = base_network.Router(self.neutron, self.nova, self.user_name)
+            router_instance = base_network.Router(self.neutron, self.nova, self.user_name,
+                                                  self.shared_network)
             self.router_list.append(router_instance)
             router_name = "kloudbuster_router_" + self.user_name + "_" + str(router_count)
             # Create the router and also attach it to external network

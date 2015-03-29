@@ -20,11 +20,13 @@ class Tenant(object):
     2. Uses the User class to perform all user resource creation and deletion
     """
 
-    def __init__(self, tenant_name, keystone_client, auth_url):
+    def __init__(self, tenant_name, keystone_client, auth_url, shared_network=None):
         """
         Holds the tenant name
         tenant id and keystone client
         Also stores the auth_url for constructing credentials
+        Stores the shared network in case of testing and
+        tested cloud being on same cloud
         """
         self.tenant_name = tenant_name
         self.keystone_client = keystone_client
@@ -35,6 +37,7 @@ class Tenant(object):
         # Contains a list of user instance objects
         self.tenant_user_list = []
         self.auth_url = auth_url
+        self.shared_network = shared_network
 
 
     def create_user_elements(self, config_scale):
@@ -50,7 +53,8 @@ class Tenant(object):
             user_instance = users.User(user_name, config_scale['keystone_admin_role'],
                                        self.tenant_id, self.tenant_name,
                                        self.keystone_client,
-                                       self.auth_url)
+                                       self.auth_url,
+                                       self.shared_network)
             # Global list with all user instances
             self.tenant_user_list.append(user_instance)
 

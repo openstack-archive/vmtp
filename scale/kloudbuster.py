@@ -47,6 +47,7 @@ class KloudBuster(object):
 
     def create_tenant_resources(self, role, keystone, auth_url):
         if role == "testing":
+            print "===================================="
             print "Creating resources for Testing cloud"
             for tenant_count_testing in xrange(config_scale.client['number_tenants']):
                 tenant_name_testing = "kloudbuster_tenant_testing_" + str(tenant_count_testing)
@@ -55,14 +56,25 @@ class KloudBuster(object):
                 self.tenant_list_testing.append(self.tenant_testing)
                 self.tenant_testing.create_user_elements(config_scale.client)
         else:
+            print "==================================="
             print "Creating resources for tested cloud"
             for tenant_count in xrange(config_scale.server['number_tenants']):
                 # For now have a serial naming convention for tenants
                 tenant_name = "kloudbuster_tenant_" + str(tenant_count)
                 # Create the tenant and append it to global list
-                self.tenant = tenant.Tenant(tenant_name, keystone, auth_url)
+                self.tenant = tenant.Tenant(tenant_name, keystone, auth_url, self.shared_network)
                 self.tenant_list.append(self.tenant)
                 self.tenant.create_user_elements(config_scale.server)
+
+    def print_vms_info(self, role):
+        pass
+
+    def print_provision_info(self):
+        """
+        Function that iterates and prints all VM info
+        for tested and testing cloud
+        """
+        pass
 
 
     def runner(self):
@@ -78,10 +90,14 @@ class KloudBuster(object):
 
         # Create the testing cloud resources
         self.create_tenant_resources("testing", keystone_testing, auth_url_testing)
-        # Assume for now only 1 tenant and find the shared network to use
-        self.shared_network = self.tenant_list_testing[0].tenant_user_list[0].\
-            router_list[0].network_list[0]
+        # Find the shared network if the cloud used to testing is same
+        if config_scale.client['run_on_same_cloud']:
+            self.shared_network = self.tenant_list_testing[0].tenant_user_list[0].\
+                router_list[0].network_list[0]
         self.create_tenant_resources("tested", keystone, auth_url)
+
+        # Function that print all the provisioning info
+        self.print_provision_info()
 
         if config_scale.server['cleanup_resources']:
             self.teardown_resources("tested")
