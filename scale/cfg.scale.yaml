@@ -23,13 +23,13 @@ server:
     # Number of keypairs per user
     keypairs_per_network: 1
     
-    use_floatingip: False
+    use_floatingip: True
 
     #Configs that remain constant
     keystone_admin_role: "admin"
     cleanup_resources : True
     public_key_file : '../ssh/id_rsa.pub'
-    image_name : 'Ubuntu Server 14.04'
+    image_name : 'Scale Image v2'
     flavor_type: 'm1.small'
     
 client:
@@ -57,11 +57,13 @@ client:
     keypairs_per_network: 1
 
     use_floatingip: True
+
     # Specify whether the testing cloud is running in same cloud
     run_on_same_cloud: True
+    
     #Configs that remain constant
     keystone_admin_role: "admin"
     cleanup_resources : True
     public_key_file : '../ssh/id_rsa.pub'
-    image_name : 'Ubuntu Server 14.04'
+    image_name : 'Scale Image v2'
     flavor_type: 'm1.small'
