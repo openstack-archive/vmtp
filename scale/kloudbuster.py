@@ -13,11 +13,13 @@
 #    under the License.
 
 import argparse
+import time
 
 import credentials
 
 import configure
 from keystoneclient.v2_0 import client as keystoneclient
+import sys
 import tenant
 
 class KloudBuster(object):
@@ -76,13 +78,13 @@ class KloudBuster(object):
         """
         pass
 
-
     def runner(self):
         """
         The runner for KloudBuster Tests
         Executes tests serially
         Support concurrency in fututure
         """
+        
         # Create the keystone client for tenant and user creation operations
         # for the tested cloud
         keystone, auth_url = self.create_keystone_client(cred)
@@ -98,6 +100,22 @@ class KloudBuster(object):
 
         # Function that print all the provisioning info
         self.print_provision_info()
+        
+        svr = self.tenant.tenant_user_list[0].router_list[0].network_list[0].instance_list[0]
+        client = self.tenant_testing.tenant_user_list[0].router_list[0].network_list[0].instance_list[0]
+        target_url = "http://" + svr.fip_ip + "/index.html"
+
+        print "Server IP: " + svr.fip_ip
+        print "Client IP: " + client.fip_ip
+        print target_url
+        
+        client.setup_ssh(client.fip_ip, "ubuntu")
+        # HACK ALERT!!!
+        # Need to wait until all servers are up running before starting to inject traffic
+        time.sleep(20) 
+        res = client.run_http_client(target_url, threads=2, connections=10000,
+            timeout=5, connection_type="New", no_cpu_timed=0)
+        print res
 
         if config_scale.server['cleanup_resources']:
             self.teardown_resources("tested")
@@ -127,7 +145,6 @@ class KloudBuster(object):
         supplied parameters or sourced openrc
         """
         return credentials.Credentials(rc, passwd, no_env)
-
 
 if __name__ == '__main__':
     # The default configuration file for CloudScale
@@ -167,7 +184,6 @@ if __name__ == '__main__':
     # Read the configuration file
     config_scale = configure.Configuration.from_file(default_cfg_file).configure()
     config_scale.debug = opts.debug
-
 
     # The KloudBuster class is just a wrapper class
     # levarages tenant and user class for resource creations and
