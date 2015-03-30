@@ -169,7 +169,7 @@ class KeyPair(object):
         self.novaclient = novaclient
 
 
-    def add_public_key(self, name, public_key_file):
+    def add_public_key(self, name, public_key_file = None):
         """
         Add the KloudBuster public key to openstack
         """
@@ -182,6 +182,8 @@ class KeyPair(object):
                   (public_key_file, exc)
         print 'Adding public key %s' % (name)
         keypair = self.novaclient.keypairs.create(name, public_key)
+        print type(keypair)
+        print keypair
         self.keypair = keypair
         self.keypair_name = name
 
