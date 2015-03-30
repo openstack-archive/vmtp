@@ -14,6 +14,8 @@
 
 import time
 
+from perf_instance import PerfInstance
+
 import base_compute
 import netaddr
 from neutronclient.common.exceptions import NetworkInUseClient
@@ -115,11 +117,11 @@ class BaseNetwork(object):
             external_network = find_external_network(self.neutron_client)
         print "Creating Virtual machines for user %s" % (self.user_name)
         for instance_count in range(config_scale['vms_per_network']):
-            nova_instance = base_compute.BaseCompute(self.nova_client, self.user_name)
-            self.instance_list.append(nova_instance)
+            perf_instance = PerfInstance(self.nova_client, self.user_name)
+            self.instance_list.append(perf_instance)
             vm_name = "kloudbuster_vm" + "_" + self.network['id'] + str(instance_count)
             nic_used = [{'net-id': self.network['id']}]
-            nova_instance.create_server(vm_name, config_scale['image_name'],
+            perf_instance.create_server(vm_name, config_scale['image_name'],
                                         config_scale['flavor_type'],
                                         self.keypair_list[0].keypair_name,
                                         nic_used,
@@ -129,23 +131,23 @@ class BaseNetwork(object):
                                         None,
                                         None)
             # Store the subnet info and fixed ip address in instance
-            nova_instance.subnet_ip = self.network['subnet_ip']
-            nova_instance.fixed_ip = nova_instance.instance.networks.values()[0][0]
+            perf_instance.subnet_ip = self.network['subnet_ip']
+            perf_instance.fixed_ip = perf_instance.instance.networks.values()[0][0]
             if self.shared_interface_ip:
-                nova_instance.shared_interface_ip = self.shared_interface_ip
+                perf_instance.shared_interface_ip = self.shared_interface_ip
             # Create the floating ip for the instance store it and the ip address in instance object
             if config_scale['use_floatingip']:
-                nova_instance.fip = create_floating_ip(self.neutron_client, external_network)
-                nova_instance.fip_ip = nova_instance.fip['floatingip']['floating_ip_address']
+                perf_instance.fip = create_floating_ip(self.neutron_client, external_network)
+                perf_instance.fip_ip = perf_instance.fip['floatingip']['floating_ip_address']
                 # Associate the floating ip with this instance
-                nova_instance.instance.add_floating_ip(nova_instance.fip_ip)
-                nova_instance.ssh_ip = nova_instance.fip_ip
+                perf_instance.instance.add_floating_ip(perf_instance.fip_ip)
+                perf_instance.ssh_ip = perf_instance.fip_ip
             else:
                 # Store the fixed ip as ssh ip since there is no floating ip
-                nova_instance.ssh_ip = nova_instance.fixed_ip
+                perf_instance.ssh_ip = perf_instance.fixed_ip
             print "VM Information"
-            print "SSH IP:%s" % (nova_instance.ssh_ip)
-            print "Subnet Info: %s" % (nova_instance.subnet_ip)
+            print "SSH IP:%s" % (perf_instance.ssh_ip)
+            print "Subnet Info: %s" % (perf_instance.subnet_ip)
             if self.shared_interface_ip:
                 print "Shared router interface ip %s" % (self.shared_interface_ip)
 
@@ -258,8 +260,6 @@ class Router(object):
             self.attach_router_interface(network_instance)
             # Create the compute resources in the network
             network_instance.create_compute_resources(config_scale)
-
-
 
     def delete_network_resources(self):
         """

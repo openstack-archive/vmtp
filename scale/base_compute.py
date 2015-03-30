@@ -169,7 +169,7 @@ class KeyPair(object):
         self.novaclient = novaclient
 
 
-    def add_public_key(self, name, public_key_file):
+    def add_public_key(self, name, public_key_file=None):
         """
         Add the KloudBuster public key to openstack
         """
