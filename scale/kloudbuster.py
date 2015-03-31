@@ -103,13 +103,27 @@ class KloudBuster(object):
         svr = self.tenant.tenant_user_list[0].router_list[0].network_list[0].instance_list[0]
         client = self.tenant_testing.tenant_user_list[0].router_list[0].network_list[0].\
             instance_list[0]
-        target_url = "http://" + svr.fip_ip + "/index.html"
+        target_url = "http://%s/index.html" % (svr.fip_ip or svr.fixed_ip)
 
-        print "Server IP: " + svr.fip_ip
-        print "Client IP: " + client.fip_ip
+        print "Server IP: %s" % (svr.fip_ip or svr.fixed_ip)
+        print "Client IP: %s" % client.fip_ip
         print target_url
 
         client.setup_ssh(client.fip_ip, "ubuntu")
+
+        if not svr.fip_ip:
+            rc = client.add_static_route(svr.subnet_ip,
+                                         svr.shared_interface_ip)
+            if rc > 0:
+                print "Failed to add static route, error code: %i" % rc
+                raise
+            if svr.subnet_ip not in client.get_static_route(svr.subnet_ip):
+                print "Failed to get static route for %s" % svr.subnet_ip
+                raise
+            if not client.ping_check(svr.fixed_ip, 2, 80):
+                print "Failed to ping server %%" % svr.fixed_ip
+                raise
+
         # HACK ALERT!!!
         # Need to wait until all servers are up running before starting to inject traffic
         time.sleep(20)

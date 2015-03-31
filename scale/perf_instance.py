@@ -226,6 +226,46 @@ class PerfInstance(BaseCompute):
         cmd_output = self.exec_command(cmd)
         return int(cmd_output)
 
+    # Add static route
+    def add_static_route(self, network, next_hop_ip, if_name=None):
+        buginf_msg = "Adding static route %s with next hop %s" % (network,
+                                                                  next_hop_ip)
+        cmd = "sudo ip route add %s via %s" % (network, next_hop_ip)
+        if if_name:
+            buginf_msg += " and %s" % if_name
+            cmd += " dev %s" % if_name
+        self.buginf(buginf_msg)
+        return self.ssh.execute(cmd)[0]
+
+    # Get static route
+    def get_static_route(self, network, next_hop_ip=None, if_name=None):
+        cmd = "ip route show %s" % network
+        if next_hop_ip:
+            cmd += " via %s" % next_hop_ip
+        if if_name:
+            cmd += " dev %s" % if_name
+        (rc, out, err) = self.ssh.execute(cmd)
+        if rc:
+            return err
+        else:
+            return out
+
+    # Delete static route
+    def delete_static_route(self, network, next_hop_ip=None, if_name=None):
+        buginf_msg = "Deleting static route %s" % network
+        cmd = "sudo ip route del %s" % network
+        if next_hop_ip:
+            buginf_msg = " with next hop %s" % next_hop_ip
+            cmd += " via %s" % next_hop_ip
+        if if_name:
+            if next_hop_ip:
+                buginf_msg = " and %s" % if_name
+            else:
+                buginf_msg = "with next hop %s" % if_name
+            cmd += " dev %s" % if_name
+        self.buginf(buginf_msg)
+        return self.ssh.execute(cmd)[0]
+
     # scp a file from the local host to the instance
     # Returns True if dest file already exists or scp succeeded
     #         False in case of scp error
