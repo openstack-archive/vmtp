@@ -77,7 +77,7 @@ class KloudBuster(object):
         """
         pass
 
-    def runner(self):
+    def run(self):
         """
         The runner for KloudBuster Tests
         Executes tests serially
@@ -152,7 +152,7 @@ class KloudBuster(object):
                 print "Deleting tenant resources for testing tenant %s" % (tenant_temp)
                 tenant_temp.delete_tenant_with_users()
 
-    def return_credentials(self, rc, passwd, no_env):
+    def get_credentials(self, rc, passwd, no_env):
         """
         Retrieve the credentials based on
         supplied parameters or sourced openrc
@@ -166,19 +166,19 @@ if __name__ == '__main__':
     # Read the command line arguments and parse them
     parser = argparse.ArgumentParser(description="Openstack Scale Test Tool")
     # Accept the rc file for cloud under test and testing cloud if present
-    parser.add_argument('-tested_rc', '--tested_rc', dest='tested_rc',
+    parser.add_argument('--tested_rc', dest='tested_rc',
                         action='store',
                         help='source OpenStack credentials from rc file tested cloud',
                         metavar='<tested_openrc_file>')
-    parser.add_argument('-testing_rc', '--testing_rc', dest='testing_rc',
+    parser.add_argument('--testing_rc', dest='testing_rc',
                         action='store',
                         help='source Openstack credentials from rc file testing cloud',
                         metavar='<testing_openrc_file>')
-    parser.add_argument('-passwd_tested', '--passwd_tested', dest='passwd_tested',
+    parser.add_argument('--passwd_tested', dest='passwd_tested',
                         action='store',
                         help='OpenStack password tested cloud',
                         metavar='<passwd_tested>')
-    parser.add_argument('-passwd_testing', '--passwd_testing', dest='passwd_testing',
+    parser.add_argument('--passwd_testing', dest='passwd_testing',
                         action='store',
                         help='Openstack password testing cloud',
                         metavar='<passwd_testing>')
@@ -201,12 +201,15 @@ if __name__ == '__main__':
     # The KloudBuster class is just a wrapper class
     # levarages tenant and user class for resource creations and
     # deletion
-    kloud_buster = KloudBuster()
+    kloudbuster = KloudBuster()
     # Retrieve the credentials
-    cred = kloud_buster.return_credentials(opts.tested_rc, opts.passwd_tested, opts.no_env)
-    if opts.testing_rc:
-        cred_testing = kloud_buster.return_credentials(opts.rc2, opts.pwd2, opts.no_env)
+    cred = kloudbuster.get_credentials(opts.tested_rc, opts.passwd_tested, opts.no_env)
+    if opts.testing_rc and opts.testing_rc != opts.tested_rc:
+        cred_testing = kloudbuster.get_credentials(opts.testing_rc,
+                                                   opts.passwd_testing,
+                                                   opts.no_env)
     else:
         # Use the same openrc file for both cases
         cred_testing = cred
-    kloud_buster.runner()
+
+    kloudbuster.run()
