@@ -161,10 +161,9 @@ class PerfInstance(BaseCompute):
             if cmd_output:
                 self.display("%s", cmd_output)
             if err:
-                self.display('error=%s' % (err))
-            return None
+                self.display('error=%s', err)
         self.buginf('%s', cmd_output)
-        return cmd_output
+        return (status, cmd_output, err)
 
     # Display a status message with the standard header that has the instance
     # name (e.g. [foo] some text)
@@ -184,7 +183,7 @@ class PerfInstance(BaseCompute):
     # Returns True if success
     def ping_do_not_fragment(self, msg_size, ip_address):
         cmd = "ping -M do -c 1 -s " + str(msg_size) + " " + ip_address
-        cmd_output = self.exec_command(cmd)
+        (_, cmd_output, _) = self.exec_command(cmd)
         match = re.search('100% packet loss', cmd_output)
         if match:
             return False
@@ -223,7 +222,7 @@ class PerfInstance(BaseCompute):
     # Get the MTU of an interface
     def get_interface_mtu(self, if_name):
         cmd = "cat /sys/class/net/%s/mtu" % (if_name)
-        cmd_output = self.exec_command(cmd)
+        (_, cmd_output, _) = self.exec_command(cmd)
         return int(cmd_output)
 
     # Add static route

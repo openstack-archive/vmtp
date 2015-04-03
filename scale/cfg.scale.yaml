@@ -29,8 +29,8 @@ server:
     keystone_admin_role: "admin"
     cleanup_resources : True
     public_key_file : '../ssh/id_rsa.pub'
-    image_name : 'Scale Image v2'
-    flavor_type: 'm1.small'
+    image_name : 'Scale Image v3'
+    flavor_type: 'm1.xlarge'
     
 client:
     # Number of tenants to be created on the cloud
@@ -65,5 +65,5 @@ client:
     keystone_admin_role: "admin"
     cleanup_resources : True
     public_key_file : '../ssh/id_rsa.pub'
-    image_name : 'Scale Image v2'
-    flavor_type: 'm1.small'
+    image_name : 'Scale Image v3'
+    flavor_type: 'm1.xlarge'

@@ -14,6 +14,7 @@
 #
 
 import re
+import time
 
 from perf_tool import PerfTool
 import sshutils
@@ -28,26 +29,52 @@ class WrkTool(PerfTool):
         '''
         return None
 
+    def check_server_up(self, target_url):
+        '''Check the target server is up running
+        '''
+        cmd = 'curl --head %s' % (target_url)
+
+        try:
+            (status, _, _) = self.instance.exec_command(cmd, timeout=10)
+            if (status):
+                return False
+        except sshutils.SSHError as exc:
+            # Timeout or any SSH error
+            self.instance.display('SSH Error:' + str(exc))
+            return False
+
+        return True
+
     def run_client(self, target_url, threads, connections,
-                   timeout=5, connetion_type='New'):
+                   timeout=5, connetion_type='New', retry_count=10):
         '''Run the test
         :return:  list containing one or more dictionary results
         '''
 
         duration_sec = self.instance.get_cmd_duration()
 
-        # Set the ulimit to 1024000
-        cmd = 'sudo sh -c "ulimit -n 102400 && exec su $LOGNAME -c \''
-        cmd += '%s -t%d -c%d -d%ds --timeout %ds --latency %s; exit\'"' % \
-            (self.dest_path, threads, connections, duration_sec,
-             timeout, target_url)
+        # boost_cmd = self.get_boost_client_cmd()
+        # cmd = 'sudo sh -c "' + boost_cmd + ' && exec su $LOGNAME -c \''
+        cmd = '%s -t%d -c%d -d%ds --timeout %ds --latency %s' % \
+            (self.dest_path, threads, connections, duration_sec, timeout, target_url)
+        # cmd += ' && exit\'"'
+
+        retry = 1
+        while not self.check_server_up(target_url) and retry <= retry_count:
+            self.instance.display("Waiting on servers to come up... (Retry %d/%d)" %
+                                  (retry, retry_count))
+            retry = retry + 1
+            time.sleep(5)
+
+        if retry > retry_count:
+            return [self.parse_error("Server %s is not up running.") % target_url]
 
         self.instance.display('Measuring HTTP performance...')
         self.instance.buginf(cmd)
         try:
             # force the timeout value with 20 seconds extra for the command to
             # complete and do not collect CPU
-            cmd_out = self.instance.exec_command(cmd, duration_sec + 20)
+            (_, cmd_out, _) = self.instance.exec_command(cmd, duration_sec + 20)
         except sshutils.SSHError as exc:
             # Timout or any SSH error
             self.instance.display('SSH Error:' + str(exc))
@@ -71,17 +98,20 @@ class WrkTool(PerfTool):
         # Transfer/sec:    282.53MB
 
         try:
+            total_req_str = r'(\d+)\srequests\sin'
+            http_total_req = re.search(total_req_str, cmd_out).group(1)
+
             re_str = r'Requests/sec:\s+(\d+\.\d+)'
             http_rps = re.search(re_str, cmd_out).group(1)
 
             re_str = r'Transfer/sec:\s+(\d+\.\d+.B)'
-            http_rates = re.search(re_str, cmd_out).group(1)
+            http_rates_kbytes = re.search(re_str, cmd_out).group(1)
             # Uniform in unit MB
-            ex_unit = 'KMG'.find(http_rates[-2])
+            ex_unit = 'KMG'.find(http_rates_kbytes[-2])
             if ex_unit == -1:
                 raise ValueError
-            val = float(http_rates[0:-2])
-            http_rates = float(val * (1024 ** (ex_unit)))
+            val = float(http_rates_kbytes[0:-2])
+            http_rates_kbytes = float(val * (1024 ** (ex_unit)))
 
             re_str = r'Socket errors: connect (\d+), read (\d+), write (\d+), timeout (\d+)'
             http_sock_err = re.search(re_str, cmd_out)
@@ -103,7 +133,8 @@ class WrkTool(PerfTool):
         except Exception:
             return self.parse_error('Could not parse: %s' % (cmd_out))
 
-        return self.parse_results(http_rps=http_rps,
-                                  http_rates=http_rates,
+        return self.parse_results(http_total_req=http_total_req,
+                                  http_rps=http_rps,
+                                  http_rates_kbytes=http_rates_kbytes,
                                   http_sock_err=http_sock_err,
                                   http_err=http_err)

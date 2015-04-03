@@ -43,7 +43,8 @@ class PerfTool(object):
 
     def parse_results(self, protocol=None, throughput=None, lossrate=None, retrans=None,
                       rtt_ms=None, reverse_dir=False, msg_size=None, cpu_load=None,
-                      http_rps=None, http_rates=None, http_sock_err=None, http_err=None):
+                      http_total_req=None, http_rps=None, http_rates_kbytes=None,
+                      http_sock_err=None, http_err=None):
         res = {'tool': self.name}
         if throughput is not None:
             res['throughput_kbps'] = throughput
@@ -63,15 +64,43 @@ class PerfTool(object):
             res['pkt_size'] = msg_size
         if cpu_load:
             res['cpu_load'] = cpu_load
+        if http_total_req:
+            res['http_total_req'] = http_total_req
         if http_rps:
             res['http_rps'] = http_rps
-        if http_rates:
-            res['http_rates'] = http_rates
+        if http_rates_kbytes:
+            res['http_rates_kbytes'] = http_rates_kbytes
         if http_sock_err:
             res['http_sock_err'] = http_sock_err
         if http_err:
             res['http_err'] = http_err
         return res
+
+    def get_boost_client_cmd(self):
+        cmd = 'ulimit -n 102400 && ' \
+              'sysctl -w fs.file-max=6553550 && ' \
+              'sysctl -w net.core.wmem_max=8388608 && ' \
+              'sysctl -w net.core.wmem_default=8388608 && ' \
+              'sysctl -w net.core.rmem_max=33554432 && ' \
+              'sysctl -w net.core.rmem_default=33554432 && ' \
+              'sysctl -w net.core.netdev_max_backlog=100000 && ' \
+              'sysctl -w net.ipv4.icmp_ratelimit=0 && ' \
+              'sysctl -w net.ipv4.tcp_tw_recycle=1 && ' \
+              'sysctl -w net.ipv4.tcp_tw_reuse=1 && ' \
+              'sysctl -w net.ipv4.tcp_max_tw_buckets=65536 && ' \
+              'sysctl -w net.ipv4.tcp_fin_timeout=15 && ' \
+              'sysctl -w net.ipv4.tcp_max_syn_backlog=65536 && ' \
+              'sysctl -w net.ipv4.tcp_syncookies=1 && ' \
+              'sysctl -w net.ipv4.neigh.default.gc_thresh1=4096 && ' \
+              'sysctl -w net.ipv4.neigh.default.gc_thresh2=4096 && ' \
+              'sysctl -w net.ipv4.neigh.default.gc_thresh3=4096 && ' \
+              'sysctl -w net.ipv4.conf.all.rp_filter=0 && ' \
+              'sysctl -w net.ipv4.conf.all.arp_filter=0 && ' \
+              'sysctl -w net.ipv4.conf.default.rp_filter=0 && ' \
+              'sysctl -w net.ipv4.conf.default.arp_filter=0 && ' \
+              'sysctl -w net.ipv4.conf.eth0.rp_filter=0 && ' \
+              'sysctl -w net.ipv4.conf.eth0.arp_filter=0'
+        return cmd
 
     @abc.abstractmethod
     def run_client(**kwargs):
@@ -204,7 +233,7 @@ class PingTool(PerfTool):
             cmd = "ping6 -c " + str(ping_count) + " " + str(target_ip)
         else:
             cmd = "ping -c " + str(ping_count) + " " + str(target_ip)
-        cmd_out = self.instance.exec_command(cmd)
+        (_, cmd_out, _) = self.instance.exec_command(cmd)
         if not cmd_out:
             res = {'protocol': 'ICMP',
                    'tool': 'ping',

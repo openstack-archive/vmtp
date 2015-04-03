@@ -110,7 +110,6 @@ class KloudBuster(object):
         print target_url
 
         client.setup_ssh(client.fip_ip, "ubuntu")
-
         if not svr.fip_ip:
             rc = client.add_static_route(svr.subnet_ip,
                                          svr.shared_interface_ip)
@@ -128,7 +127,7 @@ class KloudBuster(object):
         # Need to wait until all servers are up running before starting to inject traffic
         time.sleep(20)
         res = client.run_http_client(target_url, threads=2, connections=10000,
-                                     timeout=5, connection_type="New")
+                                     timeout=5, connection_type="Keep-alive")
         print res
 
         if config_scale.server['cleanup_resources']:
