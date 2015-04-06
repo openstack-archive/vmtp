@@ -83,7 +83,6 @@ class BaseCompute(object):
         print "[%s] VM not found, after %d attempts" % (vmname, retry_count)
         return False
 
-
     def get_server_list(self):
         servers_list = self.novaclient.servers.list()
         return servers_list
@@ -91,8 +90,9 @@ class BaseCompute(object):
 
     def delete_server(self):
         # First delete the instance
-        self.novaclient.servers.delete(self.instance)
-
+        if self.instance:
+            self.novaclient.servers.delete(self.instance)
+            self.instance = None
 
     def find_image(self, image_name):
         """
