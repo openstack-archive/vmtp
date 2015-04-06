@@ -14,12 +14,16 @@
 
 import argparse
 import time
+import traceback
 
 import credentials
+import sshutils
 
 import configure
 from keystoneclient.v2_0 import client as keystoneclient
+from novaclient.exceptions import ClientException
 import tenant
+
 
 class KloudBuster(object):
     """
@@ -84,51 +88,55 @@ class KloudBuster(object):
         Support concurrency in fututure
         """
 
-        # Create the keystone client for tenant and user creation operations
-        # for the tested cloud
-        keystone, auth_url = self.create_keystone_client(cred)
-        keystone_testing, auth_url_testing = self.create_keystone_client(cred_testing)
+        try:
+            # Create the keystone client for tenant and user creation operations
+            # for the tested cloud
+            keystone, auth_url = self.create_keystone_client(cred)
+            keystone_testing, auth_url_testing = self.create_keystone_client(cred_testing)
 
-        # Create the testing cloud resources
-        self.create_tenant_resources("testing", keystone_testing, auth_url_testing)
-        # Find the shared network if the cloud used to testing is same
-        if config_scale.client['run_on_same_cloud']:
-            self.shared_network = self.tenant_list_testing[0].tenant_user_list[0].\
-                router_list[0].network_list[0]
-        self.create_tenant_resources("tested", keystone, auth_url)
+            # Create the testing cloud resources
+            self.create_tenant_resources("testing", keystone_testing, auth_url_testing)
+            # Find the shared network if the cloud used to testing is same
+            if config_scale.client['run_on_same_cloud']:
+                self.shared_network = self.tenant_list_testing[0].tenant_user_list[0].\
+                    router_list[0].network_list[0]
+            self.create_tenant_resources("tested", keystone, auth_url)
 
-        # Function that print all the provisioning info
-        self.print_provision_info()
+            # Function that print all the provisioning info
+            self.print_provision_info()
 
-        svr = self.tenant.tenant_user_list[0].router_list[0].network_list[0].instance_list[0]
-        client = self.tenant_testing.tenant_user_list[0].router_list[0].network_list[0].\
-            instance_list[0]
-        target_url = "http://%s/index.html" % (svr.fip_ip or svr.fixed_ip)
+            svr = self.tenant.tenant_user_list[0].router_list[0].network_list[0].instance_list[0]
+            client = self.tenant_testing.tenant_user_list[0].router_list[0].network_list[0].\
+                instance_list[0]
+            target_url = "http://%s/index.html" % (svr.fip_ip or svr.fixed_ip)
 
-        print "Server IP: %s" % (svr.fip_ip or svr.fixed_ip)
-        print "Client IP: %s" % client.fip_ip
-        print target_url
+            print "Server IP: %s" % (svr.fip_ip or svr.fixed_ip)
+            print "Client IP: %s" % client.fip_ip
+            print target_url
 
-        client.setup_ssh(client.fip_ip, "ubuntu")
-        if not svr.fip_ip:
-            rc = client.add_static_route(svr.subnet_ip,
-                                         svr.shared_interface_ip)
-            if rc > 0:
-                print "Failed to add static route, error code: %i" % rc
-                raise
-            if svr.subnet_ip not in client.get_static_route(svr.subnet_ip):
-                print "Failed to get static route for %s" % svr.subnet_ip
-                raise
-            if not client.ping_check(svr.fixed_ip, 2, 80):
-                print "Failed to ping server %%" % svr.fixed_ip
-                raise
-
-        # HACK ALERT!!!
-        # Need to wait until all servers are up running before starting to inject traffic
-        time.sleep(20)
-        res = client.run_http_client(target_url, threads=2, connections=10000,
-                                     timeout=5, connection_type="Keep-alive")
-        print res
+            client.setup_ssh(client.fip_ip, "ubuntu")
+            if not svr.fip_ip:
+                rc = client.add_static_route(svr.subnet_ip,
+                                             svr.shared_interface_ip)
+                if rc > 0:
+                    print "Failed to add static route, error code: %i" % rc
+                    raise
+                if svr.subnet_ip not in client.get_static_route(svr.subnet_ip):
+                    print "Failed to get static route for %s" % svr.subnet_ip
+                    raise
+                if not client.ping_check(svr.fixed_ip, 2, 80):
+                    print "Failed to ping server %%" % svr.fixed_ip
+                    raise
+            # HACK ALERT!!!
+            # Need to wait until all servers are up running before starting to inject traffic
+            time.sleep(20)
+            res = client.run_http_client(target_url, threads=2, connections=10000,
+                                         timeout=5, connection_type="Keep-alive")
+            print res
+        except KeyboardInterrupt:
+            traceback.format_exc()
+        except (sshutils.SSHError, ClientException, Exception):
+            traceback.print_exc()
 
         if config_scale.server['cleanup_resources']:
             self.teardown_resources("tested")
@@ -166,17 +174,17 @@ if __name__ == '__main__':
     # Read the command line arguments and parse them
     parser = argparse.ArgumentParser(description="Openstack Scale Test Tool")
     # Accept the rc file for cloud under test and testing cloud if present
-    parser.add_argument('--tested_rc', dest='tested_rc',
+    parser.add_argument('-r', '--rc', dest='tested_rc',
                         action='store',
-                        help='source OpenStack credentials from rc file tested cloud',
+                        help='tested cloud openrc credentials file',
                         metavar='<tested_openrc_file>')
-    parser.add_argument('--testing_rc', dest='testing_rc',
+    parser.add_argument('--testing-rc', dest='testing_rc',
                         action='store',
-                        help='source Openstack credentials from rc file testing cloud',
+                        help='testing cloud openrc credentials file',
                         metavar='<testing_openrc_file>')
-    parser.add_argument('--passwd_tested', dest='passwd_tested',
+    parser.add_argument('-p', '--passwd', dest='passwd_tested',
                         action='store',
-                        help='OpenStack password tested cloud',
+                        help='tested cloud password',
                         metavar='<passwd_tested>')
     parser.add_argument('--passwd_testing', dest='passwd_testing',
                         action='store',
