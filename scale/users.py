@@ -15,6 +15,7 @@
 import base_network
 from neutronclient.v2_0 import client as neutronclient
 from novaclient.client import Client
+import keystoneclient.openstack.common.apiclient.exceptions as keystone_exception
 
 class User(object):
     """
@@ -43,15 +44,12 @@ class User(object):
         self.nova = None
         # Store the shared network
         self.shared_network = shared_network
-
+        admin_user = self._get_user()
 
         # Create the user within the given tenant associate
         # admin role with user. We need admin role for user
         # since we perform VM placement in future
-        admin_user = self.keystone_client.users.create(name=user_name,
-                                                       password=user_name,
-                                                       email="test.com",
-                                                       tenant_id=tenant_id)
+
         current_role = None
         for role in self.keystone_client.roles.list():
             if role.name == user_role:
@@ -59,6 +57,42 @@ class User(object):
                 break
         self.keystone_client.roles.add_user_role(admin_user, current_role, tenant_id)
         self.user_id = admin_user.id
+
+    def _create_user(self):
+        print 'Creating user: ' + self.user_name
+        return self.keystone_client.users.create(name=self.user_name,
+                                                 password=self.user_name,
+                                                 email="test.com",
+                                                 tenant_id=self.tenant_id)
+
+    def _get_user(self):
+        '''
+        Create a new user or reuse if it already exists (on a different tenant)
+        delete the user and create a new one
+        '''
+        try:
+            user = self._create_user()
+            return user
+        except keystone_exception.Conflict as exc:
+            # Most likely the entry already exists (leftover from past failed runs):
+            # Conflict: Conflict occurred attempting to store user - Duplicate Entry (HTTP 409)
+            if exc.http_status != 409:
+                raise exc
+        # Try to repair keystone by removing that user
+        print 'User creation failed due to stale user with same name: ' + self.user_name
+        # Again, trying to find a user by name is pretty inefficient as one has to list all
+        # of them
+        users_list = self.keystone_client.users.list()
+        for user in users_list:
+            if user.name == self.user_name:
+                # Found it, time to delete it
+                print 'Deleting stale user with name: ' + self.user_name
+                self.keystone_client.users.delete(user)
+                user = self._create_user()
+                return user
+
+        # Not found there is something wrong
+        raise Exception('Cannot find stale user:' + self.user_name)
 
     def delete_user(self):
         print "Deleting all user resources for user %s" % (self.user_name)

@@ -13,6 +13,8 @@
 #    under the License.
 
 import users
+import keystoneclient.openstack.common.apiclient.exceptions as keystone_exception
+
 class Tenant(object):
     """
     Holds the tenant resources
@@ -30,15 +32,37 @@ class Tenant(object):
         """
         self.tenant_name = tenant_name
         self.keystone_client = keystone_client
-        self.tenant_object = self.keystone_client.tenants.create(tenant_name=tenant_name,
-                                                                 description="Test tenant",
-                                                                 enabled=True)
+        self.tenant_object = self._get_tenant()
         self.tenant_id = self.tenant_object.id
         # Contains a list of user instance objects
         self.tenant_user_list = []
         self.auth_url = auth_url
         self.shared_network = shared_network
 
+    def _get_tenant(self):
+        '''
+        Create or reuse a tenant object of a given name
+        '''
+        try:
+            print 'Creating tenant: ' + self.tenant_name
+            self.tenant_object = \
+                self.keystone_client.tenants.create(tenant_name=self.tenant_name,
+                                                    description="Test tenant",
+                                                    enabled=True)
+        except keystone_exception.Conflict as exc:
+            # ost likely the entry already exists:
+            # Conflict: Conflict occurred attempting to store project - Duplicate Entry (HTTP 409)
+            if exc.http_status != 409:
+                raise exc
+        print 'Tenant %s already present, reusing it' % (self.tenant_name)
+        # It is a hassle to find a tenant by name as the only way seems to retrieve
+        # the list of all tenants which can be very large
+        tenant_list = self.keystone_client.tenants.list()
+        for tenant in tenant_list:
+            if tenant.name == self.tenant_name:
+                return tenant
+        # Should never come here
+        raise Exception("Tenant not found")
 
     def create_user_elements(self, config_scale):
         """
