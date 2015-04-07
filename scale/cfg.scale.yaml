@@ -1,7 +1,7 @@
 # KloudBuster Default configuration file
 server: 
     # Number of tenants to be created on the cloud
-    number_tenants: 1 
+    number_tenants: 2
 
     # Number of Users to be created inside the tenant
     users_per_tenant: 1
@@ -15,45 +15,45 @@ server:
     routers_per_user: 1
 
     # Number of VM instances to be created within the context of each User
-    vms_per_network: 1 
+    vms_per_network: 1
 
-    # Number of security groups per user
+    # Number of security groups per network
     secgroups_per_network: 1
 
-    # Number of keypairs per user
+    # Number of keypairs per network
     keypairs_per_network: 1
     
-    use_floatingip: True
+    use_floatingip: False
 
-    #Configs that remain constant
+    # Configs that remain constant
     keystone_admin_role: "admin"
     cleanup_resources : True
     public_key_file : '../ssh/id_rsa.pub'
     image_name : 'Scale Image v3'
-    flavor_type: 'm1.xlarge'
+    flavor_type: 'm1.small'
     
 client:
     # Number of tenants to be created on the cloud
-    number_tenants: 1 
+    number_tenants: 1
 
     # Number of Users to be created inside the tenant
     users_per_tenant: 1
 
     # Number of networks to be created within the context of each Router
     # Assumes 1 subnet per network
-    networks_per_router: 1 
+    networks_per_router: 1
 
     # Number of routers to be created within the context of each User
     # For now support only 1 router per user
     routers_per_user: 1
 
     # Number of VM instances to be created within the context of each User
-    vms_per_network: 1 
+    vms_per_network: 2 
 
-    # Number of security groups per user
+    # Number of security groups per network
     secgroups_per_network: 1
 
-    # Number of keypairs per user
+    # Number of keypairs per network
     keypairs_per_network: 1
 
     use_floatingip: True
@@ -61,9 +61,9 @@ client:
     # Specify whether the testing cloud is running in same cloud
     run_on_same_cloud: True
     
-    #Configs that remain constant
+    # Configs that remain constant
     keystone_admin_role: "admin"
     cleanup_resources : True
     public_key_file : '../ssh/id_rsa.pub'
     image_name : 'Scale Image v3'
-    flavor_type: 'm1.xlarge'
+    flavor_type: 'm1.small'
