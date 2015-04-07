@@ -14,13 +14,13 @@
 
 import argparse
 import os
-import time
 import traceback
 
 import credentials
 import sshutils
 
 import configure
+import kb_scheduler
 from keystoneclient.v2_0 import client as keystoneclient
 from novaclient.exceptions import ClientException
 import tenant
@@ -140,33 +140,24 @@ class KloudBuster(object):
             # Function that print all the provisioning info
             self.print_provision_info()
 
-            svr = self.kloud.get_all_instances()[0]
-            client = self.testing_kloud.get_all_instances()[0]
-            target_url = "http://%s/index.html" % (svr.fip_ip or svr.fixed_ip)
+            svr_list = self.kloud.get_all_instances()
+            client_list = self.testing_kloud.get_all_instances()
 
-            print "Server IP: %s" % (svr.fip_ip or svr.fixed_ip)
-            print "Client IP: %s" % client.fip_ip
-            print target_url
+            # HACK ALERT
+            # We supposed to have a mapping framework/algorithm to mapping clients to servers.
+            # e.g. 1:1 mapping, 1:n mapping, n:1 mapping, etc.
+            # Here we just hard coded the mapping as 2*1:1
+            svr1 = svr_list[0]
+            svr2 = svr_list[1]
+            client_list[0].target_server = svr1
+            client_list[1].target_server = svr2
+            client_list[0].target_url = "http://%s/index.html" %\
+                (svr1.fip_ip or svr1.fixed_ip)
+            client_list[1].target_url = "http://%s/index.html" %\
+                (svr2.fip_ip or svr2.fixed_ip)
 
-            client.setup_ssh(client.fip_ip, "ubuntu")
-            if not svr.fip_ip:
-                rc = client.add_static_route(svr.subnet_ip,
-                                             svr.shared_interface_ip)
-                if rc > 0:
-                    print "Failed to add static route, error code: %i" % rc
-                    raise
-                if svr.subnet_ip not in client.get_static_route(svr.subnet_ip):
-                    print "Failed to get static route for %s" % svr.subnet_ip
-                    raise
-                if not client.ping_check(svr.fixed_ip, 2, 80):
-                    print "Failed to ping server %%" % svr.fixed_ip
-                    raise
-            # HACK ALERT!!!
-            # Need to wait until all servers are up running before starting to inject traffic
-            time.sleep(20)
-            res = client.run_http_client(target_url, threads=2, connections=10000,
-                                         timeout=5, connection_type="Keep-alive")
-            print res
+            kbscheduler = kb_scheduler.KBScheduler()
+            kbscheduler.run(client_list)
         except KeyboardInterrupt:
             traceback.format_exc()
         except (sshutils.SSHError, ClientException, Exception):
