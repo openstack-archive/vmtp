@@ -1,4 +1,4 @@
-# Copyright 2014 Cisco Systems, Inc.  All rights reserved.
+# Copyright 2015 Cisco Systems, Inc.  All rights reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -14,7 +14,6 @@
 #
 
 import abc
-import re
 
 # where to copy the tool on the target, must end with slash
 SCP_DEST_DIR = '/var/tmp/'
@@ -193,78 +192,4 @@ class PerfTool(object):
             else:
                 # converged within loss rate bracket
                 break
-        return res
-
-    def get_proto_profile(self):
-        '''Return a tuple containing the list of protocols (tcp/udp) and
-        list of packet sizes (udp only)
-        '''
-        # start with TCP (udp=False) then UDP
-        proto_list = []
-        proto_pkt_sizes = []
-        if 'T' in self.instance.config.protocols:
-            proto_list.append(False)
-            proto_pkt_sizes.append(self.instance.config.tcp_pkt_sizes)
-        if 'U' in self.instance.config.protocols:
-            proto_list.append(True)
-            proto_pkt_sizes.append(self.instance.config.udp_pkt_sizes)
-        return (proto_list, proto_pkt_sizes)
-
-class PingTool(PerfTool):
-    '''
-    A class to run ping and get loss rate and round trip time
-    '''
-
-    def __init__(self, instance):
-        PerfTool.__init__(self, 'ping', None, instance)
-
-    def run_client(self, target_ip, ping_count=5):
-        '''Perform the ping operation
-        :return: a dict containing the results stats
-
-        Example of output:
-            10 packets transmitted, 10 packets received, 0.0% packet loss
-            round-trip min/avg/max/stddev = 55.855/66.074/103.915/13.407 ms
-        or
-            5 packets transmitted, 5 received, 0% packet loss, time 3998ms
-            rtt min/avg/max/mdev = 0.455/0.528/0.596/0.057 ms
-        '''
-        if self.instance.config.ipv6_mode:
-            cmd = "ping6 -c " + str(ping_count) + " " + str(target_ip)
-        else:
-            cmd = "ping -c " + str(ping_count) + " " + str(target_ip)
-        (_, cmd_out, _) = self.instance.exec_command(cmd)
-        if not cmd_out:
-            res = {'protocol': 'ICMP',
-                   'tool': 'ping',
-                   'error': 'failed'}
-            return res
-        match = re.search(r'(\d*) packets transmitted, (\d*) ',
-                          cmd_out)
-        if match:
-            tx_packets = match.group(1)
-            rx_packets = match.group(2)
-        else:
-            tx_packets = 0
-            rx_packets = 0
-        match = re.search(r'min/avg/max/[a-z]* = ([\d\.]*)/([\d\.]*)/([\d\.]*)/([\d\.]*)',
-                          cmd_out)
-        if match:
-            rtt_min = match.group(1)
-            rtt_avg = match.group(2)
-            rtt_max = match.group(3)
-            rtt_stddev = match.group(4)
-        else:
-            rtt_min = 0
-            rtt_max = 0
-            rtt_avg = 0
-            rtt_stddev = 0
-        res = {'protocol': 'ICMP',
-               'tool': 'ping',
-               'tx_packets': tx_packets,
-               'rx_packets': rx_packets,
-               'rtt_min_ms': rtt_min,
-               'rtt_max_ms': rtt_max,
-               'rtt_avg_ms': rtt_avg,
-               'rtt_stddev': rtt_stddev}
         return res

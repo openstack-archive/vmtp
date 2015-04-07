@@ -24,6 +24,7 @@ class BaseCompute(object):
     def __init__(self, nova_client, user_name):
         self.novaclient = nova_client
         self.user_name = user_name
+        self.vm_name = None
         self.instance = None
         self.fip = None
         self.fip_ip = None
@@ -52,6 +53,7 @@ class BaseCompute(object):
         """
 
         # Get the image id and flavor id from their logical names
+        self.vm_name = vmname
         image = self.find_image(image_name)
         flavor_type = self.find_flavor(flavor_type)
 
@@ -74,7 +76,7 @@ class BaseCompute(object):
     # Retry for a few seconds since after VM creation sometimes
     # it takes a while to show up
     def find_server(self, vmname, retry_count):
-        for _ in range(retry_count):
+        for _ in range(1, retry_count + 1):
             servers_list = self.get_server_list()
             for server in servers_list:
                 if server.name == vmname and server.status == "ACTIVE":
@@ -151,7 +153,7 @@ class SecGroup(object):
         Add a retry mechanism
         """
         print "Deleting secgroup %s" % (self.secgroup)
-        for retry_count in range(10):
+        for retry_count in range(1, 10):
             try:
                 self.novaclient.security_groups.delete(self.secgroup)
                 break

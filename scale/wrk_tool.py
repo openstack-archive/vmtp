@@ -14,7 +14,6 @@
 #
 
 import re
-import time
 
 from perf_tool import PerfTool
 import sshutils
@@ -29,22 +28,6 @@ class WrkTool(PerfTool):
         '''
         return None
 
-    def check_server_up(self, target_url):
-        '''Check the target server is up running
-        '''
-        cmd = 'curl --head %s' % (target_url)
-
-        try:
-            (status, _, _) = self.instance.exec_command(cmd, timeout=10)
-            if (status):
-                return False
-        except sshutils.SSHError as exc:
-            # Timeout or any SSH error
-            self.instance.display('SSH Error:' + str(exc))
-            return False
-
-        return True
-
     def run_client(self, target_url, threads, connections,
                    timeout=5, connetion_type='New', retry_count=10):
         '''Run the test
@@ -58,16 +41,6 @@ class WrkTool(PerfTool):
         cmd = '%s -t%d -c%d -d%ds --timeout %ds --latency %s' % \
             (self.dest_path, threads, connections, duration_sec, timeout, target_url)
         # cmd += ' && exit\'"'
-
-        retry = 1
-        while not self.check_server_up(target_url) and retry <= retry_count:
-            self.instance.display("Waiting on servers to come up... (Retry %d/%d)" %
-                                  (retry, retry_count))
-            retry = retry + 1
-            time.sleep(5)
-
-        if retry > retry_count:
-            return [self.parse_error("Server %s is not up running.") % target_url]
 
         self.instance.display('Measuring HTTP performance...')
         self.instance.buginf(cmd)

@@ -18,7 +18,6 @@ import re
 import stat
 import subprocess
 
-from perf_tool import PingTool
 import sshutils
 
 from base_compute import BaseCompute
@@ -28,7 +27,6 @@ from wrk_tool import WrkTool
 class PerfInstance(BaseCompute):
 
     def __init__(self, nova_client, user_name, config=None, is_server=False):
-
         BaseCompute.__init__(self, nova_client, user_name)
 
         if not config:
@@ -36,15 +34,13 @@ class PerfInstance(BaseCompute):
             # We are expecting to see a valid config, here we just hack
             class config:
                 ssh_vm_username = "ubuntu"
-                gmond_svr_ip = None
-                gmond_svr_port = None
                 tp_tool = None
                 http_tool = WrkTool
                 perf_tool_path = './tools'
                 private_key_file = './ssh/id_rsa'
                 ssh_retry_count = 50
                 debug = True
-                time = 10
+                time = 30
                 vm_bandwidth = None
 
         self.config = config
@@ -54,24 +50,15 @@ class PerfInstance(BaseCompute):
         self.ssh = None
         self.port = None
         self.is_server = is_server
-        self.name = "Test"
 
-        if config.gmond_svr_ip:
-            self.gmond_svr = config.gmond_svr_ip
-        else:
-            self.gmond_svr = None
-        if config.gmond_svr_port:
-            self.gmond_port = int(config.gmond_svr_port)
-        else:
-            self.gmond_port = 0
-
-        self.ping = PingTool(self)
         if config.tp_tool:
             self.tp_tool = config.tp_tool(self, config.perf_tool_path)
         else:
             self.tp_tool = None
         if config.http_tool:
             self.http_tool = config.http_tool(self, config.perf_tool_path)
+            self.target_server = None
+            self.target_url = None
         else:
             self.http_tool = None
 
@@ -82,11 +69,8 @@ class PerfInstance(BaseCompute):
         size is not going to help achieve better results)
         :return: a dictionary containing the results of the run
         '''
-        # Latency (ping rtt)
-        ping_res = self.ping.run_client(dest_ip)
-
         # TCP/UDP throughput with tp_tool, returns a list of dict
-        if self.tp_tool and (not ping_res or 'error' not in ping_res):
+        if self.tp_tool:
             tp_tool_res = self.tp_tool.run_client(dest_ip,
                                                   target_instance,
                                                   mss=mss,
@@ -108,24 +92,20 @@ class PerfInstance(BaseCompute):
         res['distro_version'] = self.ssh.distro_version
 
         # consolidate results for all tools
-        if ping_res:
-            tp_tool_res.append(ping_res)
         res['results'] = tp_tool_res
         return res
 
-    def run_http_client(self, target_url, threads, connections,
-                        timeout=5, connection_type="New"):
-        # Latency (ping rtt)
-        # ping_res = self.ping.run_client(dest_ip)
-
+    # Target URL is supposed to be provided during the mapping stage
+    def run_http_client(self, threads, connections,
+                        timeout=5, connection_type="Keep-alive"):
         # HTTP Performance Measurement
         if self.http_tool:
-            http_tool_res = self.http_tool.run_client(target_url,
+            http_tool_res = self.http_tool.run_client(self.target_url,
                                                       threads,
                                                       connections,
                                                       timeout,
                                                       connection_type)
-            res = {'target_url': target_url}
+            res = {'target_url': self.target_url}
             if self.internal_ip:
                 res['ip_from'] = self.internal_ip
             res['distro_id'] = self.ssh.distro_id
@@ -134,8 +114,6 @@ class PerfInstance(BaseCompute):
             http_tool_res = []
 
         # consolidate results for all tools
-        # if ping_res:
-        #     http_tool_res.append(ping_res)
         res['results'] = http_tool_res
         return res
 
@@ -153,22 +131,21 @@ class PerfInstance(BaseCompute):
         return True
 
     # Send a command on the ssh session
-    # returns stdout
     def exec_command(self, cmd, timeout=30):
         (status, cmd_output, err) = self.ssh.execute(cmd, timeout=timeout)
-        if status:
-            self.display('ERROR cmd=%s' % (cmd))
-            if cmd_output:
-                self.display("%s", cmd_output)
-            if err:
-                self.display('error=%s', err)
-        self.buginf('%s', cmd_output)
+        # if status:
+        #     self.display('ERROR cmd=%s' % (cmd))
+        #     if cmd_output:
+        #         self.display("%s", cmd_output)
+        #     if err:
+        #         self.display('error=%s', err)
+        # self.buginf('%s', cmd_output)
         return (status, cmd_output, err)
 
     # Display a status message with the standard header that has the instance
     # name (e.g. [foo] some text)
     def display(self, fmt, *args):
-        print('[%s] ' + fmt) % ((self.name,) + args)
+        print('[%s] ' + fmt) % ((self.vm_name,) + args)
 
     # Debugging message, to be printed only in debug mode
     def buginf(self, fmt, *args):
@@ -300,11 +277,7 @@ class PerfInstance(BaseCompute):
     def get_cmd_duration(self):
         '''Get the duration of the client run
         Will normally return the time configured in config.time
-        If cpu monitoring is enabled will make sure that this time is at least
-        30 seconds (to be adjusted based on metric collection frequency)
         '''
-        if self.gmond_svr:
-            return max(30, self.config.time)
         return self.config.time
 
     # Dispose the ssh session
@@ -312,4 +285,3 @@ class PerfInstance(BaseCompute):
         if self.ssh:
             self.ssh.close()
             self.ssh = None
-        # BaseCompute.dispose(self)
