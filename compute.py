@@ -312,7 +312,7 @@ class Compute(object):
         host_list = []
 
         try:
-            host_list = self.novaclient.hosts.list()
+            host_list = self.novaclient.services.list()
         except novaclient.exceptions.Forbidden:
             print ('Warning: Operation Forbidden: could not retrieve list of hosts'
                    ' (likely no permission)')
@@ -338,14 +338,14 @@ class Compute(object):
         else:
             for host in host_list:
                 # this host must be a compute node
-                if host._info['service'] != 'compute':
+                if host.binary != 'nova-compute' or host.state != 'up':
                     continue
                 candidate = None
                 if self.config.availability_zone:
                     if host.zone == self.config.availability_zone:
-                        candidate = self.normalize_az_host(None, host.host_name)
+                        candidate = self.normalize_az_host(None, host.host)
                 else:
-                    candidate = self.normalize_az_host(host.zone, host.host_name)
+                    candidate = self.normalize_az_host(host.zone, host.host)
                 if candidate:
                     avail_list.append(candidate)
                     # pick first 2 matches at most
