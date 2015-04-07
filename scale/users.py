@@ -23,8 +23,7 @@ class User(object):
     Creates and deletes N routers based on num of routers
     """
 
-    def __init__(self, user_name, user_role, tenant_id, tenant_name, keystone_client,
-                 auth_url, shared_network):
+    def __init__(self, user_name, tenant, user_role):
         """
         Store all resources
         1. Keystone client object
@@ -33,17 +32,12 @@ class User(object):
         4. router list
         """
         self.user_name = user_name
-        self.keystone_client = keystone_client
-        self.tenant_id = tenant_id
-        self.tenant_name = tenant_name
+        self.tenant = tenant
         self.user_id = None
         self.router_list = []
-        self.auth_url = auth_url
         # Store the neutron and nova client
         self.neutron = None
         self.nova = None
-        # Store the shared network
-        self.shared_network = shared_network
         admin_user = self._get_user()
 
         # Create the user within the given tenant associate
@@ -51,19 +45,21 @@ class User(object):
         # since we perform VM placement in future
 
         current_role = None
-        for role in self.keystone_client.roles.list():
+        for role in self.tenant.kloud.keystone.roles.list():
             if role.name == user_role:
                 current_role = role
                 break
-        self.keystone_client.roles.add_user_role(admin_user, current_role, tenant_id)
+        self.tenant.kloud.keystone.roles.add_user_role(admin_user,
+                                                       current_role,
+                                                       tenant.tenant_id)
         self.user_id = admin_user.id
 
     def _create_user(self):
         print 'Creating user: ' + self.user_name
-        return self.keystone_client.users.create(name=self.user_name,
-                                                 password=self.user_name,
-                                                 email="test.com",
-                                                 tenant_id=self.tenant_id)
+        return self.tenant.kloud.keystone.users.create(name=self.user_name,
+                                                       password=self.user_name,
+                                                       email="test.com",
+                                                       tenant_id=self.tenant.tenant_id)
 
     def _get_user(self):
         '''
@@ -82,19 +78,19 @@ class User(object):
         print 'User creation failed due to stale user with same name: ' + self.user_name
         # Again, trying to find a user by name is pretty inefficient as one has to list all
         # of them
-        users_list = self.keystone_client.users.list()
+        users_list = self.tenant.kloud.keystone.users.list()
         for user in users_list:
             if user.name == self.user_name:
                 # Found it, time to delete it
                 print 'Deleting stale user with name: ' + self.user_name
-                self.keystone_client.users.delete(user)
+                self.tenant.kloud.keystone.users.delete(user)
                 user = self._create_user()
                 return user
 
         # Not found there is something wrong
         raise Exception('Cannot find stale user:' + self.user_name)
 
-    def delete_user(self):
+    def delete_resources(self):
         print "Deleting all user resources for user %s" % (self.user_name)
 
         # Delete all user routers
@@ -102,9 +98,9 @@ class User(object):
             router.delete_router()
 
         # Finally delete the user
-        self.keystone_client.users.delete(self.user_id)
+        self.tenant.kloud.keystone.users.delete(self.user_id)
 
-    def create_user_resources(self, config_scale):
+    def create_resources(self):
         """
         Creates all the User elements associated with a User
         1. Creates the routers
@@ -114,8 +110,8 @@ class User(object):
         creden = {}
         creden['username'] = self.user_name
         creden['password'] = self.user_name
-        creden['auth_url'] = self.auth_url
-        creden['tenant_name'] = self.tenant_name
+        creden['auth_url'] = self.tenant.kloud.auth_url
+        creden['tenant_name'] = self.tenant.tenant_name
 
         # Create the neutron client to be used for all operations
         self.neutron = neutronclient.Client(**creden)
@@ -124,11 +120,12 @@ class User(object):
         creden_nova = {}
         creden_nova['username'] = self.user_name
         creden_nova['api_key'] = self.user_name
-        creden_nova['auth_url'] = self.auth_url
-        creden_nova['project_id'] = self.tenant_name
+        creden_nova['auth_url'] = self.tenant.kloud.auth_url
+        creden_nova['project_id'] = self.tenant.tenant_name
         creden_nova['version'] = 2
         self.nova = Client(**creden_nova)
 
+        config_scale = self.tenant.kloud.scale_cfg
         # Find the external network that routers need to attach to
         if config_scale['use_floatingip']:
             external_network = base_network.find_external_network(self.neutron)
@@ -138,10 +135,21 @@ class User(object):
         print "Creating routers for user %s" % (self.user_name)
         for router_count in range(config_scale['routers_per_user']):
             router_instance = base_network.Router(self.neutron, self.nova, self.user_name,
-                                                  self.shared_network)
+                                                  self.tenant.kloud.shared_network)
             self.router_list.append(router_instance)
-            router_name = "kloudbuster_router_" + self.user_name + "_" + str(router_count)
+            router_name = self.user_name + "_R" + str(router_count)
             # Create the router and also attach it to external network
             router_instance.create_router(router_name, external_network)
             # Now create the network resources inside the router
             router_instance.create_network_resources(config_scale)
+
+    def get_first_network(self):
+        if self.router_list:
+            return self.router_list[0].get_first_network()
+        return None
+
+    def get_all_instances(self):
+        all_instances = []
+        for router in self.router_list:
+            all_instances.extend(router.get_all_instances())
+        return all_instances
