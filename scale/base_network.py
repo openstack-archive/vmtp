@@ -90,7 +90,7 @@ class BaseNetwork(object):
         # Store the shared interface ip of router for tested and testing cloud
         self.shared_interface_ip = shared_interface_ip
 
-    def create_compute_resources(self, config_scale):
+    def create_compute_resources(self, network_prefix, config_scale):
         """
         Creates the compute resources includes the following resources
         1. VM instances
@@ -101,14 +101,14 @@ class BaseNetwork(object):
         for secgroup_count in range(config_scale['secgroups_per_network']):
             secgroup_instance = base_compute.SecGroup(self.nova_client)
             self.secgroup_list.append(secgroup_instance)
-            secgroup_name = "kloudbuster_secgroup" + "_" + self.network['id'] + str(secgroup_count)
+            secgroup_name = network_prefix + "_SG" + str(secgroup_count)
             secgroup_instance.create_secgroup_with_rules(secgroup_name)
 
         # Create the keypair list
         for keypair_count in range(config_scale['keypairs_per_network']):
             keypair_instance = base_compute.KeyPair(self.nova_client)
             self.keypair_list.append(keypair_instance)
-            keypair_name = "kloudbuster_keypair" + "_" + self.network['id'] + str(keypair_count)
+            keypair_name = network_prefix + "_K" + str(keypair_count)
             keypair_instance.add_public_key(keypair_name, config_scale['public_key_file'])
 
         # Create the required number of VMs
@@ -119,8 +119,9 @@ class BaseNetwork(object):
         for instance_count in range(config_scale['vms_per_network']):
             perf_instance = PerfInstance(self.nova_client, self.user_name)
             self.instance_list.append(perf_instance)
-            vm_name = "kloudbuster_vm" + "_" + self.network['id'] + str(instance_count)
+            vm_name = network_prefix + "_I" + str(instance_count)
             nic_used = [{'net-id': self.network['id']}]
+            print 'Creating Instance: ' + vm_name
             perf_instance.create_server(vm_name, config_scale['image_name'],
                                         config_scale['flavor_type'],
                                         self.keypair_list[0].keypair_name,
@@ -132,6 +133,8 @@ class BaseNetwork(object):
                                         None)
             # Store the subnet info and fixed ip address in instance
             perf_instance.subnet_ip = self.network['subnet_ip']
+            print perf_instance.instance.networks.values()
+            print '++++++++++++++++++++++++++++++'
             perf_instance.fixed_ip = perf_instance.instance.networks.values()[0][0]
             if self.shared_interface_ip:
                 perf_instance.shared_interface_ip = self.shared_interface_ip
@@ -218,6 +221,8 @@ class BaseNetwork(object):
             except NetworkInUseClient:
                 time.sleep(1)
 
+    def get_all_instances(self):
+        return self.instance_list
 
 class Router(object):
     """
@@ -254,12 +259,23 @@ class Router(object):
                                            self.shared_interface_ip)
             self.network_list.append(network_instance)
             # Create the network and subnet
-            network_name = "kloudbuster_network" + self.user_name + "_" + str(network_count)
+            network_name = self.user_name + "_N" + str(network_count)
             network_instance.create_network_and_subnet(network_name)
             # Attach the created network to router interface
             self.attach_router_interface(network_instance)
             # Create the compute resources in the network
-            network_instance.create_compute_resources(config_scale)
+            network_instance.create_compute_resources(network_name, config_scale)
+
+    def get_first_network(self):
+        if self.network_list:
+            return self.network_list[0]
+        return None
+
+    def get_all_instances(self):
+        all_instances = []
+        for network in self.network_list:
+            all_instances.extend(network.get_all_instances())
+        return all_instances
 
     def delete_network_resources(self):
         """
