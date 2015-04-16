@@ -12,18 +12,24 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import argparse
+import configure
 import os
+import sys
 import traceback
 
-import credentials
-import sshutils
-
-import configure
-import kb_scheduler
 from keystoneclient.v2_0 import client as keystoneclient
 from novaclient.exceptions import ClientException
+from oslo_config import cfg
+
+import credentials
+import kb_scheduler
+import log as logging
+import sshutils
 import tenant
+
+CONF = cfg.CONF
+LOG = logging.getLogger(__name__)
+
 
 def get_absolute_path_for_file(file_name):
     '''
@@ -58,7 +64,7 @@ class Kloud(object):
             self.prefix = 'KBc'
         else:
             self.prefix = 'KBs'
-        print 'Creating kloud: ' + self.prefix
+        LOG.info("Creating kloud: " + self.prefix)
         # if this cloud is sharing a network then all tenants must hook up to
         # it and on deletion that shared network must NOT be deleted
         # as it will be deleted by the owner
@@ -167,54 +173,45 @@ if __name__ == '__main__':
     # The default configuration file for KloudBuster
     default_cfg_file = get_absolute_path_for_file("cfg.scale.yaml")
 
-    # Read the command line arguments and parse them
-    parser = argparse.ArgumentParser(description="Openstack Scale Test Tool")
-    parser.add_argument('-c', '--config', dest='config',
-                        action='store',
-                        help='override default values with a config file',
-                        metavar='<config_file>')
-    # Accept the rc file for cloud under test and testing cloud if present
-    parser.add_argument('-r', '--rc', dest='tested_rc',
-                        action='store',
-                        help='tested cloud openrc credentials file',
-                        metavar='<tested_openrc_file>')
-    parser.add_argument('--testing-rc', dest='testing_rc',
-                        action='store',
-                        help='testing cloud openrc credentials file',
-                        metavar='<testing_openrc_file>')
-    parser.add_argument('-p', '--passwd', dest='passwd_tested',
-                        action='store',
-                        help='tested cloud password',
-                        metavar='<passwd_tested>')
-    parser.add_argument('--passwd_testing', dest='passwd_testing',
-                        action='store',
-                        help='Openstack password testing cloud',
-                        metavar='<passwd_testing>')
-    parser.add_argument('-d', '--debug', dest='debug',
-                        default=False,
-                        action='store_true',
-                        help='debug flag (very verbose)')
-    parser.add_argument('--no-env', dest='no_env',
-                        default=False,
-                        action='store_true',
-                        help='do not read env variables')
+    cli_opts = [
+        cfg.StrOpt("config",
+                   short="c",
+                   default=None,
+                   help="Override default values with a config file"),
+        cfg.StrOpt("tested-rc",
+                   default=None,
+                   help="Tested cloud openrc credentials file"),
+        cfg.StrOpt("testing-rc",
+                   default=None,
+                   help="Testing cloud openrc credentials file"),
+        cfg.StrOpt("passwd_tested",
+                   default=None,
+                   help="Tested cloud password"),
+        cfg.StrOpt("passwd_testing",
+                   default=None,
+                   help="OpenStack password testing cloud"),
+        cfg.BoolOpt("no-env",
+                    default=False,
+                    help="Do not read env variables")
+    ]
+    CONF.register_cli_opts(cli_opts)
+    CONF.set_default("verbose", True)
+    CONF(sys.argv[1:])
 
-    (opts, args) = parser.parse_known_args()
-
+    logging.setup("kloudbuster")
 
     # Read the configuration file
     config_scale = configure.Configuration.from_file(default_cfg_file).configure()
-    if opts.config:
-        alt_config = configure.Configuration.from_file(opts.config).configure()
+    if CONF.config:
+        alt_config = configure.Configuration.from_file(CONF.config).configure()
         config_scale = config_scale.merge(alt_config)
-    config_scale.debug = opts.debug
 
     # Retrieve the credentials
-    cred = credentials.Credentials(opts.tested_rc, opts.passwd_tested, opts.no_env)
-    if opts.testing_rc and opts.testing_rc != opts.tested_rc:
-        cred_testing = credentials.Credentials(opts.testing_rc,
-                                               opts.passwd_testing,
-                                               opts.no_env)
+    cred = credentials.Credentials(CONF.tested_rc, CONF.passwd_tested, CONF.no_env)
+    if CONF.testing_rc and CONF.testing_rc != CONF.tested_rc:
+        cred_testing = credentials.Credentials(CONF.testing_rc,
+                                               CONF.passwd_testing,
+                                               CONF.no_env)
         single_cloud = False
     else:
         # Use the same openrc file for both cases

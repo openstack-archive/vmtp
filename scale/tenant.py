@@ -13,7 +13,11 @@
 #    under the License.
 
 import keystoneclient.openstack.common.apiclient.exceptions as keystone_exception
+
+import log as logging
 import users
+
+LOG = logging.getLogger(__name__)
 
 class Tenant(object):
     """
@@ -42,7 +46,7 @@ class Tenant(object):
         Create or reuse a tenant object of a given name
         '''
         try:
-            print 'Creating tenant: ' + self.tenant_name
+            LOG.info("Creating tenant: " + self.tenant_name)
             self.tenant_object = \
                 self.kloud.keystone.tenants.create(tenant_name=self.tenant_name,
                                                    description="Test tenant",
@@ -52,7 +56,7 @@ class Tenant(object):
             # Conflict: Conflict occurred attempting to store project - Duplicate Entry (HTTP 409)
             if exc.http_status != 409:
                 raise exc
-        print 'Tenant %s already present, reusing it' % (self.tenant_name)
+        LOG.info("Tenant %s already present, reusing it" % self.tenant_name)
         # It is a hassle to find a tenant by name as the only way seems to retrieve
         # the list of all tenants which can be very large
         tenant_list = self.kloud.keystone.tenants.list()

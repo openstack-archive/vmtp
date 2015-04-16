@@ -15,7 +15,11 @@
 import threading
 import traceback
 
+import log as logging
 import sshutils
+
+LOG = logging.getLogger(__name__)
+
 
 class KBSetStaticRouteException(Exception):
     pass
@@ -42,6 +46,8 @@ class KBScheduler(object):
         '''
         Check the target server is up running
         '''
+        LOG.info("[%s] Waiting for HTTP Server to come up..." %
+                 instance.vm_name)
         cmd = 'curl --head %s --connect-timeout 2' % (instance.target_url)
         for retry in range(1, retry_count + 1):
             try:
@@ -52,8 +58,8 @@ class KBScheduler(object):
                 return
             if not status:
                 return
-            print "[%s] Waiting for HTTP Server to come up... Retry %d#" %\
-                (instance.vm_name, retry)
+            LOG.debug("[%s] Waiting for HTTP Server to come up... Retry %d#" %
+                (instance.vm_name, retry))
 
     def setup_static_route(self, instance):
         svr = instance.target_server
@@ -62,7 +68,8 @@ class KBScheduler(object):
                 rc = instance.add_static_route(svr.subnet_ip,
                                                svr.shared_interface_ip)
                 if rc > 0:
-                    print "Failed to add static route, error code: %i." % rc
+                    LOG.error("Failed to add static route, error code: %i." %
+                              rc)
                     raise KBSetStaticRouteException()
 
     def setup_testing_env(self, instance):
@@ -97,7 +104,7 @@ class KBScheduler(object):
         for cur_client in client_list:
             self.client_status[cur_client.vm_name] = None
 
-        print "Setting up the testing environments..."
+        LOG.info("Setting up the testing environments...")
         for cur_client in client_list:
             self.client_status[cur_client.vm_name] = "Success"
             t = threading.Thread(target=self.setup_testing_env, args=[cur_client])
@@ -109,11 +116,11 @@ class KBScheduler(object):
             vm_name = cur_client.vm_name
             if self.client_status[vm_name] != "Success":
                 error_flag = True
-            print("%s: %s" % (vm_name, self.client_status[vm_name]))
+            LOG.info("%s: %s" % (vm_name, self.client_status[vm_name]))
         if error_flag:
             raise
 
-        print "TEST STARTED"
+        LOG.info("TEST STARTED")
 
         thread_list = []
         for cur_client in client_list:
@@ -126,6 +133,6 @@ class KBScheduler(object):
         for cur_client in client_list:
             vm_name = cur_client.vm_name
             if self.client_status[vm_name] == "Success":
-                print ("%s: %s" % (vm_name, self.client_result[vm_name]))
+                LOG.info("%s: %s" % (vm_name, self.client_result[vm_name]))
             else:
-                print ("%s: %s" % (vm_name, self.client_status[vm_name]))
+                LOG.error("%s: %s" % (vm_name, self.client_status[vm_name]))

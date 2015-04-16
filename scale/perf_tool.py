@@ -15,6 +15,11 @@
 
 import abc
 
+import log as logging
+
+LOG = logging.getLogger(__name__)
+
+
 # where to copy the tool on the target, must end with slash
 SCP_DEST_DIR = '/var/tmp/'
 
@@ -33,7 +38,8 @@ class PerfTool(object):
     def dispose(self):
         if self.pid:
             # Terminate the iperf server
-            self.instance.buginf('Terminating %s', self.name)
+            LOG.kbdebug("[%s] Terminating %s" % (self.instance.vm_name,
+                                                 self.name))
             self.instance.ssh.kill_proc(self.pid)
             self.pid = None
 
@@ -157,8 +163,10 @@ class PerfTool(object):
                 return res
             loss_rate = res['loss_rate']
             measured_kbps = res['throughput_kbps']
-            self.instance.buginf('pkt-size=%d throughput=%d<%d/%d<%d Kbps loss-rate=%d' %
-                                 (pkt_size, min_kbps, measured_kbps, kbps, max_kbps, loss_rate))
+            LOG.kbdebug(
+                "[%s] pkt-size=%d throughput=%d<%d/%d<%d Kbps loss-rate=%d" %
+                (self.instance.vm_name, pkt_size, min_kbps, measured_kbps,
+                 kbps, max_kbps, loss_rate))
             # expected rate must be at least 80% of the requested rate
             if (measured_kbps * 100 / kbps) < 80:
                 # the measured bw is too far away from the requested bw
@@ -180,7 +188,7 @@ class PerfTool(object):
                     min_kbps = int((max_kbps + min_kbps) / 2)
 
                 kbps = int((max_kbps + min_kbps) / 2)
-                # print '   undershot, min=%d kbps=%d max=%d' % (min_kbps,  kbps, max_kbps)
+                # LOG.info("   undershot, min=%d kbps=%d max=%d" % (min_kbps,  kbps, max_kbps))
             elif loss_rate > max_loss_rate:
                 # overshot
                 max_kbps = kbps
@@ -188,7 +196,7 @@ class PerfTool(object):
                     kbps = measured_kbps
                 else:
                     kbps = int((max_kbps + min_kbps) / 2)
-                # print '   overshot, min=%d kbps=%d max=%d' % (min_kbps,  kbps, max_kbps)
+                # LOG.info("   overshot, min=%d kbps=%d max=%d" % (min_kbps,  kbps, max_kbps))
             else:
                 # converged within loss rate bracket
                 break

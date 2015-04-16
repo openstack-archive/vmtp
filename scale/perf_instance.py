@@ -21,7 +21,10 @@ import subprocess
 import sshutils
 
 from base_compute import BaseCompute
+import log as logging
 from wrk_tool import WrkTool
+
+LOG = logging.getLogger(__name__)
 
 # An openstack instance (can be a VM or a LXC)
 class PerfInstance(BaseCompute):
@@ -134,23 +137,13 @@ class PerfInstance(BaseCompute):
     def exec_command(self, cmd, timeout=30):
         (status, cmd_output, err) = self.ssh.execute(cmd, timeout=timeout)
         # if status:
-        #     self.display('ERROR cmd=%s' % (cmd))
+        #     LOG.error("[%s] cmd=%s" % (self.vm_name, cmd))
         #     if cmd_output:
-        #         self.display("%s", cmd_output)
+        #         LOG.error("[%s] stdout=%s" % (self.vm_name, cmd_output))
         #     if err:
-        #         self.display('error=%s', err)
-        # self.buginf('%s', cmd_output)
+        #         LOG.error("[%s] stderr=%s" % (self.vm_name, err))
+        # LOG.kbdebug("[%s] %s" % (self.vm_name, cmd_output))
         return (status, cmd_output, err)
-
-    # Display a status message with the standard header that has the instance
-    # name (e.g. [foo] some text)
-    def display(self, fmt, *args):
-        print('[%s] ' + fmt) % ((self.vm_name,) + args)
-
-    # Debugging message, to be printed only in debug mode
-    def buginf(self, fmt, *args):
-        if self.config.debug:
-            self.display(fmt, *args)
 
     # Ping an IP from this instance
     def ping_check(self, target_ip, ping_count, pass_threshold):
@@ -169,14 +162,17 @@ class PerfInstance(BaseCompute):
 
     # Set the interface IP address and mask
     def set_interface_ip(self, if_name, ip, mask):
-        self.buginf('Setting interface %s to %s mask %s', if_name, ip, mask)
+        LOG.kbdebug("[%s] Setting interface %s to %s mask %s" % (self.vm_name,
+                                                                 if_name, ip,
+                                                                 mask))
         cmd2apply = "sudo ifconfig %s %s netmask %s" % (if_name, ip, mask)
         (rc, _, _) = self.ssh.execute(cmd2apply)
         return rc
 
     # Get an interface IP address (returns None if error)
     def get_interface_ip(self, if_name):
-        self.buginf('Getting interface %s IP and mask', if_name)
+        LOG.kbdebug("[%s] Getting interface %s IP and mask" % (self.vm_name,
+                                                               if_name))
         cmd2apply = "ifconfig %s" % (if_name)
         (rc, res, _) = self.ssh.execute(cmd2apply)
         if rc:
@@ -191,7 +187,8 @@ class PerfInstance(BaseCompute):
 
     # Set an interface MTU to passed in value
     def set_interface_mtu(self, if_name, mtu):
-        self.buginf('Setting interface %s mtu to %d', if_name, mtu)
+        LOG.kbdebug("[%s] Setting interface %s mtu to %d" % (self.vm_name,
+                                                             if_name, mtu))
         cmd2apply = "sudo ifconfig %s mtu %d" % (if_name, mtu)
         (rc, _, _) = self.ssh.execute(cmd2apply)
         return rc
@@ -204,13 +201,14 @@ class PerfInstance(BaseCompute):
 
     # Add static route
     def add_static_route(self, network, next_hop_ip, if_name=None):
-        buginf_msg = "Adding static route %s with next hop %s" % (network,
-                                                                  next_hop_ip)
+        debug_msg = "[%s] Adding static route %s with next hop %s" % (
+            self.vm_name, network,
+            next_hop_ip)
         cmd = "sudo ip route add %s via %s" % (network, next_hop_ip)
         if if_name:
-            buginf_msg += " and %s" % if_name
+            debug_msg += " and %s" % if_name
             cmd += " dev %s" % if_name
-        self.buginf(buginf_msg)
+        LOG.kbdebug(debug_msg)
         return self.ssh.execute(cmd)[0]
 
     # Get static route
@@ -228,18 +226,18 @@ class PerfInstance(BaseCompute):
 
     # Delete static route
     def delete_static_route(self, network, next_hop_ip=None, if_name=None):
-        buginf_msg = "Deleting static route %s" % network
+        debug_msg = "[%s] Deleting static route %s" % (self.vm_name, network)
         cmd = "sudo ip route del %s" % network
         if next_hop_ip:
-            buginf_msg = " with next hop %s" % next_hop_ip
+            debug_msg = " with next hop %s" % next_hop_ip
             cmd += " via %s" % next_hop_ip
         if if_name:
             if next_hop_ip:
-                buginf_msg = " and %s" % if_name
+                debug_msg = " and %s" % if_name
             else:
-                buginf_msg = "with next hop %s" % if_name
+                debug_msg = "with next hop %s" % if_name
             cmd += " dev %s" % if_name
-        self.buginf(buginf_msg)
+        LOG.kbdebug(debug_msg)
         return self.ssh.execute(cmd)[0]
 
     # scp a file from the local host to the instance
@@ -249,7 +247,8 @@ class PerfInstance(BaseCompute):
 
         # check if the dest file is already present
         if self.ssh.stat(dest):
-            self.buginf('tool %s already present - skipping install', tool_name)
+            LOG.kbdebug("[%s] Tool %s already present - skipping install"
+                        % (self.vm_name, tool_name))
             return True
         # scp over the tool binary
         # first chmod the local copy since git does not keep the permission
@@ -263,14 +262,14 @@ class PerfInstance(BaseCompute):
                                                 self.ssh_user,
                                                 self.ssh_ip,
                                                 dest)
-        self.buginf('Copying %s to target...', tool_name)
-        self.buginf(scp_cmd)
+        LOG.kbdebug("[%s] Copying %s to target..." % (self.vm_name, tool_name))
+        LOG.kbdebug("[%s] %s" % (self.vm_name, scp_cmd))
         devnull = open(os.devnull, 'wb')
         rc = subprocess.call(scp_cmd, shell=True,
                              stdout=devnull, stderr=devnull)
         if rc:
-            self.display('Copy to target failed rc=%d', rc)
-            self.display(scp_cmd)
+            LOG.error("[%s] Copy to target failed rc=%d" % (self.vm_name, rc))
+            LOG.error("[%s] %s" % (self.vm_name, scp_cmd))
             return False
         return True
 

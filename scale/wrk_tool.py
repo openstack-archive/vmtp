@@ -15,8 +15,12 @@
 
 import re
 
+import log as logging
 from perf_tool import PerfTool
 import sshutils
+
+LOG = logging.getLogger(__name__)
+
 
 class WrkTool(PerfTool):
 
@@ -42,15 +46,16 @@ class WrkTool(PerfTool):
             (self.dest_path, threads, connections, duration_sec, timeout, target_url)
         # cmd += ' && exit\'"'
 
-        self.instance.display('Measuring HTTP performance...')
-        self.instance.buginf(cmd)
+        LOG.kbdebug("[%s] Measuring HTTP performance..." %
+                    self.instance.vm_name)
+        LOG.kbdebug("[%s] %s" % (self.instance.vm_name, cmd))
         try:
             # force the timeout value with 20 seconds extra for the command to
             # complete and do not collect CPU
             (_, cmd_out, _) = self.instance.exec_command(cmd, duration_sec + 20)
         except sshutils.SSHError as exc:
             # Timout or any SSH error
-            self.instance.display('SSH Error:' + str(exc))
+            LOG.error("SSH Error: " + str(exc))
             return [self.parse_error(str(exc))]
 
         # Sample Output:
