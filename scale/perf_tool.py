@@ -27,12 +27,11 @@ SCP_DEST_DIR = '/var/tmp/'
 class PerfTool(object):
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, name, perf_tool_path, instance):
+    def __init__(self, name, instance):
         self.name = name
         self.instance = instance
         self.dest_path = SCP_DEST_DIR + name
         self.pid = None
-        self.perf_tool_path = perf_tool_path
 
     # Terminate pid if started
     def dispose(self):
@@ -55,7 +54,7 @@ class PerfTool(object):
             res['throughput_kbps'] = throughput
         if protocol is not None:
             res['protocol'] = protocol
-        if self.instance.config.vm_bandwidth:
+        if 'vm_bandwidth' in self.instance.config:
             res['bandwidth_limit_kbps'] = self.instance.config.vm_bandwidth
         if lossrate is not None:
             res['loss_rate'] = lossrate
@@ -81,34 +80,13 @@ class PerfTool(object):
             res['http_err'] = http_err
         return res
 
-    def get_boost_client_cmd(self):
-        cmd = 'ulimit -n 102400 && ' \
-              'sysctl -w fs.file-max=6553550 && ' \
-              'sysctl -w net.core.wmem_max=8388608 && ' \
-              'sysctl -w net.core.wmem_default=8388608 && ' \
-              'sysctl -w net.core.rmem_max=33554432 && ' \
-              'sysctl -w net.core.rmem_default=33554432 && ' \
-              'sysctl -w net.core.netdev_max_backlog=100000 && ' \
-              'sysctl -w net.ipv4.icmp_ratelimit=0 && ' \
-              'sysctl -w net.ipv4.tcp_tw_recycle=1 && ' \
-              'sysctl -w net.ipv4.tcp_tw_reuse=1 && ' \
-              'sysctl -w net.ipv4.tcp_max_tw_buckets=65536 && ' \
-              'sysctl -w net.ipv4.tcp_fin_timeout=15 && ' \
-              'sysctl -w net.ipv4.tcp_max_syn_backlog=65536 && ' \
-              'sysctl -w net.ipv4.tcp_syncookies=1 && ' \
-              'sysctl -w net.ipv4.neigh.default.gc_thresh1=4096 && ' \
-              'sysctl -w net.ipv4.neigh.default.gc_thresh2=4096 && ' \
-              'sysctl -w net.ipv4.neigh.default.gc_thresh3=4096 && ' \
-              'sysctl -w net.ipv4.conf.all.rp_filter=0 && ' \
-              'sysctl -w net.ipv4.conf.all.arp_filter=0 && ' \
-              'sysctl -w net.ipv4.conf.default.rp_filter=0 && ' \
-              'sysctl -w net.ipv4.conf.default.arp_filter=0 && ' \
-              'sysctl -w net.ipv4.conf.eth0.rp_filter=0 && ' \
-              'sysctl -w net.ipv4.conf.eth0.arp_filter=0'
-        return cmd
+    @abc.abstractmethod
+    def cmd_run_client(**kwargs):
+        # must be implemented by sub classes
+        return None
 
     @abc.abstractmethod
-    def run_client(**kwargs):
+    def cmd_parser_run_client(self, status, stdout, stderr):
         # must be implemented by sub classes
         return None
 

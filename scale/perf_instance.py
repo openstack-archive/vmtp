@@ -1,4 +1,4 @@
-# Copyright 2014 Cisco Systems, Inc.  All rights reserved.
+# Copyright 2015 Cisco Systems, Inc.  All rights reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -14,53 +14,55 @@
 #
 
 import os
-import re
 import stat
 import subprocess
+import time
 
 import sshutils
 
 from base_compute import BaseCompute
 import log as logging
+import redis
 from wrk_tool import WrkTool
 
 LOG = logging.getLogger(__name__)
 
-
 # An openstack instance (can be a VM or a LXC)
 class PerfInstance(BaseCompute):
 
-    def __init__(self, nova_client, user_name, config=None, is_server=False):
-        BaseCompute.__init__(self, nova_client, user_name)
-
-        if not config:
-            # HACK ALERT!!!
-            # We are expecting to see a valid config, here we just hack
-            class config:
-                ssh_vm_username = "ubuntu"
-                tp_tool = None
-                http_tool = WrkTool
-                perf_tool_path = './tools'
-                private_key_file = './ssh/id_rsa'
-                ssh_retry_count = 50
-                debug = True
-                time = 30
-                vm_bandwidth = None
+    def __init__(self, vm_name, nova_client, user_name, config, is_server=False):
+        BaseCompute.__init__(self, vm_name, nova_client, user_name)
 
         self.config = config
         self.internal_ip = None
+        self.is_server = is_server
+
+        # SSH Configuration
         self.ssh_ip = None
         self.ssh_user = config.ssh_vm_username
         self.ssh = None
         self.port = None
-        self.is_server = is_server
 
-        if config.tp_tool:
-            self.tp_tool = config.tp_tool(self, config.perf_tool_path)
-        else:
+        # Redis Configuration
+        self.redis_obj = None
+        self.pubsub = None
+        self.up_flag = False
+        self.incoming_chan_name = self.vm_name.lower() + "_incoming"
+        self.outgoing_chan_name = self.vm_name.lower() + "_outgoing"
+
+        if 'tp_tool' not in config:
             self.tp_tool = None
-        if config.http_tool:
-            self.http_tool = config.http_tool(self, config.perf_tool_path)
+        # elif config.tp_tool.lower() == 'nuttcp':
+        #     self.tp_tool = nuttcp_tool.NuttcpTool
+        # elif opts.tp_tool.lower() == 'iperf':
+        #     self.tp_tool = iperf_tool.IperfTool
+        # else:
+        #     self.tp_tool = None
+
+        if 'http_tool' not in config:
+            self.http_tool = None
+        elif config.http_tool.lower() == 'wrk':
+            self.http_tool = WrkTool(self)
             self.target_server = None
             self.target_url = None
         else:
@@ -68,6 +70,7 @@ class PerfInstance(BaseCompute):
 
     def run_tp_client(self, label, dest_ip, target_instance,
                       mss=None, bandwidth=0, bidirectional=False, az_to=None):
+        # NOTE: This function will not work, and pending to convert to use redis
         '''test iperf client using the default TCP window size
         (tcp window scaling is normally enabled by default so setting explicit window
         size is not going to help achieve better results)
@@ -103,19 +106,19 @@ class PerfInstance(BaseCompute):
     def run_http_client(self, threads, connections,
                         timeout=5, connection_type="Keep-alive"):
         # HTTP Performance Measurement
-        if self.http_tool:
-            http_tool_res = self.http_tool.run_client(self.target_url,
-                                                      threads,
-                                                      connections,
-                                                      timeout,
-                                                      connection_type)
-            res = {'target_url': self.target_url}
-            if self.internal_ip:
-                res['ip_from'] = self.internal_ip
-            res['distro_id'] = self.ssh.distro_id
-            res['distro_version'] = self.ssh.distro_version
-        else:
-            http_tool_res = []
+        cmd = self.http_tool.cmd_run_client(self.target_url,
+                                            threads,
+                                            connections,
+                                            timeout,
+                                            connection_type)
+        parser_cb = 'self.run_http_client_parser'
+        self.redis_exec_command(cmd, parser_cb)
+
+    def run_http_client_parser(self, status, stdout, stderr):
+        http_tool_res = self.http_tool.cmd_parser_run_client(status, stdout, stderr)
+        res = {'target_url': self.target_url}
+        if self.internal_ip:
+            res['ip_from'] = self.internal_ip
 
         # consolidate results for all tools
         res['results'] = http_tool_res
@@ -137,80 +140,84 @@ class PerfInstance(BaseCompute):
     # Send a command on the ssh session
     def exec_command(self, cmd, timeout=30):
         (status, cmd_output, err) = self.ssh.execute(cmd, timeout=timeout)
-        # if status:
-        #     LOG.error("[%s] cmd=%s" % (self.vm_name, cmd))
-        #     if cmd_output:
-        #         LOG.error("[%s] stdout=%s" % (self.vm_name, cmd_output))
-        #     if err:
-        #         LOG.error("[%s] stderr=%s" % (self.vm_name, err))
-        # LOG.kbdebug("[%s] %s" % (self.vm_name, cmd_output))
         return (status, cmd_output, err)
 
-    # Ping an IP from this instance
-    def ping_check(self, target_ip, ping_count, pass_threshold):
-        return self.ssh.ping_check(target_ip, ping_count, pass_threshold)
-
-    # Given a message size verify if ping without fragmentation works or fails
-    # Returns True if success
-    def ping_do_not_fragment(self, msg_size, ip_address):
-        cmd = "ping -M do -c 1 -s " + str(msg_size) + " " + ip_address
-        (_, cmd_output, _) = self.exec_command(cmd)
-        match = re.search('100% packet loss', cmd_output)
-        if match:
-            return False
+    # Setup the redis connectivity
+    def setup_redis(self, host=None, port=None, connection_pool=None):
+        if connection_pool:
+            self.redis_obj = redis.StrictRedis(connection_pool=connection_pool)
         else:
-            return True
+            self.redis_obj = redis.StrictRedis(host=host, port=port)
 
-    # Set the interface IP address and mask
-    def set_interface_ip(self, if_name, ip, mask):
-        LOG.kbdebug("[%s] Setting interface %s to %s mask %s" % (self.vm_name,
-                                                                 if_name, ip,
-                                                                 mask))
-        cmd2apply = "sudo ifconfig %s %s netmask %s" % (if_name, ip, mask)
-        (rc, _, _) = self.ssh.execute(cmd2apply)
-        return rc
+        # Check for connections to redis server
+        for retry in xrange(1, self.config.redis_retry_count + 1):
+            try:
+                self.redis_obj.get("test")
+            except (redis.exceptions.ConnectionError):
+                LOG.warn("Connecting to redis server... Retry %d#", retry)
+                time.sleep(5)
+                continue
+            break
+        # Subscribe to message channel
+        # Note: Here we are expecting messages from testing VMs, so our incoming
+        #       is the outgoing channel on that VM
+        self.pubsub = self.redis_obj.pubsub(ignore_subscribe_messages=True)
+        self.pubsub.subscribe(self.outgoing_chan_name)
 
-    # Get an interface IP address (returns None if error)
-    def get_interface_ip(self, if_name):
-        LOG.kbdebug("[%s] Getting interface %s IP and mask" % (self.vm_name,
-                                                               if_name))
-        cmd2apply = "ifconfig %s" % (if_name)
-        (rc, res, _) = self.ssh.execute(cmd2apply)
-        if rc:
+        return True
+
+    def redis_get_message(self):
+        message = self.pubsub.get_message()
+        while message and message['data'] == 'hello':
+            # If a "hello" packet is received, the corresponding VM is up
+            # running. We mark the flag for that VM, and skip all "hello"
+            # messages received afterwards.
+            self.up_flag = True
+            message = self.pubsub.get_message()
+        if not message:
             return None
-        # eth5      Link encap:Ethernet  HWaddr 90:e2:ba:40:74:05
-        #  inet addr:172.29.87.29  Bcast:172.29.87.31  Mask:255.255.255.240
-        #  inet6 addr: fe80::92e2:baff:fe40:7405/64 Scope:Link
-        match = re.search(r'inet addr:([\d\.]*) ', res)
-        if not match:
-            return None
-        return match.group(1)
 
-    # Set an interface MTU to passed in value
-    def set_interface_mtu(self, if_name, mtu):
-        LOG.kbdebug("[%s] Setting interface %s mtu to %d" % (self.vm_name,
-                                                             if_name, mtu))
-        cmd2apply = "sudo ifconfig %s mtu %d" % (if_name, mtu)
-        (rc, _, _) = self.ssh.execute(cmd2apply)
-        return rc
+        LOG.kbdebug(message)
+        msg_body = eval(message['data'])
+        status = int(msg_body['status'])
+        stdout = msg_body['stdout']
+        stderr = msg_body['stderr']
+        parser_cb = msg_body['parser_cb']
 
-    # Get the MTU of an interface
-    def get_interface_mtu(self, if_name):
-        cmd = "cat /sys/class/net/%s/mtu" % (if_name)
-        (_, cmd_output, _) = self.exec_command(cmd)
-        return int(cmd_output)
+        if parser_cb is not None:
+            stdout = eval("%s(status, stdout, stderr)" % parser_cb)
+
+        return (status, stdout, stderr)
+
+    def redis_exec_command(self, cmd, parser_cb=None, timeout=30):
+        # TODO(Add timeout support)
+        msg_body = {'cmd': cmd, 'parser_cb': parser_cb}
+        self.redis_obj.publish(self.incoming_chan_name, msg_body)
+
+    # Display a status message with the standard header that has the instance
+    # name (e.g. [foo] some text)
+    def display(self, fmt, *args):
+        print('[%s] ' + fmt) % ((self.vm_name,) + args)
+
+    # Debugging message, to be printed only in debug mode
+    def buginf(self, fmt, *args):
+        if self.config.debug:
+            self.display(fmt, *args)
+
+    # Check whether the HTTP Service is up running
+    def check_http_service(self):
+        cmd = 'curl --head %s --connect-timeout 2 --silent' % (self.target_url)
+        self.redis_exec_command(cmd, None)
 
     # Add static route
     def add_static_route(self, network, next_hop_ip, if_name=None):
-        debug_msg = "[%s] Adding static route %s with next hop %s" % (
-            self.vm_name, network,
-            next_hop_ip)
+        debug_msg = "Adding static route %s with next hop %s" % (network, next_hop_ip)
         cmd = "sudo ip route add %s via %s" % (network, next_hop_ip)
         if if_name:
             debug_msg += " and %s" % if_name
             cmd += " dev %s" % if_name
         LOG.kbdebug(debug_msg)
-        return self.ssh.execute(cmd)[0]
+        self.redis_exec_command(cmd, None)
 
     # Get static route
     def get_static_route(self, network, next_hop_ip=None, if_name=None):
@@ -219,11 +226,8 @@ class PerfInstance(BaseCompute):
             cmd += " via %s" % next_hop_ip
         if if_name:
             cmd += " dev %s" % if_name
-        (rc, out, err) = self.ssh.execute(cmd)
-        if rc:
-            return err
-        else:
-            return out
+        # TODO(Need to implement a parser_cb instead of passing None)
+        self.redis_exec_command(cmd, None)
 
     # Delete static route
     def delete_static_route(self, network, next_hop_ip=None, if_name=None):
@@ -239,7 +243,7 @@ class PerfInstance(BaseCompute):
                 debug_msg = "with next hop %s" % if_name
             cmd += " dev %s" % if_name
         LOG.kbdebug(debug_msg)
-        return self.ssh.execute(cmd)[0]
+        self.redis_exec_command(cmd, None)
 
     # scp a file from the local host to the instance
     # Returns True if dest file already exists or scp succeeded
@@ -275,8 +279,8 @@ class PerfInstance(BaseCompute):
         return True
 
     def get_cmd_duration(self):
-        '''Get the duration of the client run
-        Will normally return the time configured in config.time
+        '''
+        Get the duration of the client run
         '''
         return self.config.time
 
@@ -285,3 +289,6 @@ class PerfInstance(BaseCompute):
         if self.ssh:
             self.ssh.close()
             self.ssh = None
+        if self.redis_obj:
+            self.pubsub.unsubscribe()
+            self.pubsub.close()
