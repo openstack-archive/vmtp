@@ -1,4 +1,4 @@
-# Copyright 2014 Cisco Systems, Inc.  All rights reserved.
+# Copyright 2015 Cisco Systems, Inc.  All rights reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -18,47 +18,29 @@ import re
 import log as logging
 
 from perf_tool import PerfTool
-import sshutils
 
 LOG = logging.getLogger(__name__)
 
 
 class WrkTool(PerfTool):
 
-    def __init__(self, instance, perf_tool_path):
-        PerfTool.__init__(self, 'wrk-4.0.1', perf_tool_path, instance)
+    def __init__(self, instance):
+        PerfTool.__init__(self, 'wrk-4.0.1', instance)
 
-    def get_server_launch_cmd(self):
-        '''This requires HTTP server is running already
+    def cmd_run_client(self, target_url, threads, connections,
+                       timeout=5, connetion_type='Keep-alive', retry_count=10):
         '''
-        return None
-
-    def run_client(self, target_url, threads, connections,
-                   timeout=5, connetion_type='New', retry_count=10):
-        '''Run the test
-        :return:  list containing one or more dictionary results
+        Return the command for running the benchmarking tool
         '''
-
-        duration_sec = self.instance.get_cmd_duration()
-
-        # boost_cmd = self.get_boost_client_cmd()
-        # cmd = 'sudo sh -c "' + boost_cmd + ' && exec su $LOGNAME -c \''
+        duration_sec = self.instance.config.exec_time
         cmd = '%s -t%d -c%d -d%ds --timeout %ds --latency %s' % \
             (self.dest_path, threads, connections, duration_sec, timeout, target_url)
-        # cmd += ' && exit\'"'
-
-        LOG.kbdebug("[%s] Measuring HTTP performance..." %
-                    self.instance.vm_name)
         LOG.kbdebug("[%s] %s" % (self.instance.vm_name, cmd))
-        try:
-            # force the timeout value with 20 seconds extra for the command to
-            # complete and do not collect CPU
-            (_, cmd_out, _) = self.instance.exec_command(cmd, duration_sec + 20)
-        except sshutils.SSHError as exc:
-            # Timout or any SSH error
-            LOG.error("SSH Error: " + str(exc))
-            return [self.parse_error(str(exc))]
+        return cmd
 
+    def cmd_parser_run_client(self, status, stdout, stderr):
+        if status:
+            return [self.parse_error(stderr)]
         # Sample Output:
         # Running 10s test @ http://192.168.1.1/index.html
         #   8 threads and 5000 connections
@@ -75,16 +57,15 @@ class WrkTool(PerfTool):
         #   Non-2xx or 3xx responses: 828
         # Requests/sec:   6080.66
         # Transfer/sec:    282.53MB
-
         try:
             total_req_str = r'(\d+)\srequests\sin'
-            http_total_req = re.search(total_req_str, cmd_out).group(1)
+            http_total_req = re.search(total_req_str, stdout).group(1)
 
             re_str = r'Requests/sec:\s+(\d+\.\d+)'
-            http_rps = re.search(re_str, cmd_out).group(1)
+            http_rps = re.search(re_str, stdout).group(1)
 
             re_str = r'Transfer/sec:\s+(\d+\.\d+.B)'
-            http_rates_kbytes = re.search(re_str, cmd_out).group(1)
+            http_rates_kbytes = re.search(re_str, stdout).group(1)
             # Uniform in unit MB
             ex_unit = 'KMG'.find(http_rates_kbytes[-2])
             if ex_unit == -1:
@@ -93,7 +74,7 @@ class WrkTool(PerfTool):
             http_rates_kbytes = float(val * (1024 ** (ex_unit)))
 
             re_str = r'Socket errors: connect (\d+), read (\d+), write (\d+), timeout (\d+)'
-            http_sock_err = re.search(re_str, cmd_out)
+            http_sock_err = re.search(re_str, stdout)
             if http_sock_err:
                 v1 = int(http_sock_err.group(1))
                 v2 = int(http_sock_err.group(2))
@@ -104,13 +85,13 @@ class WrkTool(PerfTool):
                 http_sock_err = 0
 
             re_str = r'Non-2xx or 3xx responses: (\d+)'
-            http_err = re.search(re_str, cmd_out)
+            http_err = re.search(re_str, stdout)
             if http_err:
                 http_err = http_err.group(1)
             else:
                 http_err = 0
         except Exception:
-            return self.parse_error('Could not parse: %s' % (cmd_out))
+            return self.parse_error('Could not parse: %s' % (stdout))
 
         return self.parse_results(http_total_req=http_total_req,
                                   http_rps=http_rps,

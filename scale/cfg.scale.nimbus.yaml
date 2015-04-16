@@ -1,6 +1,0 @@
-# KloudBuster Default configuration file
-server: 
-    flavor_type: 'CO2-Large'
-    
-client:
-    flavor_type: 'CO2-Large'

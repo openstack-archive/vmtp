@@ -22,6 +22,7 @@ from keystoneclient.v2_0 import client as keystoneclient
 import log as logging
 from novaclient.exceptions import ClientException
 from oslo_config import cfg
+from tabulate import tabulate
 import tenant
 
 import credentials
@@ -73,7 +74,7 @@ class Kloud(object):
     def create_resources(self, shared_net=None):
         self.shared_network = shared_net
         for tenant_count in xrange(self.scale_cfg['number_tenants']):
-            tenant_name = self.prefix + "_T" + str(tenant_count)
+            tenant_name = self.prefix + "-T" + str(tenant_count)
             new_tenant = tenant.Tenant(tenant_name, self)
             self.tenant_list.append(new_tenant)
             new_tenant.create_resources()
@@ -108,7 +109,7 @@ class KloudBuster(object):
         self.tenant = None
         self.tenant_list_testing = []
         self.tenant_testing = None
-        # to do : check on same auth_url instead
+        # TODO(check on same auth_url instead)
         if cred == testing_cred:
             self.single_cloud = True
         else:
@@ -116,15 +117,27 @@ class KloudBuster(object):
         self.kloud = Kloud(config_scale.server, cred)
         self.testing_kloud = Kloud(config_scale.client, testing_cred, testing_side=True)
 
-    def print_vms_info(self, role):
-        pass
-
     def print_provision_info(self):
         """
         Function that iterates and prints all VM info
         for tested and testing cloud
         """
-        pass
+        table = [["VM Name", "Internal IP", "Floating IP", "Subnet", "Shared Interface IP"]]
+        client_list = self.kloud.get_all_instances()
+        for instance in client_list:
+            row = [instance.vm_name, instance.fixed_ip, instance.fip_ip, instance.subnet_ip,
+                   instance.shared_interface_ip]
+            table.append(row)
+        LOG.info('Provision Details (Tested Kloud)\n' +
+                 tabulate(table, headers="firstrow", tablefmt="psql"))
+
+        table = [["VM Name", "Internal IP", "Floating IP", "Subnet"]]
+        client_list = self.testing_kloud.get_all_instances()
+        for instance in client_list:
+            row = [instance.vm_name, instance.fixed_ip, instance.fip_ip, instance.subnet_ip]
+            table.append(row)
+        LOG.info('Provision Details (Testing Kloud)\n' +
+                 tabulate(table, headers="firstrow", tablefmt="psql"))
 
     def run(self):
         """
@@ -155,8 +168,8 @@ class KloudBuster(object):
                 client_list[idx].target_url = "http://%s/index.html" %\
                     (svr.fip_ip or svr.fixed_ip)
 
-            kbscheduler = kb_scheduler.KBScheduler()
-            kbscheduler.run(client_list)
+            kbscheduler = kb_scheduler.KBScheduler(client_list, config_scale.client)
+            kbscheduler.run()
         except KeyboardInterrupt:
             traceback.format_exc()
         except (sshutils.SSHError, ClientException, Exception):

@@ -1,7 +1,7 @@
 # KloudBuster Default configuration file
-server: 
+server:
     # Number of tenants to be created on the cloud
-    number_tenants: 2
+    number_tenants: 1
 
     # Number of Users to be created inside the tenant
     users_per_tenant: 1
@@ -15,23 +15,29 @@ server:
     routers_per_user: 1
 
     # Number of VM instances to be created within the context of each User
-    vms_per_network: 1
+    vms_per_network: 2
 
     # Number of security groups per network
     secgroups_per_network: 1
 
     # Number of keypairs per network
     keypairs_per_network: 1
-    
+
+    # Assign floating IP for every VM
     use_floatingip: False
+
+    # SSH configuration
+    ssh_vm_username: 'ubuntu'
+    ssh_retry_count: 50
+    private_key_file: './ssh/id_rsa'
 
     # Configs that remain constant
     keystone_admin_role: "admin"
-    cleanup_resources : True
-    public_key_file : '../ssh/id_rsa.pub'
-    image_name : 'Scale Image v3'
+    cleanup_resources: True
+    public_key_file: '../ssh/id_rsa.pub'
+    image_name: 'Scale Image v4'
     flavor_type: 'm1.small'
-    
+
 client:
     # Number of tenants to be created on the cloud
     number_tenants: 1
@@ -48,7 +54,7 @@ client:
     routers_per_user: 1
 
     # Number of VM instances to be created within the context of each User
-    vms_per_network: 2 
+    vms_per_network: 2
 
     # Number of security groups per network
     secgroups_per_network: 1
@@ -56,14 +62,36 @@ client:
     # Number of keypairs per network
     keypairs_per_network: 1
 
-    use_floatingip: True
+    # Assign floating IP for every VM
+    use_floatingip: False 
 
     # Specify whether the testing cloud is running in same cloud
     run_on_same_cloud: True
-    
+
+    # SSH configuration
+    ssh_vm_username: 'ubuntu'
+    ssh_retry_count: 50
+    private_key_file: './ssh/id_rsa'
+
+    # Redis server configuration
+    redis_server: '172.29.172.180'
+    redis_server_port: 6379
+    redis_retry_count: 50
+    polling_interval: 5
+
+    # Duration of testing tools (seconds)
+    exec_time: 30
+
+    # Tooling
+    tp_tool: 'nuttcp'
+    http_tool: 'wrk'
+
+    # Prompt before running benchmarking tools
+    prompt_before_run: False
+
     # Configs that remain constant
     keystone_admin_role: "admin"
-    cleanup_resources : True
-    public_key_file : '../ssh/id_rsa.pub'
-    image_name : 'Scale Image v3'
+    cleanup_resources: True
+    public_key_file: '../ssh/id_rsa.pub'
+    image_name: 'Scale Image v4'
     flavor_type: 'm1.small'

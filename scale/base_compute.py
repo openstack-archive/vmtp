@@ -27,10 +27,10 @@ class BaseCompute(object):
     """
 
 
-    def __init__(self, nova_client, user_name):
+    def __init__(self, vm_name, nova_client, user_name):
         self.novaclient = nova_client
         self.user_name = user_name
-        self.vm_name = None
+        self.vm_name = vm_name
         self.instance = None
         self.fip = None
         self.fip_ip = None
@@ -43,11 +43,9 @@ class BaseCompute(object):
 
     # Create a server instance with associated
     # security group, keypair with a provided public key
-    def create_server(self, vmname, image_name, flavor_type, keyname,
-                      nic, sec_group, public_key_file,
-                      avail_zone=None, user_data=None,
-                      config_drive=None,
-                      retry_count=100):
+    def create_server(self, image_name, flavor_type, keyname,
+                      nic, sec_group, avail_zone=None, user_data=None,
+                      config_drive=None, retry_count=100):
         """
         Create a VM instance given following parameters
         1. VM Name
@@ -59,12 +57,11 @@ class BaseCompute(object):
         """
 
         # Get the image id and flavor id from their logical names
-        self.vm_name = vmname
         image = self.find_image(image_name)
         flavor_type = self.find_flavor(flavor_type)
 
         # Also attach the created security group for the test
-        instance = self.novaclient.servers.create(name=vmname,
+        instance = self.novaclient.servers.create(name=self.vm_name,
                                                   image=image,
                                                   flavor=flavor_type,
                                                   key_name=keyname,
@@ -73,7 +70,7 @@ class BaseCompute(object):
                                                   userdata=user_data,
                                                   config_drive=config_drive,
                                                   security_groups=[sec_group.id])
-        flag_exist = self.find_server(vmname, retry_count)
+        flag_exist = self.find_server(self.vm_name, retry_count)
         if flag_exist:
             self.instance = instance
 
@@ -165,10 +162,9 @@ class SecGroup(object):
                 self.novaclient.security_groups.delete(self.secgroup)
                 break
             except Exception:
-                LOG.warn("Security group %s in use retry count: %d" % (
-                    self.secgroup_name,
-                    retry_count))
-                time.sleep(4)
+                LOG.warn("Security group %s in use. Retry #%d" % (
+                    self.secgroup_name, retry_count))
+                time.sleep(2)
 
 
 class KeyPair(object):
