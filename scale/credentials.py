@@ -18,6 +18,10 @@ import getpass
 import os
 import re
 
+import log as logging
+
+LOG = logging.getLogger(__name__)
+
 
 class Credentials(object):
 
@@ -80,7 +84,7 @@ class Credentials(object):
                         elif name == 'TENANT_NAME':
                             self.rc_tenant_name = value
             else:
-                print 'Error: rc file does not exist %s' % (openrc_file)
+                LOG.error("rc file does not exist %s" % openrc_file)
                 success = False
         elif not no_env:
             # no openrc file passed - we assume the variables have been
@@ -88,7 +92,7 @@ class Credentials(object):
             # just check that they are present
             for varname in ['OS_USERNAME', 'OS_AUTH_URL', 'OS_TENANT_NAME']:
                 if varname not in os.environ:
-                    print 'Warning: %s is missing' % (varname)
+                    LOG.warn("%s is missing" % varname)
                     success = False
             if success:
                 self.rc_username = os.environ['OS_USERNAME']

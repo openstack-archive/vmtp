@@ -14,8 +14,12 @@
 
 import base_network
 import keystoneclient.openstack.common.apiclient.exceptions as keystone_exception
+import log as logging
 from neutronclient.v2_0 import client as neutronclient
 from novaclient.client import Client
+
+LOG = logging.getLogger(__name__)
+
 
 class User(object):
     """
@@ -55,7 +59,7 @@ class User(object):
         self.user_id = admin_user.id
 
     def _create_user(self):
-        print 'Creating user: ' + self.user_name
+        LOG.info("Creating user: " + self.user_name)
         return self.tenant.kloud.keystone.users.create(name=self.user_name,
                                                        password=self.user_name,
                                                        email="test.com",
@@ -75,14 +79,15 @@ class User(object):
             if exc.http_status != 409:
                 raise exc
         # Try to repair keystone by removing that user
-        print 'User creation failed due to stale user with same name: ' + self.user_name
+        LOG.warn("User creation failed due to stale user with same name: " +
+                 self.user_name)
         # Again, trying to find a user by name is pretty inefficient as one has to list all
         # of them
         users_list = self.tenant.kloud.keystone.users.list()
         for user in users_list:
             if user.name == self.user_name:
                 # Found it, time to delete it
-                print 'Deleting stale user with name: ' + self.user_name
+                LOG.info("Deleting stale user with name: " + self.user_name)
                 self.tenant.kloud.keystone.users.delete(user)
                 user = self._create_user()
                 return user
@@ -91,7 +96,7 @@ class User(object):
         raise Exception('Cannot find stale user:' + self.user_name)
 
     def delete_resources(self):
-        print "Deleting all user resources for user %s" % (self.user_name)
+        LOG.info("Deleting all user resources for user %s" % self.user_name)
 
         # Delete all user routers
         for router in self.router_list:
@@ -132,7 +137,7 @@ class User(object):
         else:
             external_network = None
         # Create the required number of routers and append them to router list
-        print "Creating routers for user %s" % (self.user_name)
+        LOG.info("Creating routers for user %s" % self.user_name)
         for router_count in range(config_scale['routers_per_user']):
             router_instance = base_network.Router(self.neutron, self.nova, self.user_name,
                                                   self.tenant.kloud.shared_network)

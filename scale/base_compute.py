@@ -14,6 +14,12 @@
 
 import os
 import time
+
+import log as logging
+
+LOG = logging.getLogger(__name__)
+
+
 class BaseCompute(object):
     """
     The Base class for nova compute resources
@@ -82,7 +88,8 @@ class BaseCompute(object):
                 if server.name == vmname and server.status == "ACTIVE":
                     return True
             time.sleep(2)
-        print "[%s] VM not found, after %d attempts" % (vmname, retry_count)
+        LOG.error("[%s] VM not found, after %d attempts" % (vmname,
+                                                            retry_count))
         return False
 
     def get_server_list(self):
@@ -152,13 +159,15 @@ class SecGroup(object):
         Sometimes this maybe in use if instance is just deleted
         Add a retry mechanism
         """
-        print "Deleting secgroup %s" % (self.secgroup)
+        LOG.info("Deleting secgroup %s" % self.secgroup)
         for retry_count in range(1, 10):
             try:
                 self.novaclient.security_groups.delete(self.secgroup)
                 break
             except Exception:
-                print "Security group %s in use retry count:%d" % (self.secgroup_name, retry_count)
+                LOG.warn("Security group %s in use retry count: %d" % (
+                    self.secgroup_name,
+                    retry_count))
                 time.sleep(4)
 
 
@@ -180,9 +189,9 @@ class KeyPair(object):
             with open(os.path.expanduser(public_key_file)) as pkf:
                 public_key = pkf.read()
         except IOError as exc:
-            print 'ERROR: Cannot open public key file %s: %s' % \
-                  (public_key_file, exc)
-        print 'Adding public key %s' % (name)
+            LOG.error("Cannot open public key file %s: %s" % (public_key_file,
+                                                              exc))
+        LOG.info("Adding public key %s" % name)
         keypair = self.novaclient.keypairs.create(name, public_key)
         self.keypair = keypair
         self.keypair_name = name

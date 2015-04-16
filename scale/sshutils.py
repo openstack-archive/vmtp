@@ -63,8 +63,12 @@ import socket
 import StringIO
 import time
 
+import log as logging
 import paramiko
 import scp
+
+LOG = logging.getLogger(__name__)
+
 
 # from rally.openstack.common.gettextutils import _
 
@@ -343,7 +347,7 @@ class SSH(object):
         if int(pkt_loss) < int(pass_threshold):
             return 1
         else:
-            print 'Ping to %s failed: %s' % (target_ip, cmd_output)
+            LOG.error("Ping to %s failed: %s" % (target_ip, cmd_output))
             return 0
 
     def get_file_from_host(self, from_path, to_path):
@@ -356,7 +360,7 @@ class SSH(object):
         try:
             scpcon.get(from_path, to_path)
         except scp.SCPException as exp:
-            print ("Send failed: [%s]", exp)
+            LOG.error("Send failed: [%s]" % exp)
             return 0
         return 1
 

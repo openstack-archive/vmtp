@@ -17,8 +17,12 @@ import time
 from perf_instance import PerfInstance
 
 import base_compute
+import log as logging
 import netaddr
 from neutronclient.common.exceptions import NetworkInUseClient
+
+LOG = logging.getLogger(__name__)
+
 
 # Global CIDR shared by all objects of this class
 # Enables each network to get a unique CIDR
@@ -59,7 +63,7 @@ def find_external_network(neutron_client):
         if network['router:external']:
             return network
 
-    print "No external network found!!!"
+    LOG.error("No external network found!!!")
     return None
 
 
@@ -115,13 +119,13 @@ class BaseNetwork(object):
         # Create the VMs on  specified network, first keypair, first secgroup
         if config_scale['use_floatingip']:
             external_network = find_external_network(self.neutron_client)
-        print "Creating Virtual machines for user %s" % (self.user_name)
+        LOG.info("Creating Virtual machines for user %s" % self.user_name)
         for instance_count in range(config_scale['vms_per_network']):
             perf_instance = PerfInstance(self.nova_client, self.user_name)
             self.instance_list.append(perf_instance)
             vm_name = network_prefix + "_I" + str(instance_count)
             nic_used = [{'net-id': self.network['id']}]
-            print 'Creating Instance: ' + vm_name
+            LOG.info("Creating Instance: " + vm_name)
             perf_instance.create_server(vm_name, config_scale['image_name'],
                                         config_scale['flavor_type'],
                                         self.keypair_list[0].keypair_name,
@@ -133,8 +137,8 @@ class BaseNetwork(object):
                                         None)
             # Store the subnet info and fixed ip address in instance
             perf_instance.subnet_ip = self.network['subnet_ip']
-            print perf_instance.instance.networks.values()
-            print '++++++++++++++++++++++++++++++'
+            LOG.info(perf_instance.instance.networks.values())
+            LOG.info("++++++++++++++++++++++++++++++")
             perf_instance.fixed_ip = perf_instance.instance.networks.values()[0][0]
             if self.shared_interface_ip:
                 perf_instance.shared_interface_ip = self.shared_interface_ip
@@ -148,11 +152,11 @@ class BaseNetwork(object):
             else:
                 # Store the fixed ip as ssh ip since there is no floating ip
                 perf_instance.ssh_ip = perf_instance.fixed_ip
-            print "VM Information"
-            print "SSH IP:%s" % (perf_instance.ssh_ip)
-            print "Subnet Info: %s" % (perf_instance.subnet_ip)
+            LOG.info("VM Information")
+            LOG.info("SSH IP:%s" % perf_instance.ssh_ip)
+            LOG.info("Subnet Info: %s" % perf_instance.subnet_ip)
             if self.shared_interface_ip:
-                print "Shared router interface ip %s" % (self.shared_interface_ip)
+                LOG.info("Shared router interface ip %s" % self.shared_interface_ip)
 
     def delete_compute_resources(self):
         """
