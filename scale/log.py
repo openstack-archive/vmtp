@@ -28,7 +28,7 @@ CONF = cfg.CONF
 CONF.register_cli_opts(DEBUG_OPTS)
 oslogging.register_options(CONF)
 
-logging.KBDEBUG = logging.DEBUG + 1
+logging.KBDEBUG = logging.DEBUG + 5
 logging.addLevelName(logging.KBDEBUG, "KBDEBUG")
 
 CRITICAL = logging.CRITICAL
@@ -40,7 +40,6 @@ NOTSET = logging.NOTSET
 KBDEBUG = logging.KBDEBUG
 WARN = logging.WARN
 WARNING = logging.WARNING
-
 
 def setup(product_name, version="unknown"):
     dbg_color = handlers.ColorHandler.LEVEL_COLORS[logging.DEBUG]

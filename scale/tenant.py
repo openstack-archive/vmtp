@@ -49,7 +49,7 @@ class Tenant(object):
             LOG.info("Creating tenant: " + self.tenant_name)
             self.tenant_object = \
                 self.kloud.keystone.tenants.create(tenant_name=self.tenant_name,
-                                                   description="Test tenant",
+                                                   description="KloudBuster tenant",
                                                    enabled=True)
         except keystone_exception.Conflict as exc:
             # ost likely the entry already exists:
@@ -74,7 +74,7 @@ class Tenant(object):
 
         # Loop over the required number of users and create resources
         for user_count in xrange(self.kloud.scale_cfg['users_per_tenant']):
-            user_name = self.tenant_name + "_U" + str(user_count)
+            user_name = self.tenant_name + "-U" + str(user_count)
             user_instance = users.User(user_name,
                                        self,
                                        self.kloud.scale_cfg['keystone_admin_role'])

@@ -62,7 +62,7 @@ class User(object):
         LOG.info("Creating user: " + self.user_name)
         return self.tenant.kloud.keystone.users.create(name=self.user_name,
                                                        password=self.user_name,
-                                                       email="test.com",
+                                                       email="kloudbuster@localhost",
                                                        tenant_id=self.tenant.tenant_id)
 
     def _get_user(self):
@@ -132,7 +132,9 @@ class User(object):
 
         config_scale = self.tenant.kloud.scale_cfg
         # Find the external network that routers need to attach to
-        if config_scale['use_floatingip']:
+        # if redis_server is configured, we need to attach the router to the
+        # external network in order to reach the redis_server
+        if config_scale['use_floatingip'] or 'redis_server' in config_scale:
             external_network = base_network.find_external_network(self.neutron)
         else:
             external_network = None
@@ -142,7 +144,7 @@ class User(object):
             router_instance = base_network.Router(self.neutron, self.nova, self.user_name,
                                                   self.tenant.kloud.shared_network)
             self.router_list.append(router_instance)
-            router_name = self.user_name + "_R" + str(router_count)
+            router_name = self.user_name + "-R" + str(router_count)
             # Create the router and also attach it to external network
             router_instance.create_router(router_name, external_network)
             # Now create the network resources inside the router

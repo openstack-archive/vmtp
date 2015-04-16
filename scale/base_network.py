@@ -105,14 +105,14 @@ class BaseNetwork(object):
         for secgroup_count in range(config_scale['secgroups_per_network']):
             secgroup_instance = base_compute.SecGroup(self.nova_client)
             self.secgroup_list.append(secgroup_instance)
-            secgroup_name = network_prefix + "_SG" + str(secgroup_count)
+            secgroup_name = network_prefix + "-SG" + str(secgroup_count)
             secgroup_instance.create_secgroup_with_rules(secgroup_name)
 
         # Create the keypair list
         for keypair_count in range(config_scale['keypairs_per_network']):
             keypair_instance = base_compute.KeyPair(self.nova_client)
             self.keypair_list.append(keypair_instance)
-            keypair_name = network_prefix + "_K" + str(keypair_count)
+            keypair_name = network_prefix + "-K" + str(keypair_count)
             keypair_instance.add_public_key(keypair_name, config_scale['public_key_file'])
 
         # Create the required number of VMs
@@ -120,30 +120,34 @@ class BaseNetwork(object):
         if config_scale['use_floatingip']:
             external_network = find_external_network(self.neutron_client)
         LOG.info("Creating Virtual machines for user %s" % self.user_name)
+        if 'redis_server' in config_scale:
+            # Here we are creating a testing VM (client), put the redis server
+            # information in the user_data.
+            redis_server = config_scale['redis_server']
+            redis_server_port = config_scale['redis_server_port']
+            user_data = redis_server + ":" + str(redis_server_port)
+        else:
+            user_data = None
         for instance_count in range(config_scale['vms_per_network']):
-            perf_instance = PerfInstance(self.nova_client, self.user_name)
+            vm_name = network_prefix + "-I" + str(instance_count)
+            perf_instance = PerfInstance(vm_name, self.nova_client, self.user_name, config_scale)
             self.instance_list.append(perf_instance)
-            vm_name = network_prefix + "_I" + str(instance_count)
             nic_used = [{'net-id': self.network['id']}]
             LOG.info("Creating Instance: " + vm_name)
-            perf_instance.create_server(vm_name, config_scale['image_name'],
+            perf_instance.create_server(config_scale['image_name'],
                                         config_scale['flavor_type'],
                                         self.keypair_list[0].keypair_name,
                                         nic_used,
                                         self.secgroup_list[0].secgroup,
-                                        config_scale['public_key_file'],
-                                        None,
-                                        None,
-                                        None)
+                                        user_data=user_data)
             # Store the subnet info and fixed ip address in instance
             perf_instance.subnet_ip = self.network['subnet_ip']
-            LOG.info(perf_instance.instance.networks.values())
-            LOG.info("++++++++++++++++++++++++++++++")
             perf_instance.fixed_ip = perf_instance.instance.networks.values()[0][0]
             if self.shared_interface_ip:
                 perf_instance.shared_interface_ip = self.shared_interface_ip
-            # Create the floating ip for the instance store it and the ip address in instance object
             if config_scale['use_floatingip']:
+                # Create the floating ip for the instance
+                # store it and the ip address in instance object
                 perf_instance.fip = create_floating_ip(self.neutron_client, external_network)
                 perf_instance.fip_ip = perf_instance.fip['floatingip']['floating_ip_address']
                 # Associate the floating ip with this instance
@@ -152,11 +156,6 @@ class BaseNetwork(object):
             else:
                 # Store the fixed ip as ssh ip since there is no floating ip
                 perf_instance.ssh_ip = perf_instance.fixed_ip
-            LOG.info("VM Information")
-            LOG.info("SSH IP:%s" % perf_instance.ssh_ip)
-            LOG.info("Subnet Info: %s" % perf_instance.subnet_ip)
-            if self.shared_interface_ip:
-                LOG.info("Shared router interface ip %s" % self.shared_interface_ip)
 
     def delete_compute_resources(self):
         """
@@ -182,7 +181,7 @@ class BaseNetwork(object):
         """
         Create a network with 1 subnet inside it
         """
-        subnet_name = "kloudbuster_subnet" + network_name
+        subnet_name = "kloudbuster_subnet_" + network_name
         body = {
             'network': {
                 'name': network_name,
@@ -263,7 +262,7 @@ class Router(object):
                                            self.shared_interface_ip)
             self.network_list.append(network_instance)
             # Create the network and subnet
-            network_name = self.user_name + "_N" + str(network_count)
+            network_name = self.user_name + "-N" + str(network_count)
             network_instance.create_network_and_subnet(network_name)
             # Attach the created network to router interface
             self.attach_router_interface(network_instance)
