@@ -79,8 +79,8 @@ class PerfTool(object):
             self.instance.ssh.kill_proc(self.pid)
             self.pid = None
 
-    def parse_error(self, msg):
-        return {'error': msg, 'tool': self.name}
+    def parse_error(self, proto, msg):
+        return {'protocol': proto, 'error': msg, 'tool': self.name}
 
     def parse_results(self, protocol, throughput, lossrate=None, retrans=None,
                       rtt_ms=None, reverse_dir=False,

@@ -160,7 +160,7 @@ class NuttcpTool(PerfTool):
         except sshutils.SSHError as exc:
             # Timout or any SSH error
             self.instance.display('SSH Error:' + str(exc))
-            return [self.parse_error(str(exc))]
+            return [self.parse_error('TCP', str(exc))]
 
         if udp:
             # UDP output (unicast and multicast):
@@ -200,4 +200,4 @@ class NuttcpTool(PerfTool):
                                            reverse_dir=reverse_dir,
                                            msg_size=length,
                                            cpu_load=cpu_load)]
-        return [self.parse_error('Could not parse: %s' % (cmd_out))]
+        return [self.parse_error('TCP', 'Could not parse: %s' % (cmd_out))]

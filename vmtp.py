@@ -39,6 +39,7 @@ from keystoneclient.v2_0 import client as keystoneclient
 from neutronclient.v2_0 import client as neutronclient
 from novaclient.client import Client
 from novaclient.exceptions import ClientException
+from tabulate import tabulate
 
 __version__ = '2.0.4'
 
@@ -535,6 +536,64 @@ def _merge_config(file, source_config, required=False):
         sys.exit(1)
     return dest_config
 
+def print_report(results):
+    # In order to parse the results with less logic, we are encoding the results as below:
+    # Same Network = 0, Different Network = 1
+    # Fixed IP = 0, Floating IP = 1
+    # Intra-node = 0, Inter-node = 1
+
+    # Initilize a run_status[3][2][2][3] array
+    run_status = [([([(["SKIPPED"] * 3) for i in range(2)]) for i in range(2)]) for i in range(3)]
+    flows = results['flows']
+    for flow in flows:
+        res = flow['results']
+        if flow['desc'].find('External-VM') != -1:
+            for item in res:
+                if 'direction' not in item:
+                    run_status[2][0][0][0] = "PASSED" if 'error' not in item else "FAILED"
+                else:
+                    run_status[2][0][0][1] = "PASSED" if 'error' not in item else "FAILED"
+        else:
+            idx0 = 0 if flow['desc'].find('same network') != -1 else 1
+            idx1 = 0 if flow['desc'].find('fixed IP') != -1 else 1
+            idx2 = 0 if flow['desc'].find('intra-node') != -1 else 1
+            for item in res:
+                for idx3, proto in enumerate(['TCP', 'UDP', 'ICMP']):
+                    if item['protocol'] == proto:
+                        run_status[idx0][idx1][idx2][idx3] =\
+                            "PASSED" if 'error' not in item else "FAILED"
+
+    table = [['Scenario', 'Scenario Name', 'Status']]
+    scenario = 0
+    for idx0, net in enumerate(['Same Network', 'Different Network']):
+        for idx1, ip in enumerate(['Fixed IP', 'Floating IP']):
+            if net == 'Same Network' and ip == 'Floating IP':
+                continue
+            for idx2, node in enumerate(['Intra-node', 'Inter-node']):
+                for idx3, proto in enumerate(['TCP', 'UDP', 'ICMP']):
+                    row = [str(scenario / 3 + 1) + "." + str(idx3 + 1),
+                           "%s, %s, %s, %s" % (net, ip, node, proto),
+                           run_status[idx0][idx1][idx2][idx3]]
+                    table.append(row)
+                    scenario = scenario + 1
+    table.append(['7.1', 'VM to Host Uploading', run_status[2][0][0][0]])
+    table.append(['7.2', 'VM to Host Downloading', run_status[2][0][0][1]])
+
+    ptable = zip(*table[1:])[2]
+    cnt_passed = ptable.count("PASSED")
+    cnt_failed = ptable.count("FAILED")
+    cnt_skipped = ptable.count("SKIPPED")
+    cnt_valid = len(table) - 1 - cnt_skipped
+    passed_rate = float(cnt_passed) / cnt_valid * 100 if cnt_valid != 0 else 0
+    failed_rate = float(cnt_failed) / cnt_valid * 100 if cnt_valid != 0 else 0
+    print "\nSummary of results"
+    print "=================="
+    print "Total Scenarios:   %d" % (len(table) - 1)
+    print "Passed Scenarios:  %d [%.2f%%]" % (cnt_passed, passed_rate)
+    print "Failed Scenarios:  %d [%.2f%%]" % (cnt_failed, failed_rate)
+    print "Skipped Scenarios: %d" % (cnt_skipped)
+    print tabulate(table, headers="firstrow", tablefmt="psql", stralign="left")
+
 if __name__ == '__main__':
 
     fpr = FlowPrinter()
@@ -868,6 +927,8 @@ if __name__ == '__main__':
         rescol.add_property('auth_url', cred.rc_auth_url)
         vmtp = VmtpTest()
         vmtp.run()
+
+    print_report(rescol.results)
 
     # If saving the results to JSON or MongoDB, get additional details:
     if config.json_file or config.vmtp_mongod_ip:

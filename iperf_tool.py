@@ -203,4 +203,4 @@ class IperfTool(PerfTool):
                                                       msg_size=length,
                                                       cpu_load=cpu_load))
                 return res
-        return [self.parse_error('Could not parse: %s' % (cmd_out))]
+        return [self.parse_error('TCP', 'Could not parse: %s' % (cmd_out))]
