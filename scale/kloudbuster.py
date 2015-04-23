@@ -69,10 +69,8 @@ class Kloud(object):
         # if this cloud is sharing a network then all tenants must hook up to
         # it and on deletion that shared network must NOT be deleted
         # as it will be deleted by the owner
-        self.shared_network = None
 
-    def create_resources(self, shared_net=None):
-        self.shared_network = shared_net
+    def create_resources(self):
         for tenant_count in xrange(self.scale_cfg['number_tenants']):
             tenant_name = self.prefix + "-T" + str(tenant_count)
             new_tenant = tenant.Tenant(tenant_name, self)
@@ -93,6 +91,34 @@ class Kloud(object):
         for tnt in self.tenant_list:
             all_instances.extend(tnt.get_all_instances())
         return all_instances
+
+    def attach_to_shared_net(self, shared_net):
+        # If a shared network exists create a port on this
+        # network and attach to router interface
+        for tnt in self.tenant_list:
+            for usr in tnt.user_list:
+                for rtr in usr.router_list:
+                    rtr.shared_network = shared_net
+                    rtr.attach_router_interface(shared_net, use_port=True)
+                    for net in rtr.network_list:
+                        for ins in net.instance_list:
+                            ins.shared_interface_ip = rtr.shared_interface_ip
+
+    def create_vms(self):
+        # TODO(Make the creation concurrently)
+        for instance in self.get_all_instances():
+            LOG.info("Creating Instance: " + instance.vm_name)
+            instance.create_server(**instance.boot_info)
+
+            instance.fixed_ip = instance.instance.networks.values()[0][0]
+            if instance.config['use_floatingip']:
+                # Associate the floating ip with this instance
+                instance.instance.add_floating_ip(instance.fip_ip)
+                instance.ssh_ip = instance.fip_ip
+            else:
+                # Store the fixed ip as ssh ip since there is no floating ip
+                instance.ssh_ip = instance.fixed_ip
+
 
 class KloudBuster(object):
     """
@@ -139,6 +165,26 @@ class KloudBuster(object):
         LOG.info('Provision Details (Testing Kloud)\n' +
                  tabulate(table, headers="firstrow", tablefmt="psql"))
 
+    def gen_user_data(self):
+        LOG.info("Preparing metadata for testing VMs...")
+        # We supposed to have a mapping framework/algorithm to mapping clients to servers.
+        # e.g. 1:1 mapping, 1:n mapping, n:1 mapping, etc.
+        # Here we are using N*1:1
+        client_list = self.testing_kloud.get_all_instances()
+        svr_list = self.kloud.get_all_instances()
+
+        for idx, ins in enumerate(client_list):
+            ins.target_url = "http://%s/index.html" %\
+                (svr_list[idx].fip_ip or svr_list[idx].fixed_ip)
+            ins.user_data['redis_server'] = ins.config['redis_server']
+            ins.user_data['redis_server_port'] = ins.config['redis_server_port']
+            ins.user_data['target_subnet_ip'] = svr_list[idx].subnet_ip
+            ins.user_data['target_shared_interface_ip'] = svr_list[idx].shared_interface_ip
+            ins.user_data['target_url'] = ins.target_url
+            ins.user_data['http_tool'] = ins.config['http_tool']
+            ins.user_data['http_tool_configs'] = ins.config['http_tool_configs']
+            ins.boot_info['user_data'] = str(ins.user_data)
+
     def run(self):
         """
         The runner for KloudBuster Tests
@@ -147,27 +193,21 @@ class KloudBuster(object):
         """
 
         try:
-            # Create the testing cloud resources
+            self.kloud.create_resources()
+            self.kloud.create_vms()
             self.testing_kloud.create_resources()
-            # Find the shared network if the cloud used to testing is same
             if self.single_cloud:
-                shared_network = self.testing_kloud.get_first_network()
-            else:
-                shared_network = None
-            self.kloud.create_resources(shared_network)
+                # Find the shared network if the cloud used to testing is same
+                # Attach the router in tested kloud to the shared network
+                shared_net = self.testing_kloud.get_first_network()
+                self.kloud.attach_to_shared_net(shared_net)
+            self.gen_user_data()
+            self.testing_kloud.create_vms()
 
             # Function that print all the provisioning info
             self.print_provision_info()
 
-            # We supposed to have a mapping framework/algorithm to mapping clients to servers.
-            # e.g. 1:1 mapping, 1:n mapping, n:1 mapping, etc.
-            # Here we are using N*1:1
             client_list = self.testing_kloud.get_all_instances()
-            for idx, svr in enumerate(self.kloud.get_all_instances()):
-                client_list[idx].target_server = svr
-                client_list[idx].target_url = "http://%s/index.html" %\
-                    (svr.fip_ip or svr.fixed_ip)
-
             kbscheduler = kb_scheduler.KBScheduler(client_list, config_scale.client)
             kbscheduler.run()
         except KeyboardInterrupt:
@@ -178,9 +218,16 @@ class KloudBuster(object):
         # Cleanup: start with tested side first
         # then testing side last (order is important because of the shared network)
         if config_scale.server['cleanup_resources']:
-            self.kloud.delete_resources()
+            try:
+                self.kloud.delete_resources()
+            except Exception:
+                traceback.print_exc()
         if config_scale.client['cleanup_resources']:
-            self.testing_kloud.delete_resources()
+            try:
+                self.testing_kloud.delete_resources()
+            except Exception:
+                traceback.print_exc()
+
 
 if __name__ == '__main__':
     # The default configuration file for KloudBuster

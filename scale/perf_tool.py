@@ -20,17 +20,14 @@ import log as logging
 LOG = logging.getLogger(__name__)
 
 
-# where to copy the tool on the target, must end with slash
-SCP_DEST_DIR = '/var/tmp/'
-
 # A base class for all tools that can be associated to an instance
 class PerfTool(object):
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, name, instance):
-        self.name = name
+    def __init__(self, instance, tool_cfg):
+        self.name = tool_cfg.name
         self.instance = instance
-        self.dest_path = SCP_DEST_DIR + name
+        self.dest_path = tool_cfg.dest_path
         self.pid = None
 
     # Terminate pid if started

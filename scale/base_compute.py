@@ -27,9 +27,8 @@ class BaseCompute(object):
     """
 
 
-    def __init__(self, vm_name, nova_client, user_name):
-        self.novaclient = nova_client
-        self.user_name = user_name
+    def __init__(self, vm_name, network):
+        self.novaclient = network.router.user.nova_client
         self.vm_name = vm_name
         self.instance = None
         self.fip = None

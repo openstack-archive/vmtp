@@ -78,21 +78,20 @@ class BaseNetwork(object):
 
 
 
-    def __init__(self, neutron_client, nova_client, user_name, shared_interface_ip=None):
+    def __init__(self, router):
         """
         Store the neutron client
         User name for this network
         and network object
         """
-        self.neutron_client = neutron_client
-        self.nova_client = nova_client
-        self.user_name = user_name
+        self.neutron_client = router.user.neutron_client
+        self.nova_client = router.user.nova_client
+        self.router = router
         self.network = None
         self.instance_list = []
         self.secgroup_list = []
         self.keypair_list = []
         # Store the shared interface ip of router for tested and testing cloud
-        self.shared_interface_ip = shared_interface_ip
 
     def create_compute_resources(self, network_prefix, config_scale):
         """
@@ -115,47 +114,28 @@ class BaseNetwork(object):
             keypair_name = network_prefix + "-K" + str(keypair_count)
             keypair_instance.add_public_key(keypair_name, config_scale['public_key_file'])
 
-        # Create the required number of VMs
-        # Create the VMs on  specified network, first keypair, first secgroup
+        LOG.info("Scheduled to create virtual machines...")
         if config_scale['use_floatingip']:
             external_network = find_external_network(self.neutron_client)
-        LOG.info("Creating Virtual machines for user %s" % self.user_name)
-        if 'redis_server' in config_scale:
-            # Here we are creating a testing VM (client), put the redis server
-            # information in the user_data.
-            redis_server = config_scale['redis_server']
-            redis_server_port = config_scale['redis_server_port']
-            user_data = redis_server + ":" + str(redis_server_port)
-        else:
-            user_data = None
+        # Schedule to create the required number of VMs
         for instance_count in range(config_scale['vms_per_network']):
             vm_name = network_prefix + "-I" + str(instance_count)
-            perf_instance = PerfInstance(vm_name, self.nova_client, self.user_name, config_scale)
+            perf_instance = PerfInstance(vm_name, self, config_scale)
             self.instance_list.append(perf_instance)
-            nic_used = [{'net-id': self.network['id']}]
-            LOG.info("Creating Instance: " + vm_name)
-            perf_instance.create_server(config_scale['image_name'],
-                                        config_scale['flavor_type'],
-                                        self.keypair_list[0].keypair_name,
-                                        nic_used,
-                                        self.secgroup_list[0].secgroup,
-                                        user_data=user_data)
-            # Store the subnet info and fixed ip address in instance
+
             perf_instance.subnet_ip = self.network['subnet_ip']
-            perf_instance.fixed_ip = perf_instance.instance.networks.values()[0][0]
-            if self.shared_interface_ip:
-                perf_instance.shared_interface_ip = self.shared_interface_ip
             if config_scale['use_floatingip']:
                 # Create the floating ip for the instance
-                # store it and the ip address in instance object
+                # store it and the ip address in perf_instance object
                 perf_instance.fip = create_floating_ip(self.neutron_client, external_network)
                 perf_instance.fip_ip = perf_instance.fip['floatingip']['floating_ip_address']
-                # Associate the floating ip with this instance
-                perf_instance.instance.add_floating_ip(perf_instance.fip_ip)
-                perf_instance.ssh_ip = perf_instance.fip_ip
-            else:
-                # Store the fixed ip as ssh ip since there is no floating ip
-                perf_instance.ssh_ip = perf_instance.fixed_ip
+
+            # Create the VMs on specified network, first keypair, first secgroup
+            perf_instance.boot_info['image_name'] = config_scale['image_name']
+            perf_instance.boot_info['flavor_type'] = config_scale['flavor_type']
+            perf_instance.boot_info['keyname'] = self.keypair_list[0].keypair_name
+            perf_instance.boot_info['nic'] = [{'net-id': self.network['id']}]
+            perf_instance.boot_info['sec_group'] = self.secgroup_list[0].secgroup
 
     def delete_compute_resources(self):
         """
@@ -234,15 +214,15 @@ class Router(object):
     of network interfaces to router
     """
 
-    def __init__(self, neutron_client, nova_client, user_name, shared_network=None):
-        self.neutron_client = neutron_client
-        self.nova_client = nova_client
+    def __init__(self, user):
+        self.neutron_client = user.neutron_client
+        self.nova_client = user.nova_client
         self.router = None
-        self.user_name = user_name
+        self.user = user
         # Stores the list of networks
         self.network_list = []
         # Store the shared network
-        self.shared_network = shared_network
+        self.shared_network = None
         self.shared_port_id = None
         # Store the interface ip of shared network attached to router
         self.shared_interface_ip = None
@@ -253,16 +233,11 @@ class Router(object):
         Also triggers the creation of compute resources inside each
         network
         """
-        # If a shared network exists create a port on this
-        # network and attach to router interface
-        if self.shared_network:
-            self.attach_router_interface(self.shared_network, use_port=True)
         for network_count in range(config_scale['networks_per_router']):
-            network_instance = BaseNetwork(self.neutron_client, self.nova_client, self.user_name,
-                                           self.shared_interface_ip)
+            network_instance = BaseNetwork(self)
             self.network_list.append(network_instance)
             # Create the network and subnet
-            network_name = self.user_name + "-N" + str(network_count)
+            network_name = self.user.user_name + "-N" + str(network_count)
             network_instance.create_network_and_subnet(network_name)
             # Attach the created network to router interface
             self.attach_router_interface(network_instance)
@@ -289,7 +264,8 @@ class Router(object):
         for network in self.network_list:
             # Now delete the compute resources and the network resources
             network.delete_compute_resources()
-            self.remove_router_interface(network)
+            if network.network:
+                self.remove_router_interface(network)
             network.delete_network()
         # Also delete the shared port and remove it from router interface
         if self.shared_network:
@@ -363,8 +339,6 @@ class Router(object):
                 'subnet_id': network_instance.network['subnets'][0]
             }
         self.neutron_client.add_interface_router(self.router['router']['id'], body)
-
-
 
     def remove_router_interface(self, network_instance, use_port=False):
         """

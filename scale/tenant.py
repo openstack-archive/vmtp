@@ -56,7 +56,8 @@ class Tenant(object):
             # Conflict: Conflict occurred attempting to store project - Duplicate Entry (HTTP 409)
             if exc.http_status != 409:
                 raise exc
-        LOG.info("Tenant %s already present, reusing it" % self.tenant_name)
+            LOG.info("Tenant %s already present, reusing it" % self.tenant_name)
+
         # It is a hassle to find a tenant by name as the only way seems to retrieve
         # the list of all tenants which can be very large
         tenant_list = self.kloud.keystone.tenants.list()

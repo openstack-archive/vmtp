@@ -24,15 +24,15 @@ LOG = logging.getLogger(__name__)
 
 class WrkTool(PerfTool):
 
-    def __init__(self, instance):
-        PerfTool.__init__(self, 'wrk-4.0.1', instance)
+    def __init__(self, instance, cfg_http_tool):
+        PerfTool.__init__(self, instance, cfg_http_tool)
 
     def cmd_run_client(self, target_url, threads, connections,
                        timeout=5, connetion_type='Keep-alive', retry_count=10):
         '''
         Return the command for running the benchmarking tool
         '''
-        duration_sec = self.instance.config.exec_time
+        duration_sec = self.instance.config.http_tool_configs.duration
         cmd = '%s -t%d -c%d -d%ds --timeout %ds --latency %s' % \
             (self.dest_path, threads, connections, duration_sec, timeout, target_url)
         LOG.kbdebug("[%s] %s" % (self.instance.vm_name, cmd))
@@ -41,6 +41,7 @@ class WrkTool(PerfTool):
     def cmd_parser_run_client(self, status, stdout, stderr):
         if status:
             return [self.parse_error(stderr)]
+
         # Sample Output:
         # Running 10s test @ http://192.168.1.1/index.html
         #   8 threads and 5000 connections

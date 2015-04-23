@@ -1,7 +1,7 @@
 # KloudBuster Default configuration file
 server:
     # Number of tenants to be created on the cloud
-    number_tenants: 1
+    number_tenants: 2
 
     # Number of Users to be created inside the tenant
     users_per_tenant: 1
@@ -15,7 +15,7 @@ server:
     routers_per_user: 1
 
     # Number of VM instances to be created within the context of each User
-    vms_per_network: 2
+    vms_per_network: 1
 
     # Number of security groups per network
     secgroups_per_network: 1
@@ -63,7 +63,7 @@ client:
     keypairs_per_network: 1
 
     # Assign floating IP for every VM
-    use_floatingip: False 
+    use_floatingip: False
 
     # Specify whether the testing cloud is running in same cloud
     run_on_same_cloud: True
@@ -79,12 +79,26 @@ client:
     redis_retry_count: 50
     polling_interval: 5
 
-    # Duration of testing tools (seconds)
-    exec_time: 30
-
     # Tooling
-    tp_tool: 'nuttcp'
-    http_tool: 'wrk'
+    tp_tool:
+        name: 'nuttcp'
+        dest_path: '/var/tmp/nuttcp-7.3.2'
+    http_tool:
+        name: 'wrk'
+        dest_path: '/var/tmp/wrk-4.0.1'
+
+    # HTTP Tool Specific Configs
+    http_tool_configs:
+        # Threads to run tests
+        threads: 2
+        # Connections to be kept concurrently
+        connections: 5000
+        # Timeout for HTTP requests
+        timeout: 5
+        # Connection Type: "Keep-alive", "New"
+        connection_type: 'Keep-alive'
+        # Duration of testing tools (seconds)
+        duration: 30
 
     # Prompt before running benchmarking tools
     prompt_before_run: False
@@ -93,5 +107,5 @@ client:
     keystone_admin_role: "admin"
     cleanup_resources: True
     public_key_file: '../ssh/id_rsa.pub'
-    image_name: 'Scale Image v4'
-    flavor_type: 'm1.small'
+    image_name: 'Scale Image v4a'
+    flavor_type: 'kb_flavor'

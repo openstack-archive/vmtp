@@ -40,9 +40,9 @@ class User(object):
         self.user_id = None
         self.router_list = []
         # Store the neutron and nova client
-        self.neutron = None
-        self.nova = None
-        admin_user = self._get_user()
+        self.neutron_client = None
+        self.nova_client = None
+        self.admin_user = self._get_user()
 
         # Create the user within the given tenant associate
         # admin role with user. We need admin role for user
@@ -53,10 +53,10 @@ class User(object):
             if role.name == user_role:
                 current_role = role
                 break
-        self.tenant.kloud.keystone.roles.add_user_role(admin_user,
+        self.tenant.kloud.keystone.roles.add_user_role(self.admin_user,
                                                        current_role,
                                                        tenant.tenant_id)
-        self.user_id = admin_user.id
+        self.user_id = self.admin_user.id
 
     def _create_user(self):
         LOG.info("Creating user: " + self.user_name)
@@ -78,19 +78,19 @@ class User(object):
             # Conflict: Conflict occurred attempting to store user - Duplicate Entry (HTTP 409)
             if exc.http_status != 409:
                 raise exc
-        # Try to repair keystone by removing that user
-        LOG.warn("User creation failed due to stale user with same name: " +
-                 self.user_name)
-        # Again, trying to find a user by name is pretty inefficient as one has to list all
-        # of them
-        users_list = self.tenant.kloud.keystone.users.list()
-        for user in users_list:
-            if user.name == self.user_name:
-                # Found it, time to delete it
-                LOG.info("Deleting stale user with name: " + self.user_name)
-                self.tenant.kloud.keystone.users.delete(user)
-                user = self._create_user()
-                return user
+            # Try to repair keystone by removing that user
+            LOG.warn("User creation failed due to stale user with same name: " +
+                     self.user_name)
+            # Again, trying to find a user by name is pretty inefficient as one has to list all
+            # of them
+            users_list = self.tenant.kloud.keystone.users.list()
+            for user in users_list:
+                if user.name == self.user_name:
+                    # Found it, time to delete it
+                    LOG.info("Deleting stale user with name: " + self.user_name)
+                    self.tenant.kloud.keystone.users.delete(user)
+                    user = self._create_user()
+                    return user
 
         # Not found there is something wrong
         raise Exception('Cannot find stale user:' + self.user_name)
@@ -119,7 +119,7 @@ class User(object):
         creden['tenant_name'] = self.tenant.tenant_name
 
         # Create the neutron client to be used for all operations
-        self.neutron = neutronclient.Client(**creden)
+        self.neutron_client = neutronclient.Client(**creden)
 
         # Create a new nova client for this User with correct credentials
         creden_nova = {}
@@ -128,21 +128,20 @@ class User(object):
         creden_nova['auth_url'] = self.tenant.kloud.auth_url
         creden_nova['project_id'] = self.tenant.tenant_name
         creden_nova['version'] = 2
-        self.nova = Client(**creden_nova)
+        self.nova_client = Client(**creden_nova)
 
         config_scale = self.tenant.kloud.scale_cfg
         # Find the external network that routers need to attach to
         # if redis_server is configured, we need to attach the router to the
         # external network in order to reach the redis_server
         if config_scale['use_floatingip'] or 'redis_server' in config_scale:
-            external_network = base_network.find_external_network(self.neutron)
+            external_network = base_network.find_external_network(self.neutron_client)
         else:
             external_network = None
         # Create the required number of routers and append them to router list
-        LOG.info("Creating routers for user %s" % self.user_name)
+        LOG.info("Creating routers and networks for user %s" % self.user_name)
         for router_count in range(config_scale['routers_per_user']):
-            router_instance = base_network.Router(self.neutron, self.nova, self.user_name,
-                                                  self.tenant.kloud.shared_network)
+            router_instance = base_network.Router(self)
             self.router_list.append(router_instance)
             router_name = self.user_name + "-R" + str(router_count)
             # Create the router and also attach it to external network
