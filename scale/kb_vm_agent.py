@@ -23,7 +23,7 @@ import redis
 
 class KB_Instance(object):
 
-    # Check whether the HTTP Service is up running)
+    # Check whether the HTTP Service is up running
     @staticmethod
     def check_http_service(target_url):
         cmd = 'while true; do\n'

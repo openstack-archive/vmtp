@@ -87,6 +87,12 @@ class PerfTool(object):
         # must be implemented by sub classes
         return None
 
+    @staticmethod
+    @abc.abstractmethod
+    def consolidate_results(results):
+        # must be implemented by sub classes
+        return None
+
     def find_udp_bdw(self, pkt_size, target_ip):
         '''Find highest UDP bandwidth within max loss rate for given packet size
         :return: a dictionary describing the optimal bandwidth (see parse_results())

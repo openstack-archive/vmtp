@@ -99,3 +99,13 @@ class WrkTool(PerfTool):
                                   http_rates_kbytes=http_rates_kbytes,
                                   http_sock_err=http_sock_err,
                                   http_err=http_err)
+
+    @staticmethod
+    def consolidate_results(results):
+        all_res = {'total_vms': len(results), 'tool': 'wrk'}
+        for key in ['http_rps', 'http_total_req', 'http_sock_err', 'http_rates_kbytes']:
+            all_res[key] = 0
+            for item in results:
+                all_res[key] += float(item['results'][key])
+
+        return all_res

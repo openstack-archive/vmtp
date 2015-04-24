@@ -91,7 +91,6 @@ class BaseNetwork(object):
         self.instance_list = []
         self.secgroup_list = []
         self.keypair_list = []
-        # Store the shared interface ip of router for tested and testing cloud
 
     def create_compute_resources(self, network_prefix, config_scale):
         """
@@ -266,7 +265,7 @@ class Router(object):
             network.delete_compute_resources()
             if network.network:
                 self.remove_router_interface(network)
-            network.delete_network()
+                network.delete_network()
         # Also delete the shared port and remove it from router interface
         if self.shared_network:
             self.remove_router_interface(self.shared_network, use_port=True)

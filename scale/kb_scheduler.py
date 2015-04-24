@@ -177,9 +177,11 @@ class KBScheduler(object):
 
             LOG.info("Starting HTTP Benchmarking...")
             self.run_http_test()
-            for val in self.result.values():
-                # TODO(Consolidating the data from all VMs)
-                print val
+            # Call the method in corresponding tools to consolidate results
+            http_tool = self.client_dict.values()[0].http_tool
+            LOG.kbdebug(self.result.values())
+            final_results = http_tool.consolidate_results(self.result.values())
+            LOG.info(final_results)
 
         except (KBSetStaticRouteException):
             LOG.error("Could not set static route.")

@@ -77,7 +77,7 @@ client:
     redis_server: '172.29.172.180'
     redis_server_port: 6379
     redis_retry_count: 50
-    polling_interval: 5
+    polling_interval: 5 
 
     # Tooling
     tp_tool:
@@ -107,5 +107,5 @@ client:
     keystone_admin_role: "admin"
     cleanup_resources: True
     public_key_file: '../ssh/id_rsa.pub'
-    image_name: 'Scale Image v4a'
-    flavor_type: 'kb_flavor'
+    image_name: 'Scale Image v4'
+    flavor_type: 'm1.small'

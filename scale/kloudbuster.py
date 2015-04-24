@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from multiprocessing.pool import ThreadPool
 import os
 import sys
 import traceback
@@ -104,20 +105,22 @@ class Kloud(object):
                         for ins in net.instance_list:
                             ins.shared_interface_ip = rtr.shared_interface_ip
 
-    def create_vms(self):
-        # TODO(Make the creation concurrently)
-        for instance in self.get_all_instances():
-            LOG.info("Creating Instance: " + instance.vm_name)
-            instance.create_server(**instance.boot_info)
+    def create_vm(self, instance):
+        LOG.info("Creating Instance: " + instance.vm_name)
+        instance.create_server(**instance.boot_info)
 
-            instance.fixed_ip = instance.instance.networks.values()[0][0]
-            if instance.config['use_floatingip']:
-                # Associate the floating ip with this instance
-                instance.instance.add_floating_ip(instance.fip_ip)
-                instance.ssh_ip = instance.fip_ip
-            else:
-                # Store the fixed ip as ssh ip since there is no floating ip
-                instance.ssh_ip = instance.fixed_ip
+        instance.fixed_ip = instance.instance.networks.values()[0][0]
+        if instance.config['use_floatingip']:
+            # Associate the floating ip with this instance
+            instance.instance.add_floating_ip(instance.fip_ip)
+            instance.ssh_ip = instance.fip_ip
+        else:
+            # Store the fixed ip as ssh ip since there is no floating ip
+            instance.ssh_ip = instance.fixed_ip
+
+    def create_vms(self):
+        tpool = ThreadPool(processes=10)
+        tpool.map(self.create_vm, self.get_all_instances())
 
 
 class KloudBuster(object):
