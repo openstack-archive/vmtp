@@ -216,7 +216,7 @@ class GoogleChartsBarChart:
 
     def plot(self, dest_file):
         with open(dest_file, 'w') as dest:
-            print('Plotting bar chart to ' + dest_file + '...')
+            print('Generating chart drawing code to ' + dest_file + '...')
             self._plot(dest)
 
 def gen_chart(files, chart_dest, browser, protocols=''):
