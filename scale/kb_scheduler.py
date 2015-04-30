@@ -40,6 +40,7 @@ class KBScheduler(object):
         self.client_dict = dict(zip([x.vm_name.lower() for x in client_list], client_list))
         self.config = config
         self.result = {}
+        self.tool_result = None
 
         # Redis
         self.connection_pool = None
@@ -180,9 +181,7 @@ class KBScheduler(object):
             # Call the method in corresponding tools to consolidate results
             http_tool = self.client_dict.values()[0].http_tool
             LOG.kbdebug(self.result.values())
-            final_results = http_tool.consolidate_results(self.result.values())
-            LOG.info(final_results)
-
+            self.tool_result = http_tool.consolidate_results(self.result.values())
         except (KBSetStaticRouteException):
             LOG.error("Could not set static route.")
             return

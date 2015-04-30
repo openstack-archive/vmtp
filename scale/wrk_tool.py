@@ -60,10 +60,10 @@ class WrkTool(PerfTool):
         # Transfer/sec:    282.53MB
         try:
             total_req_str = r'(\d+)\srequests\sin'
-            http_total_req = re.search(total_req_str, stdout).group(1)
+            http_total_req = int(re.search(total_req_str, stdout).group(1))
 
             re_str = r'Requests/sec:\s+(\d+\.\d+)'
-            http_rps = re.search(re_str, stdout).group(1)
+            http_rps = float(re.search(re_str, stdout).group(1))
 
             re_str = r'Transfer/sec:\s+(\d+\.\d+.B)'
             http_rates_kbytes = re.search(re_str, stdout).group(1)
@@ -102,10 +102,10 @@ class WrkTool(PerfTool):
 
     @staticmethod
     def consolidate_results(results):
-        all_res = {'total_vms': len(results), 'tool': 'wrk'}
+        all_res = {'tool': 'wrk'}
         for key in ['http_rps', 'http_total_req', 'http_sock_err', 'http_rates_kbytes']:
             all_res[key] = 0
             for item in results:
-                all_res[key] += float(item['results'][key])
-
+                all_res[key] += item['results'][key]
+            all_res[key] = int(all_res[key])
         return all_res

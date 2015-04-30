@@ -6,15 +6,15 @@ server:
     # Number of Users to be created inside the tenant
     users_per_tenant: 1
 
-    # Number of networks to be created within the context of each Router
-    # Assumes 1 subnet per network
-    networks_per_router: 1
-
     # Number of routers to be created within the context of each User
     # For now support only 1 router per user
     routers_per_user: 1
 
-    # Number of VM instances to be created within the context of each User
+    # Number of networks to be created within the context of each Router
+    # Assumes 1 subnet per network
+    networks_per_router: 1
+
+    # Number of VM instances to be created within the context of each Network
     vms_per_network: 1
 
     # Number of security groups per network
@@ -45,15 +45,15 @@ client:
     # Number of Users to be created inside the tenant
     users_per_tenant: 1
 
-    # Number of networks to be created within the context of each Router
-    # Assumes 1 subnet per network
-    networks_per_router: 1
-
     # Number of routers to be created within the context of each User
     # For now support only 1 router per user
     routers_per_user: 1
 
-    # Number of VM instances to be created within the context of each User
+    # Number of networks to be created within the context of each Router
+    # Assumes 1 subnet per network
+    networks_per_router: 1
+
+    # Number of VM instances to be created within the context of each Network
     vms_per_network: 2
 
     # Number of security groups per network
@@ -77,7 +77,7 @@ client:
     redis_server: '172.29.172.180'
     redis_server_port: 6379
     redis_retry_count: 50
-    polling_interval: 5 
+    polling_interval: 5
 
     # Tooling
     tp_tool:
@@ -101,7 +101,7 @@ client:
         duration: 30
 
     # Prompt before running benchmarking tools
-    prompt_before_run: False
+    prompt_before_run: True
 
     # Configs that remain constant
     keystone_admin_role: "admin"

@@ -31,6 +31,7 @@ class BaseCompute(object):
         self.novaclient = network.router.user.nova_client
         self.vm_name = vm_name
         self.instance = None
+        self.host = None
         self.fip = None
         self.fip_ip = None
         self.subnet_ip = None
@@ -82,6 +83,7 @@ class BaseCompute(object):
             servers_list = self.get_server_list()
             for server in servers_list:
                 if server.name == vmname and server.status == "ACTIVE":
+                    self.host = server.__dict__['OS-EXT-SRV-ATTR:hypervisor_hostname']
                     return True
             time.sleep(2)
         LOG.error("[%s] VM not found, after %d attempts" % (vmname,

@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import json
 from multiprocessing.pool import ThreadPool
 import os
 import sys
@@ -145,25 +146,27 @@ class KloudBuster(object):
             self.single_cloud = False
         self.kloud = Kloud(config_scale.server, cred)
         self.testing_kloud = Kloud(config_scale.client, testing_cred, testing_side=True)
+        self.final_result = None
 
     def print_provision_info(self):
         """
         Function that iterates and prints all VM info
         for tested and testing cloud
         """
-        table = [["VM Name", "Internal IP", "Floating IP", "Subnet", "Shared Interface IP"]]
+        table = [["VM Name", "Host", "Internal IP", "Floating IP", "Subnet", "Shared Interface IP"]]
         client_list = self.kloud.get_all_instances()
         for instance in client_list:
-            row = [instance.vm_name, instance.fixed_ip, instance.fip_ip, instance.subnet_ip,
-                   instance.shared_interface_ip]
+            row = [instance.vm_name, instance.host, instance.fixed_ip,
+                   instance.fip_ip, instance.subnet_ip, instance.shared_interface_ip]
             table.append(row)
         LOG.info('Provision Details (Tested Kloud)\n' +
                  tabulate(table, headers="firstrow", tablefmt="psql"))
 
-        table = [["VM Name", "Internal IP", "Floating IP", "Subnet"]]
+        table = [["VM Name", "Host", "Internal IP", "Floating IP", "Subnet"]]
         client_list = self.testing_kloud.get_all_instances()
         for instance in client_list:
-            row = [instance.vm_name, instance.fixed_ip, instance.fip_ip, instance.subnet_ip]
+            row = [instance.vm_name, instance.host, instance.fixed_ip,
+                   instance.fip_ip, instance.subnet_ip]
             table.append(row)
         LOG.info('Provision Details (Testing Kloud)\n' +
                  tabulate(table, headers="firstrow", tablefmt="psql"))
@@ -211,8 +214,15 @@ class KloudBuster(object):
             self.print_provision_info()
 
             client_list = self.testing_kloud.get_all_instances()
+            server_list = self.kloud.get_all_instances()
             kbscheduler = kb_scheduler.KBScheduler(client_list, config_scale.client)
             kbscheduler.run()
+            self.final_result = kbscheduler.tool_result
+            self.final_result['total_server_vms'] = len(server_list)
+            self.final_result['total_client_vms'] = len(client_list)
+            self.final_result['total_connetcions'] =\
+                len(client_list) * config_scale.client.http_tool_configs.connections
+            LOG.info(self.final_result)
         except KeyboardInterrupt:
             traceback.format_exc()
         except (sshutils.SSHError, ClientException, Exception):
@@ -253,6 +263,9 @@ if __name__ == '__main__':
         cfg.StrOpt("passwd_testing",
                    default=None,
                    help="OpenStack password testing cloud"),
+        cfg.StrOpt("json",
+                   default=None,
+                   help='store results in JSON format file'),
         cfg.BoolOpt("no-env",
                     default=False,
                     help="Do not read env variables")
@@ -286,3 +299,9 @@ if __name__ == '__main__':
     # deletion
     kloudbuster = KloudBuster(cred, cred_testing)
     kloudbuster.run()
+
+    if CONF.json:
+        '''Save results in JSON format file.'''
+        LOG.info('Saving results in json file: ' + CONF.json + "...")
+        with open(CONF.json, 'w') as jfp:
+            json.dump(kloudbuster.final_result, jfp, indent=4, sort_keys=True)

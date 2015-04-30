@@ -155,9 +155,14 @@ class KB_VM_Agent(object):
             self.process_cmd(msg)
 
     def exec_setup_static_route(self):
-        cmd = KB_Instance.add_static_route(self.user_data['target_subnet_ip'],
-                                           self.user_data['target_shared_interface_ip'])
-        return self.exec_command(cmd)
+        cmd = KB_Instance.get_static_route(self.user_data['target_subnet_ip'])
+        result = self.exec_command(cmd)
+        if (self.user_data['target_subnet_ip'] not in result[1]):
+            cmd = KB_Instance.add_static_route(self.user_data['target_subnet_ip'],
+                                               self.user_data['target_shared_interface_ip'])
+            return self.exec_command(cmd)
+        else:
+            return (0, '', '')
 
     def exec_check_http_service(self):
         cmd = KB_Instance.check_http_service(self.user_data['target_url'])
