@@ -2,18 +2,32 @@
 Setup
 =====
 
-Public Cloud
-------------
 
-Public clouds are special because they may not expose all OpenStack APIs and may not allow all types of operations. Some public clouds have limitations in the way virtual networks can be used or require the use of a specific external router. Running VMTP against a public cloud will require a specific configuration file that takes into account those specificities.
+SSH Authentication
+------------------
 
-Refer to the provided public cloud sample configuration files for more information.
+VMTP can optionally SSH to the following hosts:
+- OpenStack controller node (if the --controller-node option is used)
+- External host for cloud upload/download performance test (if the --external-host option is used)
+- Native host throughput (if the --host option is used)
 
-SSH Password-less Access
-------------------------
+To connect to these hosts, the SSH library used by VMTP will try a number of authentication methods:
+- if provided at the command line, try the provided password (e.g. --controller-node localadmin@10.1.1.78:secret)
+- user's personal private key (~/.ssh/id_rsa)
+- if provided in the configuration file, a specific private key file (private_key_file variable)
 
-For host throughput (*--host*), VMTP expects the target hosts to be pre-provisioned with a public key in order to allow password-less SSH.
+SSH to the test VMs is always based on key pairs with the following precedence:
+- if provided in the passed configuration file, use the configured key pair (private_key_file and public_key_file variables),
+- otherwise use the user's personal key pair (~/.ssh/id_rsa and ~/.ssh/id_rsa.pub)
+- otherwise if there is no personal key pair configured, create a temporary key pair to access all test VMs
 
-Test VMs are created through OpenStack by VMTP with the appropriate public key to allow password-less ssh. By default, VMTP uses a default VMTP public key located in ssh/id_rsa.pub, simply append the content of that file into the .ssh/authorized_keys file under the host login home directory).
+To summarize:
+- if you have a personal key pair configured in your home directory, VMTP will use that key pair for all SSH connections (including to the test VMs)
+- if you want to use your personal key pair, there is nothing to do other than making sure that the targeted hosts have been configured with the associated public key
 
-**Note:** This default VMTP public key should only be used for transient test VMs and **MUST NOT** be used to provision native hosts since the corresponding private key is open to anybody! To use alternate key pairs, the 'private_key_file' variable in the configuration file must be overridden to point to the file containing the private key to use to connect with SSH.
+In any case make sure you specify the correct username.
+If there is a problem, you should see an error message and stack trace after the SSH library times out.
+
+
+
+

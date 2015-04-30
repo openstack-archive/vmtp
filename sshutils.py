@@ -61,6 +61,7 @@ import re
 import select
 import socket
 import StringIO
+import sys
 import time
 
 import paramiko
@@ -76,12 +77,70 @@ class SSHError(Exception):
 class SSHTimeout(SSHError):
     pass
 
+# Check IPv4 address syntax - not completely fool proof but will catch
+# some invalid formats
+def is_ipv4(address):
+    try:
+        socket.inet_aton(address)
+    except socket.error:
+        return False
+    return True
+
+class SSHAccess(object):
+    '''
+    A class to contain all the information needed to access a host
+    (native or virtual) using SSH
+    '''
+    def __init__(self, arg_value=None):
+        '''
+            decode user@host[:pwd]
+            'hugo@1.1.1.1:secret' -> ('hugo', '1.1.1.1', 'secret', None)
+            'huggy@2.2.2.2' -> ('huggy', '2.2.2.2', None, None)
+            None ->(None, None, None, None)
+            Examples of fatal errors (will call exit):
+                'hutch@q.1.1.1' (invalid IP)
+                '@3.3.3.3' (missing username)
+                'hiro@' or 'buggy' (missing host IP)
+            The error field will be None in case of success or will
+            contain a string describing the error
+        '''
+        self.username = None
+        self.host = None
+        self.password = None
+        # name of the file that contains the private key
+        self.private_key_file = None
+        # this is the private key itself (a long string starting with
+        # -----BEGIN RSA PRIVATE KEY-----
+        # used when the private key is not saved in any file
+        self.private_key = None
+        self.public_key_file = None
+        self.port = 22
+        self.error = None
+
+        if not arg_value:
+            return
+        match = re.search(r'^([^@]+)@([0-9\.]+):?(.*)$', arg_value)
+        if not match:
+            self.error = 'Invalid argument: ' + arg_value
+            return
+        if not is_ipv4(match.group(2)):
+            self.error = 'Invalid IPv4 address ' + match.group(2)
+            return
+        (self.username, self.host, self.password) = match.groups()
+
+    def copy_from(self, ssh_access):
+        self.username = ssh_access.username
+        self.host = ssh_access.host
+        self.port = ssh_access.port
+        self.password = ssh_access.password
+        self.private_key = ssh_access.private_key
+        self.public_key_file = ssh_access.public_key_file
+        self.private_key_file = ssh_access.private_key_file
 
 class SSH(object):
     """Represent ssh connection."""
 
-    def __init__(self, user, host, port=22, pkey=None,
-                 key_filename=None, password=None,
+    def __init__(self, ssh_access,
                  connect_timeout=60,
                  connect_retry_count=30,
                  connect_retry_wait_sec=2):
@@ -98,12 +157,11 @@ class SSH(object):
         :param connect_retry_wait_sec: seconds to wait between retries
         """
 
-        self.user = user
-        self.host = host
-        self.port = port
-        self.pkey = self._get_pkey(pkey) if pkey else None
-        self.password = password
-        self.key_filename = key_filename
+        self.ssh_access = ssh_access
+        if ssh_access.private_key:
+            self.pkey = self._get_pkey(ssh_access.private_key)
+        else:
+            self.pkey = None
         self._client = False
         self.connect_timeout = connect_timeout
         self.connect_retry_count = connect_retry_count
@@ -114,6 +172,9 @@ class SSH(object):
         self.__get_distro()
 
     def _get_pkey(self, key):
+        '''Get the binary form of the private key
+        from the text form
+        '''
         if isinstance(key, basestring):
             key = StringIO.StringIO(key)
         errors = []
@@ -131,10 +192,12 @@ class SSH(object):
         self._client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         for _ in range(self.connect_retry_count):
             try:
-                self._client.connect(self.host, username=self.user,
-                                     port=self.port, pkey=self.pkey,
-                                     key_filename=self.key_filename,
-                                     password=self.password,
+                self._client.connect(self.ssh_access.host,
+                                     username=self.ssh_access.username,
+                                     port=self.ssh_access.port,
+                                     pkey=self.pkey,
+                                     key_filename=self.ssh_access.private_key_file,
+                                     password=self.ssh_access.password,
                                      timeout=self.connect_timeout)
                 return self._client
             except (paramiko.AuthenticationException,
@@ -144,7 +207,7 @@ class SSH(object):
                 time.sleep(self.connect_retry_wait_sec)
 
         self._client = None
-        msg = '[%s] SSH Connection failed after %s attempts' % (self.host,
+        msg = '[%s] SSH Connection failed after %s attempts' % (self.ssh_access.host,
                                                                 self.connect_retry_count)
         raise SSHError(msg)
 
@@ -225,7 +288,7 @@ class SSH(object):
                 break
 
             if timeout and (time.time() - timeout) > start_time:
-                args = {'cmd': cmd, 'host': self.host}
+                args = {'cmd': cmd, 'host': self.ssh_access.host}
                 raise SSHTimeout(('Timeout executing command '
                                   '"%(cmd)s" on host %(host)s') % args)
             # if e:
@@ -269,7 +332,7 @@ class SSH(object):
             except (socket.error, SSHError):
                 time.sleep(interval)
             if time.time() > (start_time + timeout):
-                raise SSHTimeout(('Timeout waiting for "%s"') % self.host)
+                raise SSHTimeout(('Timeout waiting for "%s"') % self.ssh_access.host)
 
     def __extract_property(self, name, input_str):
         expr = name + r'="?([\w\.]*)"?'
@@ -587,19 +650,19 @@ class SSH(object):
 # invoked from pns script.
 ##################################################
 def main():
-    # ssh = SSH('localadmin', '172.29.87.29', key_filename='./ssh/id_rsa')
-    ssh = SSH('localadmin', '172.22.191.173', key_filename='./ssh/id_rsa')
+    # As argument pass the SSH access string, e.g. "localadmin@1.1.1.1:secret"
+    test_ssh = SSH(SSHAccess(sys.argv[1]))
 
-    print 'ID=' + ssh.distro_id
-    print 'ID_LIKE=' + ssh.distro_id_like
-    print 'VERSION_ID=' + ssh.distro_version
+    print 'ID=' + test_ssh.distro_id
+    print 'ID_LIKE=' + test_ssh.distro_id_like
+    print 'VERSION_ID=' + test_ssh.distro_version
 
     # ssh.wait()
     # print ssh.pidof('bash')
     # print ssh.stat('/tmp')
-    print ssh.check_openstack_version()
-    print ssh.get_cpu_info()
-    print ssh.get_l2agent_version("Open vSwitch agent")
+    print test_ssh.check_openstack_version()
+    print test_ssh.get_cpu_info()
+    print test_ssh.get_l2agent_version("Open vSwitch agent")
 
 if __name__ == "__main__":
     main()
