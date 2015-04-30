@@ -44,9 +44,8 @@ class Instance(object):
         self.config = config
         # internal network IP
         self.internal_ip = None
-        self.ssh_ip = None
+        self.ssh_access = sshutils.SSHAccess()
         self.ssh_ip_id = None
-        self.ssh_user = config.ssh_vm_username
         self.instance = None
         self.ssh = None
         self.port = None
@@ -58,17 +57,18 @@ class Instance(object):
             self.gmond_port = int(config.gmond_svr_port)
         else:
             self.gmond_port = 0
+        self.config_drive = None
 
     # Setup the ssh connectivity
+    # this function is only used for native hosts
     # Returns True if success
-    def setup_ssh(self, ssh_ip, ssh_user):
+    def setup_ssh(self, host_access):
         # used for displaying the source IP in json results
         if not self.internal_ip:
-            self.internal_ip = ssh_ip
-        self.ssh_ip = ssh_ip
-        self.ssh_user = ssh_user
-        self.ssh = sshutils.SSH(self.ssh_user, self.ssh_ip,
-                                key_filename=self.config.private_key_file,
+            self.internal_ip = host_access.host
+        self.ssh_access = host_access
+        self.buginf('Setup SSH for %s@%s' % (host_access.username, host_access.host))
+        self.ssh = sshutils.SSH(self.ssh_access,
                                 connect_retry_count=self.config.ssh_retry_count)
         return True
 
@@ -76,7 +76,7 @@ class Instance(object):
     # and extract internal network IP
     # Retruns True if success, False otherwise
     def create(self, image, flavor_type,
-               keypair, int_net,
+               ssh_access, int_net,
                az,
                internal_network_name,
                sec_group,
@@ -108,7 +108,7 @@ class Instance(object):
         self.instance = self.comp.create_server(self.name,
                                                 image,
                                                 flavor_type,
-                                                keypair,
+                                                self.config.public_key_name,
                                                 nics,
                                                 sec_group,
                                                 az,
@@ -121,11 +121,14 @@ class Instance(object):
             self.display('Server creation failed')
             return False
 
+        # clone the provided ssh access to pick up user name and key pair
+        self.ssh_access.copy_from(ssh_access)
+
         # If reusing existing management network skip the floating ip creation and association to VM
         # Assume management network has direct access
         if self.config.reuse_network_name:
-            self.ssh_ip = self.instance.networks[internal_network_name][0]
-            self.internal_ip = self.ssh_ip
+            self.ssh_access.host = self.instance.networks[internal_network_name][0]
+            self.internal_ip = self.ssh_access.host
         else:
             # Set the internal ip to the correct ip for v4 and v6
             for ip_address in self.instance.networks[internal_network_name]:
@@ -143,18 +146,18 @@ class Instance(object):
             if not fip:
                 self.display('Floating ip creation failed')
                 return False
-            self.ssh_ip = fip['floatingip']['floating_ip_address']
+            self.ssh_access.host = fip['floatingip']['floating_ip_address']
             self.ssh_ip_id = fip['floatingip']['id']
-            self.buginf('Floating IP %s created', self.ssh_ip)
-            self.buginf('Started - associating floating IP %s', self.ssh_ip)
-            self.instance.add_floating_ip(self.ssh_ip, ipv4_fixed_address)
+            self.buginf('Floating IP %s created', self.ssh_access.host)
+            self.buginf('Started - associating floating IP %s', self.ssh_access.host)
+            self.instance.add_floating_ip(self.ssh_access.host, ipv4_fixed_address)
 
         # extract the IP for the data network
         self.buginf('Internal network IP: %s', self.internal_ip)
-        self.buginf('SSH IP: %s', self.ssh_ip)
+        self.buginf('SSH IP: %s', self.ssh_access.host)
 
         # create ssh session
-        if not self.setup_ssh(self.ssh_ip, self.config.ssh_vm_username):
+        if not self.setup_ssh(self.ssh_access):
             return False
         return True
 
@@ -251,8 +254,8 @@ class Instance(object):
         scp_cmd = 'scp -i %s %s %s %s@%s:%s' % (self.config.private_key_file,
                                                 scp_opts,
                                                 source,
-                                                self.ssh_user,
-                                                self.ssh_ip,
+                                                self.ssh_access.username,
+                                                self.ssh_access.host,
                                                 dest)
         self.buginf('Copying %s to target...', tool_name)
         self.buginf(scp_cmd)
@@ -304,7 +307,7 @@ class Instance(object):
     def dispose(self):
         if self.ssh_ip_id:
             self.net.delete_floating_ip(self.ssh_ip_id)
-            self.buginf('Floating IP %s deleted', self.ssh_ip)
+            self.buginf('Floating IP %s deleted', self.ssh_access.host)
             self.ssh_ip_id = None
         if self.instance:
             self.comp.delete_server(self.instance)

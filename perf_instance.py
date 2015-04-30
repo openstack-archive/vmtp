@@ -38,14 +38,14 @@ class PerfInstance(Instance):
 
     # No args is reserved for native host server
     def create(self, image=None, flavor_type=None,
-               keypair=None, nics=None, az=None,
+               ssh_access=None, nics=None, az=None,
                management_network_name=None,
                sec_group=None,
                init_file_name=None):
         '''Create an instance
         :return: True on success, False on error
         '''
-        rc = Instance.create(self, image, flavor_type, keypair,
+        rc = Instance.create(self, image, flavor_type, ssh_access,
                              nics, az,
                              management_network_name,
                              sec_group,
