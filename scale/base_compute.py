@@ -158,13 +158,11 @@ class SecGroup(object):
         Add a retry mechanism
         """
         LOG.info("Deleting secgroup %s" % self.secgroup)
-        for retry_count in range(1, 10):
+        for _ in range(10):
             try:
                 self.novaclient.security_groups.delete(self.secgroup)
                 break
             except Exception:
-                LOG.warn("Security group %s in use. Retry #%d" % (
-                    self.secgroup_name, retry_count))
                 time.sleep(2)
 
 

@@ -36,11 +36,12 @@ class KBScheduler(object):
     Control the testing VMs on the testing cloud
     """
 
-    def __init__(self, client_list, config):
+    def __init__(self, client_list, config, single_cloud=True):
         self.client_dict = dict(zip([x.vm_name.lower() for x in client_list], client_list))
         self.config = config
+        self.single_cloud = single_cloud
         self.result = {}
-        self.tool_result = None
+        self.tool_result = {}
 
         # Redis
         self.connection_pool = None
@@ -100,7 +101,6 @@ class KBScheduler(object):
                     if instance.up_flag:
                         continue
                     else:
-                        self.send_cmd('ACK', None, None)
                         clist[vm_name].up_flag = True
                         clist.pop(vm_name)
                         cnt_succ = cnt_succ + 1
@@ -109,6 +109,7 @@ class KBScheduler(object):
                     clist.pop(vm_name)
                     if self.result[vm_name]['status']:
                         # Command returned with non-zero status, command failed
+                        LOG.error("[%s] %s", vm_name, self.result[vm_name]['stderr'])
                         cnt_failed = cnt_failed + 1
                     else:
                         # Command returned with zero, command succeed
@@ -120,10 +121,11 @@ class KBScheduler(object):
 
         return (cnt_succ, cnt_failed, len(clist))
 
-    def wait_for_vm_up(self, timeout=120):
+    def wait_for_vm_up(self, timeout=300):
         cnt_succ = self.polling_vms(timeout)[0]
         if cnt_succ != len(self.client_dict):
             raise KBVMUpException()
+        self.send_cmd('ACK', None, None)
 
     def setup_static_route(self, timeout=10):
         func = {'cmd': 'setup_static_route'}
@@ -132,7 +134,7 @@ class KBScheduler(object):
         if cnt_succ != len(self.client_dict):
             raise KBSetStaticRouteException()
 
-    def check_http_service(self, timeout=60):
+    def check_http_service(self, timeout=10):
         func = {'cmd': 'check_http_service'}
         self.send_cmd('EXEC', 'http', func)
         cnt_succ = self.polling_vms(timeout)[0]
@@ -143,10 +145,11 @@ class KBScheduler(object):
         func = {'cmd': 'run_http_test'}
         self.send_cmd('EXEC', 'http', func)
         # Give additional 30 seconds for everybody to report results
-        timeout = self.config.http_tool_configs.duration + 3000
-        cnt_succ = self.polling_vms(timeout)[0]
-        if cnt_succ != len(self.client_dict):
-            raise KBHTTPBenchException()
+        timeout = self.config.http_tool_configs.duration + 30
+        cnt_pending = self.polling_vms(timeout)[2]
+        if cnt_pending != 0:
+            LOG.warn("Testing VMs are not returning results within grace period, "
+                     "summary shown below may not be accurate!")
 
         # Parse the results from HTTP Tools
         for key, instance in self.client_dict.items():
@@ -166,8 +169,9 @@ class KBScheduler(object):
             LOG.info("Waiting for agents on VMs to come up...")
             self.wait_for_vm_up()
 
-            LOG.info("Setting up static route to reach tested cloud...")
-            self.setup_static_route()
+            if self.single_cloud:
+                LOG.info("Setting up static route to reach tested cloud...")
+                self.setup_static_route()
 
             LOG.info("Waiting for HTTP service to come up...")
             self.check_http_service()

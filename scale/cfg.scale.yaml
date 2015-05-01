@@ -1,7 +1,7 @@
 # KloudBuster Default configuration file
 server:
     # Number of tenants to be created on the cloud
-    number_tenants: 2
+    number_tenants: 1
 
     # Number of Users to be created inside the tenant
     users_per_tenant: 1
@@ -15,7 +15,7 @@ server:
     networks_per_router: 1
 
     # Number of VM instances to be created within the context of each Network
-    vms_per_network: 1
+    vms_per_network: 2
 
     # Number of security groups per network
     secgroups_per_network: 1
@@ -24,7 +24,7 @@ server:
     keypairs_per_network: 1
 
     # Assign floating IP for every VM
-    use_floatingip: False
+    use_floatingip: True
 
     # SSH configuration
     ssh_vm_username: 'ubuntu'
@@ -35,7 +35,7 @@ server:
     keystone_admin_role: "admin"
     cleanup_resources: True
     public_key_file: '../ssh/id_rsa.pub'
-    image_name: 'Scale Image v4'
+    image_name: 'Scale Image v5'
     flavor_type: 'm1.small'
 
 client:
@@ -63,10 +63,7 @@ client:
     keypairs_per_network: 1
 
     # Assign floating IP for every VM
-    use_floatingip: False
-
-    # Specify whether the testing cloud is running in same cloud
-    run_on_same_cloud: True
+    use_floatingip: True
 
     # SSH configuration
     ssh_vm_username: 'ubuntu'
@@ -90,22 +87,24 @@ client:
     # HTTP Tool Specific Configs
     http_tool_configs:
         # Threads to run tests
-        threads: 2
+        threads: 1
         # Connections to be kept concurrently
-        connections: 5000
+        connections: 1000
         # Timeout for HTTP requests
         timeout: 5
         # Connection Type: "Keep-alive", "New"
         connection_type: 'Keep-alive'
+        # Interval between 2 HTTP requests in msec for each connection
+        interval_per_connection: 1000
         # Duration of testing tools (seconds)
         duration: 30
 
     # Prompt before running benchmarking tools
-    prompt_before_run: True
+    prompt_before_run: False
 
     # Configs that remain constant
     keystone_admin_role: "admin"
     cleanup_resources: True
     public_key_file: '../ssh/id_rsa.pub'
-    image_name: 'Scale Image v4'
+    image_name: 'Scale Image v5'
     flavor_type: 'm1.small'

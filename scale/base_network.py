@@ -26,7 +26,7 @@ LOG = logging.getLogger(__name__)
 
 # Global CIDR shared by all objects of this class
 # Enables each network to get a unique CIDR
-START_CIDR = "1.0.0.0/16"
+START_CIDR = "10.0.0.0/16"
 cidr = START_CIDR
 
 def create_floating_ip(neutron_client, ext_net):
@@ -145,7 +145,17 @@ class BaseNetwork(object):
         for instance in self.instance_list:
             instance.delete_server()
             if instance.fip:
-                delete_floating_ip(self.neutron_client, instance.fip['floatingip']['id'])
+                """
+                Delete the Floating IP
+                Sometimes this will fail if instance is just deleted
+                Add a retry mechanism
+                """
+                for _ in range(10):
+                    try:
+                        delete_floating_ip(self.neutron_client, instance.fip['floatingip']['id'])
+                        break
+                    except Exception:
+                        time.sleep(2)
 
         # Delete all security groups
         for secgroup_instance in self.secgroup_list:

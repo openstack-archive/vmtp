@@ -40,7 +40,7 @@ class WrkTool(PerfTool):
 
     def cmd_parser_run_client(self, status, stdout, stderr):
         if status:
-            return [self.parse_error(stderr)]
+            return self.parse_error(stderr)
 
         # Sample Output:
         # Running 10s test @ http://192.168.1.1/index.html
@@ -106,6 +106,7 @@ class WrkTool(PerfTool):
         for key in ['http_rps', 'http_total_req', 'http_sock_err', 'http_rates_kbytes']:
             all_res[key] = 0
             for item in results:
-                all_res[key] += item['results'][key]
+                if (key in item['results']):
+                    all_res[key] += item['results'][key]
             all_res[key] = int(all_res[key])
         return all_res

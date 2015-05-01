@@ -109,6 +109,8 @@ class Kloud(object):
     def create_vm(self, instance):
         LOG.info("Creating Instance: " + instance.vm_name)
         instance.create_server(**instance.boot_info)
+        if not instance:
+            return
 
         instance.fixed_ip = instance.instance.networks.values()[0][0]
         if instance.config['use_floatingip']:
@@ -120,7 +122,7 @@ class Kloud(object):
             instance.ssh_ip = instance.fixed_ip
 
     def create_vms(self):
-        tpool = ThreadPool(processes=10)
+        tpool = ThreadPool(processes=5)
         tpool.map(self.create_vm, self.get_all_instances())
 
 
@@ -215,7 +217,9 @@ class KloudBuster(object):
 
             client_list = self.testing_kloud.get_all_instances()
             server_list = self.kloud.get_all_instances()
-            kbscheduler = kb_scheduler.KBScheduler(client_list, config_scale.client)
+            kbscheduler = kb_scheduler.KBScheduler(client_list,
+                                                   config_scale.client,
+                                                   self.single_cloud)
             kbscheduler.run()
             self.final_result = kbscheduler.tool_result
             self.final_result['total_server_vms'] = len(server_list)
