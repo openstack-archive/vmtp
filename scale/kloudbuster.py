@@ -199,7 +199,7 @@ class KloudBuster(object):
         Executes tests serially
         Support concurrency in fututure
         """
-
+        kbscheduler = None
         try:
             self.kloud.create_resources()
             self.kloud.create_vms()
@@ -244,6 +244,8 @@ class KloudBuster(object):
                 self.testing_kloud.delete_resources()
             except Exception:
                 traceback.print_exc()
+        if kbscheduler:
+            kbscheduler.dispose()
 
 
 if __name__ == '__main__':
