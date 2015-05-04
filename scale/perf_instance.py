@@ -38,10 +38,10 @@ class PerfInstance(BaseCompute):
         self.up_flag = False
 
         # SSH Configuration
-        self.ssh_ip = None
-        self.ssh_user = config.ssh_vm_username
+        self.ssh_access = None
         self.ssh = None
         self.port = None
+        self.az = None
 
         if 'tp_tool' not in config:
             self.tp_tool = None
@@ -79,7 +79,7 @@ class PerfInstance(BaseCompute):
             tp_tool_res = []
 
         res = {'ip_to': dest_ip}
-        res['ip_from'] = self.ssh_ip
+        res['ip_from'] = self.ssh_access.host
         if label:
             res['desc'] = label
         if self.az:
@@ -105,12 +105,10 @@ class PerfInstance(BaseCompute):
 
     # Setup the ssh connectivity
     # Returns True if success
-    def setup_ssh(self, ssh_ip, ssh_user):
+    def setup_ssh(self, host_access):
         # used for displaying the source IP in json results
-        self.ssh_ip = ssh_ip
-        self.ssh_user = ssh_user
-        self.ssh = sshutils.SSH(self.ssh_user, self.ssh_ip,
-                                key_filename=self.config.private_key_file,
+        self.ssh_access = host_access
+        self.ssh = sshutils.SSH(self.ssh_access,
                                 connect_retry_count=self.config.ssh_retry_count)
         return True
 
@@ -119,44 +117,9 @@ class PerfInstance(BaseCompute):
         (status, cmd_output, err) = self.ssh.execute(cmd, timeout=timeout)
         return (status, cmd_output, err)
 
-    # scp a file from the local host to the instance
-    # Returns True if dest file already exists or scp succeeded
-    #         False in case of scp error
-    def scp(self, tool_name, source, dest):
-
-        # check if the dest file is already present
-        if self.ssh.stat(dest):
-            LOG.kbdebug("[%s] Tool %s already present - skipping install"
-                        % (self.vm_name, tool_name))
-            return True
-        # scp over the tool binary
-        # first chmod the local copy since git does not keep the permission
-        os.chmod(source, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
-
-        # scp to the target
-        scp_opts = '-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'
-        scp_cmd = 'scp -i %s %s %s %s@%s:%s' % (self.config.private_key_file,
-                                                scp_opts,
-                                                source,
-                                                self.ssh_user,
-                                                self.ssh_ip,
-                                                dest)
-        LOG.kbdebug("[%s] Copying %s to target..." % (self.vm_name, tool_name))
-        LOG.kbdebug("[%s] %s" % (self.vm_name, scp_cmd))
-        devnull = open(os.devnull, 'wb')
-        rc = subprocess.call(scp_cmd, shell=True,
-                             stdout=devnull, stderr=devnull)
-        if rc:
-            LOG.error("[%s] Copy to target failed rc=%d" % (self.vm_name, rc))
-            LOG.error("[%s] %s" % (self.vm_name, scp_cmd))
-            return False
-        return True
-
     # Dispose the ssh session
     def dispose(self):
         if self.ssh:
             self.ssh.close()
             self.ssh = None
-        if self.redis_obj:
-            self.pubsub.unsubscribe()
-            self.pubsub.close()
+

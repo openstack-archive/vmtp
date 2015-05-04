@@ -31,6 +31,9 @@ class KBHTTPServerUpException(Exception):
 class KBHTTPBenchException(Exception):
     pass
 
+class KBProxyConnectionException(Exception):
+    pass
+
 class KBScheduler(object):
     """
     Control the testing VMs on the testing cloud
@@ -52,18 +55,29 @@ class KBScheduler(object):
 
     def setup_redis(self):
         self.redis_obj = redis.StrictRedis(connection_pool=self.connection_pool)
+        success = False
         # Check for connections to redis server
         for retry in xrange(1, self.config.redis_retry_count + 1):
             try:
                 self.redis_obj.get("test")
+                success = True
             except (redis.exceptions.ConnectionError):
                 LOG.warn("Connecting to redis server... Retry #%d", retry)
                 time.sleep(1)
                 continue
             break
+        if not success:
+            LOG.error("Error: Cannot connect to the Redis server")
+            raise KBProxyConnectionException()
+
         # Subscribe to message channel
         self.pubsub = self.redis_obj.pubsub(ignore_subscribe_messages=True)
         self.pubsub.subscribe(self.report_chan_name)
+
+    def dispose(self):
+        if self.pubsub:
+            self.pubsub.unsubscribe()
+            self.pubsub.close()
 
     def send_cmd(self, cmd, client_type, data):
         message = {'cmd': cmd, 'sender-id': 'kb-master',
