@@ -49,28 +49,36 @@ def get_absolute_path_for_file(file_name):
 
     return abs_file_path
 
-def create_keystone_client(cred):
+def create_keystone_client(admin_creds):
     """
     Return the keystone client and auth URL given a credential
     """
-    creds = cred.get_credentials()
+    creds = admin_creds.get_credentials()
     return (keystoneclient.Client(**creds), creds['auth_url'])
 
 class Kloud(object):
-    def __init__(self, scale_cfg, cred, testing_side=False):
-        self.cred = cred
+    def __init__(self, scale_cfg, admin_creds, testing_side=False):
+        self.cred = admin_creds
         self.tenant_list = []
         self.testing_side = testing_side
         self.scale_cfg = scale_cfg
         self.keystone, self.auth_url = create_keystone_client(cred)
         if testing_side:
             self.prefix = 'KBc'
+            self.name = 'Client Kloud'
         else:
             self.prefix = 'KBs'
+            self.name = 'Server Kloud'
         LOG.info("Creating kloud: " + self.prefix)
         # if this cloud is sharing a network then all tenants must hook up to
         # it and on deletion that shared network must NOT be deleted
         # as it will be deleted by the owner
+
+        # pre-compute the placement az to use for all VMs
+        self.placement_az = None
+        if scale_cfg['availability_zone']:
+            self.placement_az = scale_cfg['availability_zone']
+        LOG.info('%s Availability Zone: %s' % (self.name, self.placement_az))
 
     def create_resources(self):
         for tenant_count in xrange(self.scale_cfg['number_tenants']):
@@ -106,6 +114,14 @@ class Kloud(object):
                         for ins in net.instance_list:
                             ins.shared_interface_ip = rtr.shared_interface_ip
 
+    def get_az(self):
+        ''' Placement algorithm for all VMs created in this kloud
+        Return None if placement to be provided by the nova scheduler
+        Else return an availability zone to use (e.g. "nova")
+        or a compute host to use (e.g. "nova:tme123")
+        '''
+        return self.placement_az
+
     def create_vm(self, instance):
         LOG.info("Creating Instance: " + instance.vm_name)
         instance.create_server(**instance.boot_info)
@@ -135,7 +151,7 @@ class KloudBuster(object):
     4. Networks per router
     5. Instances per network
     """
-    def __init__(self, cred, testing_cred, server_cfg, client_cfg):
+    def __init__(self, server_cred, client_cred, server_cfg, client_cfg):
         # List of tenant objects to keep track of all tenants
         self.tenant_list = []
         self.tenant = None
@@ -144,12 +160,12 @@ class KloudBuster(object):
         self.server_cfg = server_cfg
         self.client_cfg = client_cfg
         # TODO(check on same auth_url instead)
-        if cred == testing_cred:
+        if server_cred == client_cred:
             self.single_cloud = True
         else:
             self.single_cloud = False
-        self.kloud = Kloud(server_cfg, cred)
-        self.testing_kloud = Kloud(client_cfg, testing_cred, testing_side=True)
+        self.kloud = Kloud(server_cfg, server_cred)
+        self.testing_kloud = Kloud(client_cfg, client_cred, testing_side=True)
         self.final_result = None
 
     def print_provision_info(self):
