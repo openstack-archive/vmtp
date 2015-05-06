@@ -1,4 +1,34 @@
 # KloudBuster Default configuration file
+
+# Name of the image to use for all test VMs (client, server and proxy)
+# The image name must exist in OpenStack and must be built with the appropriate
+# packages
+image_name: 'Scale Image v6a'
+
+# Flavor to use for the test images - the flavor name must exist in OpenStack
+flavor_type: 'm1.small'
+
+# Config options common to client and server side
+
+keystone_admin_role: "admin"
+
+# Cleanup all kloudbuster resources upon exit
+cleanup_resources: True
+
+#
+# ssh access to the test VMs launched by kloudbuster is not required
+# but can be handy if the user wants to ssh manually to any of them (for example
+# to debug)
+# public key to use to access all test VMs
+# if empty will default to the user's public key (~/.ssh/id_rsa.pub) if it
+# exists, otherwise will not provision any public key.
+# If configured or available, a key pair will be added for each
+# configured user.
+#
+public_key_file: 
+
+
+# SERVER SIDE CONFIG OPTIONS
 server:
     # Number of tenants to be created on the cloud
     number_tenants: 1
@@ -15,62 +45,21 @@ server:
     networks_per_router: 1
 
     # Number of VM instances to be created within the context of each Network
-    vms_per_network: 2
+    vms_per_network: 1
 
     # Number of security groups per network
     secgroups_per_network: 1
 
-    # Number of keypairs per network
-    keypairs_per_network: 1
-
     # Assign floating IP for every VM
-    use_floatingip: True
+    use_floatingip: False
 
-    # SSH configuration
-    ssh_vm_username: 'ubuntu'
-    ssh_retry_count: 50
-    private_key_file: './ssh/id_rsa'
-
-    # Configs that remain constant
-    keystone_admin_role: "admin"
-    cleanup_resources: True
-    public_key_file: '../ssh/id_rsa.pub'
-    image_name: 'Scale Image v5'
-    flavor_type: 'm1.small'
-
+# CLIENT SIDE CONFIG OPTIONS
 client:
-    # Number of tenants to be created on the cloud
-    number_tenants: 1
-
-    # Number of Users to be created inside the tenant
-    users_per_tenant: 1
-
-    # Number of routers to be created within the context of each User
-    # For now support only 1 router per user
-    routers_per_user: 1
-
-    # Number of networks to be created within the context of each Router
-    # Assumes 1 subnet per network
-    networks_per_router: 1
-
-    # Number of VM instances to be created within the context of each Network
-    vms_per_network: 2
-
-    # Number of security groups per network
-    secgroups_per_network: 1
-
-    # Number of keypairs per network
-    keypairs_per_network: 1
 
     # Assign floating IP for every VM
-    use_floatingip: True
+    use_floatingip: False
 
-    # SSH configuration
-    ssh_vm_username: 'ubuntu'
-    ssh_retry_count: 50
-    private_key_file: './ssh/id_rsa'
-
-    # Redis server configuration
+    # (TEMP) Redis server configuration
     redis_server: '172.29.172.180'
     redis_server_port: 6379
     redis_retry_count: 50
@@ -82,29 +71,26 @@ client:
         dest_path: '/var/tmp/nuttcp-7.3.2'
     http_tool:
         name: 'wrk'
-        dest_path: '/var/tmp/wrk-4.0.1'
+        dest_path: '/var/tmp/wrk2-3.1.1'
 
     # HTTP Tool Specific Configs
     http_tool_configs:
         # Threads to run tests
         threads: 1
-        # Connections to be kept concurrently
+        # Connections to be kept concurrently per VM
         connections: 1000
         # Timeout for HTTP requests
         timeout: 5
         # Connection Type: "Keep-alive", "New"
         connection_type: 'Keep-alive'
-        # Interval between 2 HTTP requests in msec for each connection
-        interval_per_connection: 1000
+        # Requested rps per VM (for all connections)
+        rate_limit: 1000
+
         # Duration of testing tools (seconds)
         duration: 30
 
     # Prompt before running benchmarking tools
     prompt_before_run: False
 
-    # Configs that remain constant
-    keystone_admin_role: "admin"
-    cleanup_resources: True
-    public_key_file: '../ssh/id_rsa.pub'
-    image_name: 'Scale Image v5'
-    flavor_type: 'm1.small'
+
+    

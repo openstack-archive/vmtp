@@ -97,6 +97,7 @@ class KB_VM_Agent(object):
         self.vm_name = socket.gethostname().lower()
         self.orches_chan_name = "kloudbuster_orches"
         self.report_chan_name = "kloudbuster_report"
+        self.last_cmd = None
 
     def setup_channels(self):
         # Check for connections to redis server
@@ -139,8 +140,16 @@ class KB_VM_Agent(object):
             # Unfortunately, there is no thread.stop() in Python 2.x
             self.stop_hello.set()
         elif msg['cmd'] == 'EXEC':
-            cmd_res_tuple = eval('self.exec_' + msg['data']['cmd'] + '()')
-            cmd_res_dict = dict(zip(("status", "stdout", "stderr"), cmd_res_tuple))
+            self.last_cmd = ""
+            try:
+                cmd_res_tuple = eval('self.exec_' + msg['data']['cmd'] + '()')
+                cmd_res_dict = dict(zip(("status", "stdout", "stderr"), cmd_res_tuple))
+            except Exception as exc:
+                cmd_res_dict = {
+                    "status": 1,
+                    "stdout": self.last_cmd,
+                    "stderr": str(exc)
+                }
             self.report('DONE', msg['client-type'], cmd_res_dict)
         elif msg['cmd'] == 'ABORT':
             # TODO(Add support to abort a session)
@@ -155,24 +164,26 @@ class KB_VM_Agent(object):
             self.process_cmd(msg)
 
     def exec_setup_static_route(self):
-        cmd = KB_Instance.get_static_route(self.user_data['target_subnet_ip'])
-        result = self.exec_command(cmd)
+        self.last_cmd = KB_Instance.get_static_route(self.user_data['target_subnet_ip'])
+        result = self.exec_command(self.last_cmd)
         if (self.user_data['target_subnet_ip'] not in result[1]):
-            cmd = KB_Instance.add_static_route(self.user_data['target_subnet_ip'],
-                                               self.user_data['target_shared_interface_ip'])
-            return self.exec_command(cmd)
+            self.last_cmd = \
+                KB_Instance.add_static_route(self.user_data['target_subnet_ip'],
+                                             self.user_data['target_shared_interface_ip'])
+            return self.exec_command(self.last_cmd)
         else:
             return (0, '', '')
 
     def exec_check_http_service(self):
-        cmd = KB_Instance.check_http_service(self.user_data['target_url'])
-        return self.exec_command(cmd)
+        self.last_cmd = KB_Instance.check_http_service(self.user_data['target_url'])
+        return self.exec_command(self.last_cmd)
 
     def exec_run_http_test(self):
-        cmd = KB_Instance.run_http_test(dest_path=self.user_data['http_tool']['dest_path'],
-                                        target_url=self.user_data['target_url'],
-                                        **self.user_data['http_tool_configs'])
-        return self.exec_command(cmd)
+        self.last_cmd = \
+            KB_Instance.run_http_test(dest_path=self.user_data['http_tool']['dest_path'],
+                                      target_url=self.user_data['target_url'],
+                                      **self.user_data['http_tool_configs'])
+        return self.exec_command(self.last_cmd)
 
 
 if __name__ == "__main__":

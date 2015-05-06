@@ -90,7 +90,6 @@ class BaseNetwork(object):
         self.network = None
         self.instance_list = []
         self.secgroup_list = []
-        self.keypair_list = []
 
     def create_compute_resources(self, network_prefix, config_scale):
         """
@@ -105,13 +104,6 @@ class BaseNetwork(object):
             self.secgroup_list.append(secgroup_instance)
             secgroup_name = network_prefix + "-SG" + str(secgroup_count)
             secgroup_instance.create_secgroup_with_rules(secgroup_name)
-
-        # Create the keypair list
-        for keypair_count in range(config_scale['keypairs_per_network']):
-            keypair_instance = base_compute.KeyPair(self.nova_client)
-            self.keypair_list.append(keypair_instance)
-            keypair_name = network_prefix + "-K" + str(keypair_count)
-            keypair_instance.add_public_key(keypair_name, config_scale['public_key_file'])
 
         LOG.info("Scheduled to create virtual machines...")
         if config_scale['use_floatingip']:
@@ -132,7 +124,7 @@ class BaseNetwork(object):
             # Create the VMs on specified network, first keypair, first secgroup
             perf_instance.boot_info['image_name'] = config_scale['image_name']
             perf_instance.boot_info['flavor_type'] = config_scale['flavor_type']
-            perf_instance.boot_info['keyname'] = self.keypair_list[0].keypair_name
+            perf_instance.boot_info['keyname'] = self.router.user.key_name
             perf_instance.boot_info['nic'] = [{'net-id': self.network['id']}]
             perf_instance.boot_info['sec_group'] = self.secgroup_list[0].secgroup
 
@@ -160,10 +152,6 @@ class BaseNetwork(object):
         # Delete all security groups
         for secgroup_instance in self.secgroup_list:
             secgroup_instance.delete_secgroup()
-
-        # Delete all keypairs
-        for keypair_instance in self.keypair_list:
-            keypair_instance.remove_public_key()
 
 
     def create_network_and_subnet(self, network_name):

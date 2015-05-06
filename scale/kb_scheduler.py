@@ -108,7 +108,8 @@ class KBScheduler(object):
                 payload = eval(msg['data'])
                 vm_name = payload['sender-id']
                 instance = self.client_dict[vm_name]
-                if payload['cmd'] == 'READY':
+                cmd = payload['cmd']
+                if cmd == 'READY':
                     # If a READY packet is received, the corresponding VM is up
                     # running. We mark the flag for that VM, and skip all READY
                     # messages received afterwards.
@@ -118,7 +119,7 @@ class KBScheduler(object):
                         clist[vm_name].up_flag = True
                         clist.pop(vm_name)
                         cnt_succ = cnt_succ + 1
-                elif payload['cmd'] == 'DONE':
+                elif cmd == 'DONE':
                     self.result[vm_name] = payload['data']
                     clist.pop(vm_name)
                     if self.result[vm_name]['status']:
@@ -128,6 +129,10 @@ class KBScheduler(object):
                     else:
                         # Command returned with zero, command succeed
                         cnt_succ = cnt_succ + 1
+                elif cmd == 'DEBUG':
+                    LOG.info('[%s] %s' + (vm_name, payload['data']))
+                else:
+                    LOG.error('[%s] received invalid command: %s' + (vm_name, cmd))
 
             LOG.info("%d Succeed, %d Failed, %d Pending... Retry #%d" %
                      (cnt_succ, cnt_failed, len(clist), retry))
@@ -157,6 +162,7 @@ class KBScheduler(object):
 
     def run_http_test(self):
         func = {'cmd': 'run_http_test'}
+        LOG.info(func)
         self.send_cmd('EXEC', 'http', func)
         # Give additional 30 seconds for everybody to report results
         timeout = self.config.http_tool_configs.duration + 30

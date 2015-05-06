@@ -13,8 +13,6 @@
 #    under the License.
 #
 
-import sshutils
-
 from base_compute import BaseCompute
 import log as logging
 from wrk_tool import WrkTool
@@ -98,15 +96,6 @@ class PerfInstance(BaseCompute):
         # consolidate results for all tools
         res['results'] = http_tool_res
         return res
-
-    # Setup the ssh connectivity
-    # Returns True if success
-    def setup_ssh(self, host_access):
-        # used for displaying the source IP in json results
-        self.ssh_access = host_access
-        self.ssh = sshutils.SSH(self.ssh_access,
-                                connect_retry_count=self.config.ssh_retry_count)
-        return True
 
     # Send a command on the ssh session
     def exec_command(self, cmd, timeout=30):

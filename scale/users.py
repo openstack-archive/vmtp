@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import base_compute
 import base_network
 import keystoneclient.openstack.common.apiclient.exceptions as keystone_exception
 import log as logging
@@ -43,6 +44,9 @@ class User(object):
         self.neutron_client = None
         self.nova_client = None
         self.admin_user = self._get_user()
+        # Each user is associated to 1 key pair at most
+        self.key_pair = None
+        self.key_name = None
 
         # Create the user within the given tenant associate
         # admin role with user. We need admin role for user
@@ -98,6 +102,10 @@ class User(object):
     def delete_resources(self):
         LOG.info("Deleting all user resources for user %s" % self.user_name)
 
+        # Delete key pair
+        if self.key_pair:
+            self.key_pair.remove_public_key()
+
         # Delete all user routers
         for router in self.router_list:
             router.delete_router()
@@ -131,6 +139,13 @@ class User(object):
         self.nova_client = Client(**creden_nova)
 
         config_scale = self.tenant.kloud.scale_cfg
+
+        # Create the user's keypair if configured
+        if config_scale.public_key_file:
+            self.key_pair = base_compute.KeyPair(self.nova_client)
+            self.key_name = self.user_name + '-K'
+            self.key_pair.add_public_key(self.key_name, config_scale.public_key_file)
+
         # Find the external network that routers need to attach to
         # if redis_server is configured, we need to attach the router to the
         # external network in order to reach the redis_server
@@ -138,6 +153,7 @@ class User(object):
             external_network = base_network.find_external_network(self.neutron_client)
         else:
             external_network = None
+
         # Create the required number of routers and append them to router list
         LOG.info("Creating routers and networks for user %s" % self.user_name)
         for router_count in range(config_scale['routers_per_user']):

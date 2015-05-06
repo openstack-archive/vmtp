@@ -135,19 +135,21 @@ class KloudBuster(object):
     4. Networks per router
     5. Instances per network
     """
-    def __init__(self, cred, testing_cred):
+    def __init__(self, cred, testing_cred, server_cfg, client_cfg):
         # List of tenant objects to keep track of all tenants
         self.tenant_list = []
         self.tenant = None
         self.tenant_list_testing = []
         self.tenant_testing = None
+        self.server_cfg = server_cfg
+        self.client_cfg = client_cfg
         # TODO(check on same auth_url instead)
         if cred == testing_cred:
             self.single_cloud = True
         else:
             self.single_cloud = False
-        self.kloud = Kloud(config_scale.server, cred)
-        self.testing_kloud = Kloud(config_scale.client, testing_cred, testing_side=True)
+        self.kloud = Kloud(server_cfg, cred)
+        self.testing_kloud = Kloud(client_cfg, testing_cred, testing_side=True)
         self.final_result = None
 
     def print_provision_info(self):
@@ -218,14 +220,14 @@ class KloudBuster(object):
             client_list = self.testing_kloud.get_all_instances()
             server_list = self.kloud.get_all_instances()
             kbscheduler = kb_scheduler.KBScheduler(client_list,
-                                                   config_scale.client,
+                                                   self.client_cfg,
                                                    self.single_cloud)
             kbscheduler.run()
             self.final_result = kbscheduler.tool_result
             self.final_result['total_server_vms'] = len(server_list)
             self.final_result['total_client_vms'] = len(client_list)
-            self.final_result['total_connetcions'] =\
-                len(client_list) * config_scale.client.http_tool_configs.connections
+            self.final_result['total_connections'] =\
+                len(client_list) * self.client_cfg.http_tool_configs.connections
             LOG.info(self.final_result)
         except KeyboardInterrupt:
             traceback.format_exc()
@@ -234,12 +236,12 @@ class KloudBuster(object):
 
         # Cleanup: start with tested side first
         # then testing side last (order is important because of the shared network)
-        if config_scale.server['cleanup_resources']:
+        if self.server_cfg['cleanup_resources']:
             try:
                 self.kloud.delete_resources()
             except Exception:
                 traceback.print_exc()
-        if config_scale.client['cleanup_resources']:
+        if self.client_cfg['cleanup_resources']:
             try:
                 self.testing_kloud.delete_resources()
             except Exception:
@@ -247,6 +249,33 @@ class KloudBuster(object):
         if kbscheduler:
             kbscheduler.dispose()
 
+def get_total_vm_count(config):
+    return (config['number_tenants'] * config['users_per_tenant'] *
+            config['routers_per_user'] * config['networks_per_router'] *
+            config['vms_per_network'])
+
+# Some hardcoded client side options we do not want users to change
+hardcoded_client_cfg = {
+    # Number of tenants to be created on the cloud
+    'number_tenants': 1,
+
+    # Number of Users to be created inside the tenant
+    'users_per_tenant': 1,
+
+    # Number of routers to be created within the context of each User
+    # For now support only 1 router per user
+    'routers_per_user': 1,
+
+    # Number of networks to be created within the context of each Router
+    # Assumes 1 subnet per network
+    'networks_per_router': 1,
+
+    # Number of VM instances to be created within the context of each Network
+    'vms_per_network': 1,
+
+    # Number of security groups per network
+    'secgroups_per_network': 1
+}
 
 if __name__ == '__main__':
     # The default configuration file for KloudBuster
@@ -288,6 +317,33 @@ if __name__ == '__main__':
         alt_config = configure.Configuration.from_file(CONF.config).configure()
         config_scale = config_scale.merge(alt_config)
 
+    # Initialize the key pair name
+    if config_scale['public_key_file']:
+        # verify the public key file exists
+        if not os.path.exists(config_scale['public_key_file']):
+            LOG.error('Error: Invalid public key file: ' + config_scale['public_key_file'])
+            sys.exit(1)
+    else:
+        # pick the user's public key if there is one
+        pub_key = os.path.expanduser('~/.ssh/id_rsa.pub')
+        if os.path.isfile(pub_key):
+            config_scale['public_key_file'] = pub_key
+            LOG.info('Using %s as public key for all test VMs' % (pub_key))
+
+    # A bit of config dict surgery, extract out the client and server side
+    # and transplant the remaining (common part) into the client and server dict
+    server_side_cfg = config_scale.pop('server')
+    client_side_cfg = config_scale.pop('client')
+    server_side_cfg.update(config_scale)
+    client_side_cfg.update(config_scale)
+
+    # Hardcode a few client side options
+    client_side_cfg.update(hardcoded_client_cfg)
+
+    # Adjust the VMs per network on the client side to match the total
+    # VMs on the server side (1:1)
+    client_side_cfg['vms_per_network'] = get_total_vm_count(server_side_cfg)
+
     # Retrieve the credentials
     cred = credentials.Credentials(CONF.tested_rc, CONF.passwd_tested, CONF.no_env)
     if CONF.testing_rc and CONF.testing_rc != CONF.tested_rc:
@@ -303,7 +359,7 @@ if __name__ == '__main__':
     # The KloudBuster class is just a wrapper class
     # levarages tenant and user class for resource creations and
     # deletion
-    kloudbuster = KloudBuster(cred, cred_testing)
+    kloudbuster = KloudBuster(cred, cred_testing, server_side_cfg, client_side_cfg)
     kloudbuster.run()
 
     if CONF.json:
