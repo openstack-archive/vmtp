@@ -131,7 +131,7 @@ class BaseNetwork(object):
     def delete_compute_resources(self):
         """
         Deletes the compute resources
-        Security groups,keypairs and instances
+        Security groups, keypairs and instances
         """
         # Delete the instances first
         for instance in self.instance_list:
@@ -147,7 +147,7 @@ class BaseNetwork(object):
                         delete_floating_ip(self.neutron_client, instance.fip['floatingip']['id'])
                         break
                     except Exception:
-                        time.sleep(2)
+                        time.sleep(1)
 
         # Delete all security groups
         for secgroup_instance in self.secgroup_list:

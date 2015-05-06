@@ -9,7 +9,6 @@ image_name: 'Scale Image v6a'
 flavor_type: 'm1.small'
 
 # Config options common to client and server side
-
 keystone_admin_role: "admin"
 
 # Cleanup all kloudbuster resources upon exit
@@ -25,8 +24,7 @@ cleanup_resources: True
 # If configured or available, a key pair will be added for each
 # configured user.
 #
-public_key_file: 
-
+public_key_file:
 
 # SERVER SIDE CONFIG OPTIONS
 server:
@@ -51,13 +49,12 @@ server:
     secgroups_per_network: 1
 
     # Assign floating IP for every VM
-    use_floatingip: False
+    use_floatingip: True
 
 # CLIENT SIDE CONFIG OPTIONS
 client:
-
     # Assign floating IP for every VM
-    use_floatingip: False
+    use_floatingip: True
 
     # (TEMP) Redis server configuration
     redis_server: '172.29.172.180'
@@ -73,24 +70,21 @@ client:
         name: 'wrk'
         dest_path: '/var/tmp/wrk2-3.1.1'
 
-    # HTTP Tool Specific Configs
+    # HTTP tool specific configs (per client)
     http_tool_configs:
         # Threads to run tests
         threads: 1
         # Connections to be kept concurrently per VM
         connections: 1000
+        # Rate limit in RPS per client (0 for unlimit)
+        rate_limit: 500
         # Timeout for HTTP requests
         timeout: 5
         # Connection Type: "Keep-alive", "New"
         connection_type: 'Keep-alive'
-        # Requested rps per VM (for all connections)
-        rate_limit: 1000
-
         # Duration of testing tools (seconds)
         duration: 30
 
     # Prompt before running benchmarking tools
     prompt_before_run: False
 
-
-    

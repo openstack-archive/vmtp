@@ -28,13 +28,16 @@ class WrkTool(PerfTool):
         PerfTool.__init__(self, instance, cfg_http_tool)
 
     def cmd_run_client(self, target_url, threads, connections,
-                       timeout=5, connetion_type='Keep-alive', retry_count=10):
+                       rate_limit=0, timeout=5, connetion_type='Keep-alive'):
         '''
         Return the command for running the benchmarking tool
         '''
         duration_sec = self.instance.config.http_tool_configs.duration
-        cmd = '%s -t%d -c%d -d%ds --timeout %ds --latency %s' % \
-            (self.dest_path, threads, connections, duration_sec, timeout, target_url)
+        if not rate_limit:
+            rate_limit = 65535
+        cmd = '%s -t%d -c%d -R%d -d%ds --timeout %ds %s' % \
+            (self.dest_path, threads, connections, rate_limit,
+             duration_sec, timeout, target_url)
         LOG.kbdebug("[%s] %s" % (self.instance.vm_name, cmd))
         return cmd
 
@@ -66,13 +69,13 @@ class WrkTool(PerfTool):
             http_rps = float(re.search(re_str, stdout).group(1))
 
             re_str = r'Transfer/sec:\s+(\d+\.\d+.B)'
-            http_rates_kbytes = re.search(re_str, stdout).group(1)
+            http_tp_kbytes = re.search(re_str, stdout).group(1)
             # Uniform in unit MB
-            ex_unit = 'KMG'.find(http_rates_kbytes[-2])
+            ex_unit = 'KMG'.find(http_tp_kbytes[-2])
             if ex_unit == -1:
                 raise ValueError
-            val = float(http_rates_kbytes[0:-2])
-            http_rates_kbytes = float(val * (1024 ** (ex_unit)))
+            val = float(http_tp_kbytes[0:-2])
+            http_tp_kbytes = float(val * (1024 ** (ex_unit)))
 
             re_str = r'Socket errors: connect (\d+), read (\d+), write (\d+), timeout (\d+)'
             http_sock_err = re.search(re_str, stdout)
@@ -96,14 +99,14 @@ class WrkTool(PerfTool):
 
         return self.parse_results(http_total_req=http_total_req,
                                   http_rps=http_rps,
-                                  http_rates_kbytes=http_rates_kbytes,
+                                  http_tp_kbytes=http_tp_kbytes,
                                   http_sock_err=http_sock_err,
                                   http_err=http_err)
 
     @staticmethod
     def consolidate_results(results):
         all_res = {'tool': 'wrk'}
-        for key in ['http_rps', 'http_total_req', 'http_sock_err', 'http_rates_kbytes']:
+        for key in ['http_rps', 'http_total_req', 'http_sock_err', 'http_throughput_kbytes']:
             all_res[key] = 0
             for item in results:
                 if (key in item['results']):
