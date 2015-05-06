@@ -47,14 +47,20 @@ class KBScheduler(object):
         self.tool_result = {}
 
         # Redis
-        self.connection_pool = None
         self.redis_obj = None
         self.pubsub = None
         self.orches_chan_name = "kloudbuster_orches"
         self.report_chan_name = "kloudbuster_report"
 
     def setup_redis(self):
-        self.redis_obj = redis.StrictRedis(connection_pool=self.connection_pool)
+        LOG.info("Setting up redis connection pool...")
+        # For now, the redis server is not in the scope of Kloud Buster, which has to be
+        # pre-configured before executing Kloud Buster.
+        connection_pool = redis.ConnectionPool(
+            host=self.config.redis_server, port=self.config.redis_server_port, db=0)
+
+        LOG.info("Setting up the redis connections...")
+        self.redis_obj = redis.StrictRedis(connection_pool=connection_pool)
         success = False
         # Check for connections to redis server
         for retry in xrange(1, self.config.redis_retry_count + 1):
@@ -134,6 +140,7 @@ class KBScheduler(object):
                 else:
                     LOG.error('[%s] received invalid command: %s' + (vm_name, cmd))
 
+
             LOG.info("%d Succeed, %d Failed, %d Pending... Retry #%d" %
                      (cnt_succ, cnt_failed, len(clist), retry))
             retry = retry + 1
@@ -176,16 +183,7 @@ class KBScheduler(object):
             self.result[key] = instance.http_client_parser(**self.result[key])
 
     def run(self):
-        LOG.info("Setting up redis connection pool...")
-        # For now, the redis server is not in the scope of Kloud Buster, which has to be
-        # pre-configured before executing Kloud Buster.
-        self.connection_pool = redis.ConnectionPool(
-            host=self.config.redis_server, port=self.config.redis_server_port, db=0)
-
         try:
-            LOG.info("Setting up the redis connections...")
-            self.setup_redis()
-
             LOG.info("Waiting for agents on VMs to come up...")
             self.wait_for_vm_up()
 
@@ -202,10 +200,14 @@ class KBScheduler(object):
 
             LOG.info("Starting HTTP Benchmarking...")
             self.run_http_test()
+
             # Call the method in corresponding tools to consolidate results
             http_tool = self.client_dict.values()[0].http_tool
             LOG.kbdebug(self.result.values())
             self.tool_result = http_tool.consolidate_results(self.result.values())
+            self.tool_result['http_rate_limit'] = self.config.http_tool_configs.rate_limit
+            self.tool_result['total_connections'] =\
+                len(self.client_dict) * self.config.http_tool_configs.connections
         except (KBSetStaticRouteException):
             LOG.error("Could not set static route.")
             return

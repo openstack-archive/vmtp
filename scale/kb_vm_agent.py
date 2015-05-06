@@ -75,9 +75,11 @@ class KB_Instance(object):
     # Run the HTTP benchmarking tool
     @staticmethod
     def run_http_test(dest_path, target_url, threads, connections,
-                      duration, timeout, connection_type):
-        cmd = '%s -t%d -c%d -d%ds --timeout %ds --latency %s' % \
-            (dest_path, threads, connections, duration, timeout, target_url)
+                      rate_limit, duration, timeout, connection_type):
+        if not rate_limit:
+            rate_limit = 65535
+        cmd = '%s -t%d -c%d -R%d -d%ds --latency --timeout %ds %s' % \
+            (dest_path, threads, connections, rate_limit, duration, timeout, target_url)
         return cmd
 
 
@@ -132,17 +134,17 @@ class KB_VM_Agent(object):
 
         return (p.returncode, stdout, stderr)
 
-    def process_cmd(self, msg):
-        if msg['cmd'] == 'ACK':
+    def process_cmd(self, message):
+        if message['cmd'] == 'ACK':
             # When 'ACK' is received, means the master node
             # acknowledged the current VM. So stopped sending more
             # "hello" packet to the master node.
             # Unfortunately, there is no thread.stop() in Python 2.x
             self.stop_hello.set()
-        elif msg['cmd'] == 'EXEC':
+        elif message['cmd'] == 'EXEC':
             self.last_cmd = ""
             try:
-                cmd_res_tuple = eval('self.exec_' + msg['data']['cmd'] + '()')
+                cmd_res_tuple = eval('self.exec_' + message['data']['cmd'] + '()')
                 cmd_res_dict = dict(zip(("status", "stdout", "stderr"), cmd_res_tuple))
             except Exception as exc:
                 cmd_res_dict = {
@@ -150,8 +152,8 @@ class KB_VM_Agent(object):
                     "stdout": self.last_cmd,
                     "stderr": str(exc)
                 }
-            self.report('DONE', msg['client-type'], cmd_res_dict)
-        elif msg['cmd'] == 'ABORT':
+            self.report('DONE', message['client-type'], cmd_res_dict)
+        elif message['cmd'] == 'ABORT':
             # TODO(Add support to abort a session)
             pass
 
@@ -160,16 +162,16 @@ class KB_VM_Agent(object):
             if item['type'] != 'message':
                 continue
             # Convert the string representation of dict to real dict obj
-            msg = eval(item['data'])
-            self.process_cmd(msg)
+            message = eval(item['data'])
+            self.process_cmd(message)
 
     def exec_setup_static_route(self):
         self.last_cmd = KB_Instance.get_static_route(self.user_data['target_subnet_ip'])
         result = self.exec_command(self.last_cmd)
         if (self.user_data['target_subnet_ip'] not in result[1]):
-            self.last_cmd = \
-                KB_Instance.add_static_route(self.user_data['target_subnet_ip'],
-                                             self.user_data['target_shared_interface_ip'])
+            self.last_cmd = KB_Instance.add_static_route(
+                self.user_data['target_subnet_ip'],
+                self.user_data['target_shared_interface_ip'])
             return self.exec_command(self.last_cmd)
         else:
             return (0, '', '')
@@ -179,10 +181,10 @@ class KB_VM_Agent(object):
         return self.exec_command(self.last_cmd)
 
     def exec_run_http_test(self):
-        self.last_cmd = \
-            KB_Instance.run_http_test(dest_path=self.user_data['http_tool']['dest_path'],
-                                      target_url=self.user_data['target_url'],
-                                      **self.user_data['http_tool_configs'])
+        self.last_cmd = KB_Instance.run_http_test(
+            dest_path=self.user_data['http_tool']['dest_path'],
+            target_url=self.user_data['target_url'],
+            **self.user_data['http_tool_configs'])
         return self.exec_command(self.last_cmd)
 
 

@@ -19,7 +19,7 @@ import sys
 import traceback
 
 import configure
-import kb_scheduler
+from kb_scheduler import KBScheduler
 from keystoneclient.v2_0 import client as keystoneclient
 import log as logging
 from novaclient.exceptions import ClientException
@@ -109,7 +109,7 @@ class Kloud(object):
     def create_vm(self, instance):
         LOG.info("Creating Instance: " + instance.vm_name)
         instance.create_server(**instance.boot_info)
-        if not instance:
+        if not instance.instance:
             return
 
         instance.fixed_ip = instance.instance.networks.values()[0][0]
@@ -122,8 +122,10 @@ class Kloud(object):
             instance.ssh_ip = instance.fixed_ip
 
     def create_vms(self):
-        tpool = ThreadPool(processes=5)
-        tpool.map(self.create_vm, self.get_all_instances())
+        # tpool = ThreadPool(processes=5)
+        # tpool.map(self.create_vm, self.get_all_instances())
+        for instance in self.get_all_instances():
+            self.create_vm(instance)
 
 
 class KloudBuster(object):
@@ -206,6 +208,13 @@ class KloudBuster(object):
             self.kloud.create_resources()
             self.kloud.create_vms()
             self.testing_kloud.create_resources()
+
+            # Start the scheduler and ready for the incoming redis messages
+            client_list = self.testing_kloud.get_all_instances()
+            server_list = self.kloud.get_all_instances()
+            kbscheduler = KBScheduler(client_list, self.client_cfg, self.single_cloud)
+            kbscheduler.setup_redis()
+
             if self.single_cloud:
                 # Find the shared network if the cloud used to testing is same
                 # Attach the router in tested kloud to the shared network
@@ -217,17 +226,11 @@ class KloudBuster(object):
             # Function that print all the provisioning info
             self.print_provision_info()
 
-            client_list = self.testing_kloud.get_all_instances()
-            server_list = self.kloud.get_all_instances()
-            kbscheduler = kb_scheduler.KBScheduler(client_list,
-                                                   self.client_cfg,
-                                                   self.single_cloud)
+            # Run the scheduler to perform benchmarkings
             kbscheduler.run()
             self.final_result = kbscheduler.tool_result
             self.final_result['total_server_vms'] = len(server_list)
             self.final_result['total_client_vms'] = len(client_list)
-            self.final_result['total_connections'] =\
-                len(client_list) * self.client_cfg.http_tool_configs.connections
             LOG.info(self.final_result)
         except KeyboardInterrupt:
             traceback.format_exc()

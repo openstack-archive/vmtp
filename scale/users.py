@@ -139,7 +139,6 @@ class User(object):
         self.nova_client = Client(**creden_nova)
 
         config_scale = self.tenant.kloud.scale_cfg
-
         # Create the user's keypair if configured
         if config_scale.public_key_file:
             self.key_pair = base_compute.KeyPair(self.nova_client)
@@ -153,7 +152,6 @@ class User(object):
             external_network = base_network.find_external_network(self.neutron_client)
         else:
             external_network = None
-
         # Create the required number of routers and append them to router list
         LOG.info("Creating routers and networks for user %s" % self.user_name)
         for router_count in range(config_scale['routers_per_user']):

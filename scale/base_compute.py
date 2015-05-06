@@ -147,6 +147,15 @@ class SecGroup(object):
                                                     ip_protocol="tcp",
                                                     from_port=80,
                                                     to_port=80)
+        # Allow Nuttcp traffic
+        self.novaclient.security_group_rules.create(group.id,
+                                                    ip_protocol="tcp",
+                                                    from_port=5001,
+                                                    to_port=5002)
+        self.novaclient.security_group_rules.create(group.id,
+                                                    ip_protocol="udp",
+                                                    from_port=5001,
+                                                    to_port=5001)
         self.secgroup = group
         self.secgroup_name = group_name
 
