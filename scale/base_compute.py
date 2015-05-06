@@ -70,25 +70,22 @@ class BaseCompute(object):
                                                   userdata=user_data,
                                                   config_drive=config_drive,
                                                   security_groups=[sec_group.id])
-        flag_exist = self.find_server(self.vm_name, retry_count)
-        if flag_exist:
-            self.instance = instance
 
-
-    # Returns True if server is present false if not.
-    # Retry for a few seconds since after VM creation sometimes
-    # it takes a while to show up
-    def find_server(self, vmname, retry_count):
-        for _ in range(1, retry_count + 1):
-            servers_list = self.get_server_list()
-            for server in servers_list:
-                if server.name == vmname and server.status == "ACTIVE":
-                    self.host = server.__dict__['OS-EXT-SRV-ATTR:hypervisor_hostname']
-                    return True
+        if not instance:
+            return None
+        # Verify that the instance gets into the ACTIVE state
+        for _ in range(retry_count):
+            instance = self.novaclient.servers.get(instance.id)
+            if instance.status == 'ACTIVE':
+                self.instance = instance
+                self.host = instance.__dict__['OS-EXT-SRV-ATTR:hypervisor_hostname']
+                return instance
+            if instance.status == 'ERROR':
+                LOG.error('Instance creation error:' + instance.fault['message'])
+                break
+            #   print "[%s] VM status=%s, retrying %s of %s..." \
+            #         % (vmname, instance.status, (retry_attempt + 1), retry_count)
             time.sleep(2)
-        LOG.error("[%s] VM not found, after %d attempts" % (vmname,
-                                                            retry_count))
-        return False
 
     def get_server_list(self):
         servers_list = self.novaclient.servers.list()

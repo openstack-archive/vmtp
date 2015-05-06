@@ -50,11 +50,28 @@ server:
 
     # Assign floating IP for every VM
     use_floatingip: True
+    
+    # Placement hint
+    # Availability zone to use for servers in the server cloud
+    # Leave empty if you prefer to have the Nova scheduler place the server VMs
+    # If you want to pick a particular AZ, put that AZ name (e.g. nova)
+    # If you want a paticular compute host, put the AZ and compute host names s
+    # eparated by ':' (e.g. nova:tme100) 
+    availability_zone:
+
 
 # CLIENT SIDE CONFIG OPTIONS
 client:
     # Assign floating IP for every VM
     use_floatingip: True
+
+    # Placement hint
+    # Availability zone to use for clients in the client cloud
+    # Leave empty if you prefer to have the Nova scheduler place the server VMs
+    # If you want to pick a particular AZ, put that AZ name (e.g. nova)
+    # If you want a paticular compute host, put the AZ and compute host names s
+    # eparated by ':' (e.g. nova:tme100) 
+    availability_zone:
 
     # (TEMP) Redis server configuration
     redis_server: '172.29.172.180'

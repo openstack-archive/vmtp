@@ -127,6 +127,7 @@ class BaseNetwork(object):
             perf_instance.boot_info['keyname'] = self.router.user.key_name
             perf_instance.boot_info['nic'] = [{'net-id': self.network['id']}]
             perf_instance.boot_info['sec_group'] = self.secgroup_list[0].secgroup
+            perf_instance.boot_info['avail_zone'] = self.router.user.tenant.kloud.get_az()
 
     def delete_compute_resources(self):
         """
