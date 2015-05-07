@@ -3,7 +3,7 @@
 # Name of the image to use for all test VMs (client, server and proxy)
 # The image name must exist in OpenStack and must be built with the appropriate
 # packages
-image_name: 'Scale Image v6a'
+image_name: 'Scale Image v6b'
 
 # Flavor to use for the test images - the flavor name must exist in OpenStack
 flavor_type: 'm1.small'
@@ -87,7 +87,7 @@ client:
         name: 'wrk'
         dest_path: '/var/tmp/wrk2-3.1.1'
 
-    # HTTP tool specific configs (per client)
+    # HTTP tool specific configs (per VM)
     http_tool_configs:
         # Threads to run tests
         threads: 1

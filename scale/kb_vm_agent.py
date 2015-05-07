@@ -78,7 +78,7 @@ class KB_Instance(object):
                       rate_limit, duration, timeout, connection_type):
         if not rate_limit:
             rate_limit = 65535
-        cmd = '%s -t%d -c%d -R%d -d%ds --latency --timeout %ds %s' % \
+        cmd = '%s -t%d -c%d -R%d -d%ds --timeout %ds --latency --s kb.lua %s' % \
             (dest_path, threads, connections, rate_limit, duration, timeout, target_url)
         return cmd
 
@@ -155,6 +155,11 @@ class KB_VM_Agent(object):
             self.report('DONE', message['client-type'], cmd_res_dict)
         elif message['cmd'] == 'ABORT':
             # TODO(Add support to abort a session)
+            pass
+        else:
+            # Unexpected
+            # TODO(Logging on Agent)
+            print 'ERROR: Unexpected command received!'
             pass
 
     def work(self):

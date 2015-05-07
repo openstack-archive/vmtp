@@ -35,7 +35,7 @@ class WrkTool(PerfTool):
         duration_sec = self.instance.config.http_tool_configs.duration
         if not rate_limit:
             rate_limit = 65535
-        cmd = '%s -t%d -c%d -R%d -d%ds --timeout %ds %s' % \
+        cmd = '%s -t%d -c%d -R%d -d%ds --timeout %ds --latency -s kb.lua %s' % \
             (self.dest_path, threads, connections, rate_limit,
              duration_sec, timeout, target_url)
         LOG.kbdebug("[%s] %s" % (self.instance.vm_name, cmd))
@@ -94,6 +94,10 @@ class WrkTool(PerfTool):
                 http_err = http_err.group(1)
             else:
                 http_err = 0
+
+            re_str = r'__START_KLOUDBUSTER_DATA__\n(((.*)\n)*)__END_KLOUDBUSTER_DATA__'
+            latency_stats = re.search(re_str, stdout).group(1).split()
+            latency_stats = [(float(x.split(',')[0]), int(x.split(',')[1])) for x in latency_stats]
         except Exception:
             return self.parse_error('Could not parse: %s' % (stdout))
 
@@ -101,15 +105,34 @@ class WrkTool(PerfTool):
                                   http_rps=http_rps,
                                   http_tp_kbytes=http_tp_kbytes,
                                   http_sock_err=http_sock_err,
-                                  http_err=http_err)
+                                  http_err=http_err,
+                                  latency_stats=latency_stats)
 
     @staticmethod
     def consolidate_results(results):
         all_res = {'tool': 'wrk'}
+        total_count = len(results)
+        if not total_count:
+            return all_res
+
         for key in ['http_rps', 'http_total_req', 'http_sock_err', 'http_throughput_kbytes']:
             all_res[key] = 0
             for item in results:
                 if (key in item['results']):
                     all_res[key] += item['results'][key]
             all_res[key] = int(all_res[key])
+
+        if 'latency_stats' in results[0]['results']:
+            all_res['latency_stats'] = []
+            first_result = results[0]['results']['latency_stats']
+            latency_counts = len(first_result)
+
+        for i in range(latency_counts):
+            latency_avg = 0
+            for item in results:
+                latency_avg += item['results']['latency_stats'][i][1]
+            latency_avg = int(latency_avg / total_count)
+            latency_tup = (first_result[i][0], latency_avg)
+            all_res['latency_stats'].append(latency_tup)
+
         return all_res
