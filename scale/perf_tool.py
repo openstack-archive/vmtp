@@ -45,7 +45,8 @@ class PerfTool(object):
     def parse_results(self, protocol=None, throughput=None, lossrate=None, retrans=None,
                       rtt_ms=None, reverse_dir=False, msg_size=None, cpu_load=None,
                       http_total_req=None, http_rps=None, http_tp_kbytes=None,
-                      http_sock_err=None, http_err=None, latency_stats=None):
+                      http_sock_err=None, http_sock_timeout=None, http_err=None,
+                      latency_stats=None):
         res = {'tool': self.name}
         if throughput is not None:
             res['throughput_kbps'] = throughput
@@ -73,6 +74,8 @@ class PerfTool(object):
             res['http_throughput_kbytes'] = http_tp_kbytes
         if http_sock_err:
             res['http_sock_err'] = http_sock_err
+        if http_sock_timeout:
+            res['http_sock_timeout'] = http_sock_timeout
         if http_err:
             res['http_err'] = http_err
         if latency_stats:

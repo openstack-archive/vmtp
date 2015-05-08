@@ -14,6 +14,9 @@ keystone_admin_role: "admin"
 # Cleanup all kloudbuster resources upon exit
 cleanup_resources: True
 
+# VM creation concurrency
+vm_creation_concurrency: 5
+
 #
 # ssh access to the test VMs launched by kloudbuster is not required
 # but can be handy if the user wants to ssh manually to any of them (for example
@@ -50,13 +53,13 @@ server:
 
     # Assign floating IP for every VM
     use_floatingip: True
-    
+
     # Placement hint
     # Availability zone to use for servers in the server cloud
     # Leave empty if you prefer to have the Nova scheduler place the server VMs
     # If you want to pick a particular AZ, put that AZ name (e.g. nova)
     # If you want a paticular compute host, put the AZ and compute host names s
-    # eparated by ':' (e.g. nova:tme100) 
+    # eparated by ':' (e.g. nova:tme100)
     availability_zone:
 
 
@@ -70,7 +73,7 @@ client:
     # Leave empty if you prefer to have the Nova scheduler place the server VMs
     # If you want to pick a particular AZ, put that AZ name (e.g. nova)
     # If you want a paticular compute host, put the AZ and compute host names s
-    # eparated by ':' (e.g. nova:tme100) 
+    # eparated by ':' (e.g. nova:tme100)
     availability_zone:
 
     # (TEMP) Redis server configuration
@@ -104,4 +107,3 @@ client:
 
     # Prompt before running benchmarking tools
     prompt_before_run: False
-

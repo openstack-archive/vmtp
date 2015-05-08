@@ -16,6 +16,7 @@ import json
 from multiprocessing.pool import ThreadPool
 import os
 import sys
+import threading
 import traceback
 
 import configure
@@ -137,8 +138,8 @@ class Kloud(object):
             # Store the fixed ip as ssh ip since there is no floating ip
             instance.ssh_ip = instance.fixed_ip
 
-    def create_vms(self):
-        tpool = ThreadPool(processes=5)
+    def create_vms(self, vm_creation_concurrency):
+        tpool = ThreadPool(processes=vm_creation_concurrency)
         tpool.map(self.create_vm, self.get_all_instances())
 
 
@@ -167,6 +168,8 @@ class KloudBuster(object):
         self.kloud = Kloud(server_cfg, server_cred)
         self.testing_kloud = Kloud(client_cfg, client_cred, testing_side=True)
         self.final_result = None
+        self.server_vm_create_thread = None
+        self.client_vm_create_thread = None
 
     def print_provision_info(self):
         """
@@ -218,9 +221,9 @@ class KloudBuster(object):
         Support concurrency in fututure
         """
         kbscheduler = None
+        vm_creation_concurrency = self.client_cfg.vm_creation_concurrency
         try:
             self.kloud.create_resources()
-            self.kloud.create_vms()
             self.testing_kloud.create_resources()
 
             # Start the scheduler and ready for the incoming redis messages
@@ -235,7 +238,24 @@ class KloudBuster(object):
                 shared_net = self.testing_kloud.get_first_network()
                 self.kloud.attach_to_shared_net(shared_net)
             self.gen_user_data()
-            self.testing_kloud.create_vms()
+
+            # Create VMs in both tested and testing kloud concurrently
+            self.client_vm_create_thread = threading.Thread(target=self.testing_kloud.create_vms,
+                                                            args=[vm_creation_concurrency])
+            self.server_vm_create_thread = threading.Thread(target=self.kloud.create_vms,
+                                                            args=[vm_creation_concurrency])
+            self.client_vm_create_thread.daemon = True
+            self.server_vm_create_thread.daemon = True
+            if self.single_cloud:
+                self.client_vm_create_thread.start()
+                self.client_vm_create_thread.join()
+                self.server_vm_create_thread.start()
+                self.server_vm_create_thread.join()
+            else:
+                self.client_vm_create_thread.start()
+                self.server_vm_create_thread.start()
+                self.client_vm_create_thread.join()
+                self.server_vm_create_thread.join()
 
             # Function that print all the provisioning info
             self.print_provision_info()
@@ -334,6 +354,18 @@ if __name__ == '__main__':
         alt_config = configure.Configuration.from_file(CONF.config).configure()
         config_scale = config_scale.merge(alt_config)
 
+    # Retrieve the credentials
+    cred = credentials.Credentials(CONF.tested_rc, CONF.passwd_tested, CONF.no_env)
+    if CONF.testing_rc and CONF.testing_rc != CONF.tested_rc:
+        cred_testing = credentials.Credentials(CONF.testing_rc,
+                                               CONF.passwd_testing,
+                                               CONF.no_env)
+        single_cloud = False
+    else:
+        # Use the same openrc file for both cases
+        cred_testing = cred
+        single_cloud = True
+
     # Initialize the key pair name
     if config_scale['public_key_file']:
         # verify the public key file exists
@@ -360,18 +392,6 @@ if __name__ == '__main__':
     # Adjust the VMs per network on the client side to match the total
     # VMs on the server side (1:1)
     client_side_cfg['vms_per_network'] = get_total_vm_count(server_side_cfg)
-
-    # Retrieve the credentials
-    cred = credentials.Credentials(CONF.tested_rc, CONF.passwd_tested, CONF.no_env)
-    if CONF.testing_rc and CONF.testing_rc != CONF.tested_rc:
-        cred_testing = credentials.Credentials(CONF.testing_rc,
-                                               CONF.passwd_testing,
-                                               CONF.no_env)
-        single_cloud = False
-    else:
-        # Use the same openrc file for both cases
-        cred_testing = cred
-        single_cloud = True
 
     # The KloudBuster class is just a wrapper class
     # levarages tenant and user class for resource creations and

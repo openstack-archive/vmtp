@@ -20,7 +20,6 @@
 
 import argparse
 import json
-import locale
 import os
 import os.path
 import sys
@@ -33,7 +32,7 @@ __version__ = '0.0.1'
 kb_html_tpl = "./kb_tpl.jinja"
 
 def get_formatted_num(value):
-    return locale.format("%d", value, grouping=True)
+    return '{:,}'.format(value)
 
 # List of fields to format with thousands separators
 fields_to_format = ['rps_max', 'rps', 'http_sock_err', 'total_server_vm',
@@ -142,5 +141,4 @@ if __name__ == '__main__':
         print('Version ' + __version__)
         sys.exit(0)
 
-    locale.setlocale(locale.LC_ALL, 'en_US')
     gen_chart(opts.file, opts.chart, opts.browser)

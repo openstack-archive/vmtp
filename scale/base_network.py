@@ -105,7 +105,7 @@ class BaseNetwork(object):
             secgroup_name = network_prefix + "-SG" + str(secgroup_count)
             secgroup_instance.create_secgroup_with_rules(secgroup_name)
 
-        LOG.info("Scheduled to create virtual machines...")
+        LOG.info("Scheduled to create virtual machines for network %s..." % network_prefix)
         if config_scale['use_floatingip']:
             external_network = find_external_network(self.neutron_client)
         # Schedule to create the required number of VMs

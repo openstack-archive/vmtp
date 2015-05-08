@@ -84,9 +84,11 @@ class WrkTool(PerfTool):
                 v2 = int(http_sock_err.group(2))
                 v3 = int(http_sock_err.group(3))
                 v4 = int(http_sock_err.group(4))
-                http_sock_err = v1 + v2 + v3 + v4
+                http_sock_err = v1 + v2 + v3
+                http_sock_timeout = v4
             else:
                 http_sock_err = 0
+                http_sock_timeout = 0
 
             re_str = r'Non-2xx or 3xx responses: (\d+)'
             http_err = re.search(re_str, stdout)
@@ -97,7 +99,7 @@ class WrkTool(PerfTool):
 
             re_str = r'__START_KLOUDBUSTER_DATA__\n(((.*)\n)*)__END_KLOUDBUSTER_DATA__'
             latency_stats = re.search(re_str, stdout).group(1).split()
-            latency_stats = [(float(x.split(',')[0]), int(x.split(',')[1])) for x in latency_stats]
+            latency_stats = [[float(x.split(',')[0]), int(x.split(',')[1])] for x in latency_stats]
         except Exception:
             return self.parse_error('Could not parse: %s' % (stdout))
 
@@ -105,6 +107,7 @@ class WrkTool(PerfTool):
                                   http_rps=http_rps,
                                   http_tp_kbytes=http_tp_kbytes,
                                   http_sock_err=http_sock_err,
+                                  http_sock_timeout=http_sock_timeout,
                                   http_err=http_err,
                                   latency_stats=latency_stats)
 
@@ -115,7 +118,8 @@ class WrkTool(PerfTool):
         if not total_count:
             return all_res
 
-        for key in ['http_rps', 'http_total_req', 'http_sock_err', 'http_throughput_kbytes']:
+        for key in ['http_rps', 'http_total_req', 'http_sock_err',
+                    'http_sock_timeout', 'http_throughput_kbytes']:
             all_res[key] = 0
             for item in results:
                 if (key in item['results']):
@@ -127,12 +131,15 @@ class WrkTool(PerfTool):
             first_result = results[0]['results']['latency_stats']
             latency_counts = len(first_result)
 
+        # for item in results:
+        #     print item['results']['latency_stats']
+
         for i in range(latency_counts):
             latency_avg = 0
             for item in results:
                 latency_avg += item['results']['latency_stats'][i][1]
             latency_avg = int(latency_avg / total_count)
-            latency_tup = (first_result[i][0], latency_avg)
+            latency_tup = [first_result[i][0], latency_avg]
             all_res['latency_stats'].append(latency_tup)
 
         return all_res
