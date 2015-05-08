@@ -70,8 +70,9 @@
 <div class="container-fluid">
     <h2><i class="glyphicon glyphicon-dashboard"></i> KloudBuster Report</h2>
     <div class="panel  panel-primary">
-        <div class="panel-heading"><h4>HTTP Scale Results</h4></div>
-          <div class="panel-body">
+        <div class="panel-heading"><h3>HTTP Scale Results</h3></div>
+            <div class="panel-body">
+            <h4>
             <div class="row"><!-- ROW1 -->
                 <div class="col-md-6">
                     <ul class="list-group">
@@ -96,22 +97,28 @@
 
                 <div class="col-md-6">
                     <div class="panel">
-                        Requests/sec <span class="label label-default pull-right">{{ rps }}/{{ rps_max }}</span>
-                        <div class="progress">
-                          <div class="progress-bar progress-bar-success" role="progressbar" aria-valuenow="{{ rps }}" aria-valuemin="0" aria-valuemax="100" style="width: {{ rps_percent }}%">
-                            <span">{{ rps_percent }}%</span>
-                          </div>
+                        <i class="glyphicon glyphicon-refresh"></i>
+                        Requests/sec <span class="label label-default pull-right">{{ rps }} / {{ rps_max }}</span>
+                        <div class="well-sm">
+                            <div class="progress">
+                              <div class="progress-bar" role="progressbar" aria-valuenow="{{ rps }}" aria-valuemin="0" aria-valuemax="100" style="width: {{ rps_percent }}%">
+                                <span">{{ rps_percent }}%</span>
+                              </div>
+                            </div>
                         </div>
 
-                        Reception Throughput (Gbps)<span class="label label-default pull-right">{{ rx }}/{{ rx_max }}</span>
-                        <div class="progress">
-                          <div class="progress-bar progress-bar-info" role="progressbar" aria-valuenow="{{ rx }}" aria-valuemin="0" aria-valuemax="10" style="width: {{ rx_percent }}%">
-                           <span>{{ rx_percent }}%</span>
+                        <i class="glyphicon glyphicon-cloud-download"></i>
+                        Reception Throughput (Gbps)<span class="label label-default pull-right">{{ rx }} / {{ rx_max }}</span>
+                         <div class="well-sm">
+                           <div class="progress">
+                              <div class="progress-bar" role="progressbar" aria-valuenow="{{ rx }}" aria-valuemin="0" aria-valuemax="10" style="width: {{ rx_percent }}%">
+                               <span>{{ rx_percent }}%</span>
+                            </div>
                         </div>
                     </div>                                                                                                             </div>
                 </div>
             </div><!-- ROW1 -->
-
+            </h4>
             <div class="row" align="center"><!-- ROW2 -->
                <div id="curve_chart" style="width: 1200px; height: 500px"></div>
             </div><!-- ROW2 -->
