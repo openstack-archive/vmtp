@@ -4,6 +4,11 @@
 <script src="http://code.jquery.com/jquery.min.js"></script>
 <link href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
 <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+<script src="http://cdn.datatables.net/1.10.7/js/jquery.dataTables.min.js"></script>
+<link href="http://cdn.datatables.net/1.10.7/css/jquery.dataTables.min.css" rel="stylesheet" type="text/css" />
+<style media="all" type="text/css">
+    .alignRight { text-align: right; }
+</style>
     <meta charset="utf-8">
     <script type="text/javascript"
           src="https://www.google.com/jsapi?autoload={
@@ -17,12 +22,9 @@
         google.setOnLoadCallback(drawChart);
 
         function drawChart() {
-            var data = google.visualization.arrayToDataTable([
-              ['Percentile', 'Latency (msec)'],
-{% for latency_list in latency_stats %}
-              {{latency_list}},
-{% endfor %}
-            ]);
+            var data = google.visualization.arrayToDataTable(
+            {{kbstats.latency_tuples}}
+            );
             var ticks =
               [{v:2,f:'50%'},
                {v:4,f:'75%'},
@@ -36,8 +38,11 @@
                 title: 'HTTP Requests Latency Distribution',
                 curveType: 'function',
                 hAxis: {title: 'Percentile', minValue: 0, logScale: true, ticks:ticks },
-                vAxis: {title: 'Latency (ms)', minValue: 0, logScale: true, minValue: 0 },
-                legend: { position: 'none' }
+                vAxis: {title: 'Latency (ms)', minValue: 0, logScale: true,
+                        gridlines: {count: 8},
+                        minorGridlines: {count: 1},
+                        minValue: 0 },
+                legend: { position: 'bottom' }
             };
 
             var chart = new google.visualization.LineChart(document.getElementById('curve_chart'));
@@ -54,7 +59,7 @@
                       return function (dt, row) {
                         var percentile = 100.0 - (100.0/dt.getValue(row, 0));
                         return dt.getColumnLabel(j) + ': ' +
-                            percentile.toPrecision(6) +
+                            percentile +
                            '\%\'ile = ' + dt.getValue(row, j) + ' msec'
                       }
                   })(i)
@@ -64,6 +69,17 @@
             view.setColumns(columns);
             chart.draw(view, options);
         }
+        // For jquery dataTable
+        $(document).ready(function() {
+            $('#runs_table').dataTable({
+                "searching": {{kbstats.search_page}},
+                "paging": {{kbstats.search_page}},
+                "bInfo" : {{kbstats.search_page}},
+                "aoColumnDefs": [
+                    { "sClass": "alignRight", "aTargets": [ 1, 2, 3, 4, 5, 6 ] }
+                ]
+            });
+        } );
     </script>
 </head>
 <body>
@@ -72,56 +88,40 @@
     <div class="panel  panel-primary">
         <div class="panel-heading"><h3>HTTP Scale Results</h3></div>
             <div class="panel-body">
-            <h4>
+
+{% if kbstats.table %}
             <div class="row"><!-- ROW1 -->
-                <div class="col-md-6">
-                    <ul class="list-group">
-                        <li class="list-group-item list-group-item-success">
-                          <span class="badge">{{ total_connections }}</span>
-                          Total Concurrent Connections
-                        </li>
-                         <li class="list-group-item list-group-item-success">
-                          <span class="badge">{{ total_server_vms }}</span>
-                          Server VM count
-                        </li>
-                         <li class="list-group-item list-group-item-success">
-                          <span class="badge">{{ http_total_req }}</span>
-                          Total Requests/Responses
-                        </li>
-                        <li class="list-group-item list-group-item-success">
-                          <span class="badge">{{ http_sock_err }}</span>
-                          Total Socket Errors
-                        </li>
-                    </ul>
-                </div>
-
-                <div class="col-md-6">
-                    <div class="panel">
-                        <i class="glyphicon glyphicon-refresh"></i>
-                        Requests/sec <span class="label label-default pull-right">{{ rps }} / {{ rps_max }}</span>
-                        <div class="well-sm">
-                            <div class="progress">
-                              <div class="progress-bar" role="progressbar" aria-valuenow="{{ rps }}" aria-valuemin="0" aria-valuemax="100" style="width: {{ rps_percent }}%">
-                                <span">{{ rps_percent }}%</span>
-                              </div>
+<table id="runs_table" class="table hover display compact" cellspacing="0" width="100%">
+                <thead>
+                    <tr>
+{% for col_name in kbstats.table.col_names %}
+                        <th>{{col_name}}</th>
+{% endfor %}
+                    </tr>
+                </thead>
+         
+                <tbody>
+{% for row in kbstats.table.rows %}
+                    <tr>
+{% for cell in row.cells %}
+                        <td>{{cell}}</td>
+{% endfor %}
+                        <td>
+                            <div class="progress-bar" role="progressbar" style="width:{{row.rx.percent}}%;min-width: 20px">
+                                <span>{{ row.rx.value }}</span>
                             </div>
-                        </div>
+                        </td>
+                    </tr>
+{% endfor %}
+                </tbody>
+            </table>
+        </div><!-- ROW1 -->
+{% endif %}
 
-                        <i class="glyphicon glyphicon-cloud-download"></i>
-                        Reception Throughput (Gbps)<span class="label label-default pull-right">{{ rx }} / {{ rx_max }}</span>
-                         <div class="well-sm">
-                           <div class="progress">
-                              <div class="progress-bar" role="progressbar" aria-valuenow="{{ rx }}" aria-valuemin="0" aria-valuemax="10" style="width: {{ rx_percent }}%">
-                               <span>{{ rx_percent }}%</span>
-                            </div>
-                        </div>
-                    </div>                                                                                                             </div>
-                </div>
-            </div><!-- ROW1 -->
-            </h4>
-            <div class="row" align="center"><!-- ROW2 -->
-               <div id="curve_chart" style="width: 1200px; height: 500px"></div>
-            </div><!-- ROW2 -->
+
+            <div class="row" align="center"><!-- LATENCY CHART ROW -->
+               <div id="curve_chart" style="width: 900px; height: 500px"></div>
+            </div><!-- LATENCY CHART ROW -->
         </div><!--/panel-body-->
     </div><!--/panel-->
 </div><!--/container-->
