@@ -34,75 +34,126 @@ kb_html_tpl = "./kb_tpl.jinja"
 def get_formatted_num(value):
     return '{:,}'.format(value)
 
-# List of fields to format with thousands separators
-fields_to_format = ['rps_max', 'rps', 'http_sock_err', 'total_server_vm',
-                    'http_total_req', 'total_connections']
+# table column names
+col_names = ['<i class="glyphicon glyphicon-file"></i> File',
+             '<i class="glyphicon glyphicon-random"></i> Connections',
+             '<i class="glyphicon glyphicon-book"></i> Server VMs',
+             '<i class="glyphicon glyphicon-transfer"></i> Requests',
+             '<i class="glyphicon glyphicon-fire"></i> Socket errors',
+             '<i class="glyphicon glyphicon-time"></i> RPS measured',
+             '<i class="glyphicon glyphicon-pencil"></i> RPS requested',
+             '<i class="glyphicon glyphicon-cloud-download"></i> RX throughput (Gbps)']
 
-def format_numbers(results):
-    for key in results.keys():
-        if key in fields_to_format:
-            print 'format:' + key
-            results[key] = get_formatted_num(results[key])
-
-def get_progress_vars(name, cur_value, max_value):
-    tpl_vars = {
-        name: cur_value,
-        name + "_max": max_value,
-        name + "_percent": (cur_value * 100) / max_value,
-        }
-    return tpl_vars
+def get_new_latency_tuples():
+    '''Returns a list of lists initializedas follows
+    The latency tuples must be formatted like this:
+    ['Percentile', 'fileA', 'fileB'],
+    [2.0, 1, 3],
+    [4.0, 27, 38],
+    etc, with the first column being calculated from the percentile
+    using the formula (1/(1-percentile))
+    50% -> 1/0.5 = 2
+    75% -> 4
+    etc...
+    This horizontal scaling is used to stretch the chart at the top end
+    (towards 100%)
+    '''
+    return [
+        ['Percentile'], # add run file name
+        [2],            # add run 50% latency
+        [4],            # add run 75% latency
+        [10],
+        [100],
+        [1000],
+        [10000],
+        [100000]        # add run 99.999% latency
+    ]
 
 class KbReport(object):
-    def __init__(self, results):
-        self.results = results
+    def __init__(self, data_list):
+        self.data_list = data_list
+        self.latency_tuples = get_new_latency_tuples()
+        self.common_stats = []
+        self.table = None
         template_loader = FileSystemLoader(searchpath=".")
         template_env = Environment(loader=template_loader)
         self.tpl = template_env.get_template(kb_html_tpl)
 
-    def get_template_vars(self):
-        rx_tp = float(self.results['http_throughput_kbytes'])
-        rx_tp = round(rx_tp * 8 / (1024 * 1024), 1)
-        tpl_vars = get_progress_vars('rx', rx_tp, 10)
-        self.results.update(tpl_vars)
-
-        rps = self.results['http_rps']
-        rps_max = self.results['http_rate_limit'] * self.results['total_client_vms']
-        tpl_vars = get_progress_vars('rps', rps, rps_max)
-        self.results.update(tpl_vars)
-
-        # tweak the latency percentile information so that the X value
-        # maps to the modified log scale
-        # The X value to use is 1/(1 - percentile)
-        latency_list = self.results['latency_stats']
-        mod_latency_list = []
-        for latency_pair in latency_list:
-            x_value = round(100 / (100 - latency_pair[0]), 1)
-            # conert from usec to msec
+    def add_latency_stats(self, run_results):
+        # init a column list
+        column = [run_results['filename']]
+        for latency_pair in run_results['latency_stats']:
+            # convert from usec to msec
             latency_ms = latency_pair[1] / 1000
-            mod_latency_list.append([x_value, latency_ms])
-        self.results['latency_stats'] = mod_latency_list
-        return self.results
+            column.append(latency_ms)
+        # and append that column to the latency list
+        for pct_list, colval in zip(self.latency_tuples, column):
+            pct_list.append(colval)
+
+    def prepare_table(self):
+        table = {}
+        table['col_names'] = col_names
+        # add values for each row
+        rows = []
+        for run_res in self.data_list:
+            rps_max = run_res['http_rate_limit'] * run_res['total_client_vms']
+            rx_tp = float(run_res['http_throughput_kbytes'])
+            rx_tp = round(rx_tp * 8 / (1024 * 1024), 1)
+            cells = [run_res['filename'],
+                     get_formatted_num(run_res['total_connections']),
+                     get_formatted_num(run_res['total_server_vms']),
+                     get_formatted_num(run_res['http_total_req']),
+                     get_formatted_num(run_res['http_sock_err']),
+                     get_formatted_num(run_res['http_rps']),
+                     get_formatted_num(rps_max)]
+            row = {'cells': cells,
+                   'rx': {'value':rx_tp,
+                          'max': 10,
+                          'percent': rx_tp * 10}}
+            rows.append(row)
+        table['rows'] = rows
+        self.table = table
 
     def plot(self, dest_file):
+        for run_results in self.data_list:
+            self.add_latency_stats(run_results)
+
+        self.prepare_table()
+        kbstats = {
+            'table': self.table,
+            'latency_tuples': self.latency_tuples,
+            'search_page': 'true' if len(self.data_list) > 10 else 'false'
+        }
+        print kbstats
         with open(dest_file, 'w') as dest:
             print('Generating chart drawing code to ' + dest_file + '...')
-            tpl_vars = self.get_template_vars()
-            format_numbers(tpl_vars)
-            output = self.tpl.render(tpl_vars)
+            output = self.tpl.render(kbstats=kbstats)
             dest.write(output)
 
-def gen_chart(res_file, chart_dest, browser):
-    if not os.path.isfile(res_file):
-        print('Error: No such file %s: ' + res_file)
-        sys.exit(1)
-    with open(res_file) as data_file:
-        results = json.load(data_file)
-        chart = KbReport(results)
-        print('Generating report to ' + chart_dest + '...')
-        chart.plot(chart_dest)
-        if browser:
-            url = 'file://' + os.path.abspath(chart_dest)
-            webbrowser.open(url, new=2)
+def get_display_file_name(filename):
+    res = os.path.basename(filename)
+    # remove extension
+    res, _ = os.path.splitext(res)
+    return res
+
+def gen_chart(file_list, chart_dest, browser):
+
+    data_list = []
+    for res_file in file_list:
+        print 'processing: ' + res_file
+        if not os.path.isfile(res_file):
+            print('Error: No such file %s: ' + res_file)
+            sys.exit(1)
+        with open(res_file) as data_file:
+            results = json.load(data_file)
+            results['filename'] = get_display_file_name(res_file)
+            data_list.append(results)
+    chart = KbReport(data_list)
+    print('Generating report to ' + chart_dest + '...')
+    chart.plot(chart_dest)
+    if browser:
+        url = 'file://' + os.path.abspath(chart_dest)
+        webbrowser.open(url, new=2)
 
 def get_absolute_path_for_file(file_name):
     '''
@@ -131,8 +182,8 @@ if __name__ == '__main__':
                         action='store_true',
                         help='print version of this script and exit')
 
-    parser.add_argument(dest='file',
-                        help='KloudBuster json result file',
+    parser.add_argument(dest='files',
+                        help='KloudBuster json result file', nargs="+",
                         metavar='<file>')
 
     opts = parser.parse_args()
@@ -141,4 +192,4 @@ if __name__ == '__main__':
         print('Version ' + __version__)
         sys.exit(0)
 
-    gen_chart(opts.file, opts.chart, opts.browser)
+    gen_chart(opts.files, opts.chart, opts.browser)
