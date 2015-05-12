@@ -57,4 +57,8 @@ ChangeLog
 # vmtp
 *.local*
 *.json
+
+# KloudBuster
 *.html
+*.qcow2
+

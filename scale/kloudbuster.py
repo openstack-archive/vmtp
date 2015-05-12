@@ -63,7 +63,7 @@ class Kloud(object):
         self.tenant_list = []
         self.testing_side = testing_side
         self.scale_cfg = scale_cfg
-        self.keystone, self.auth_url = create_keystone_client(cred)
+        self.keystone, self.auth_url = create_keystone_client(self.cred)
         if testing_side:
             self.prefix = 'KBc'
             self.name = 'Client Kloud'
@@ -360,11 +360,9 @@ if __name__ == '__main__':
         cred_testing = credentials.Credentials(CONF.testing_rc,
                                                CONF.passwd_testing,
                                                CONF.no_env)
-        single_cloud = False
     else:
         # Use the same openrc file for both cases
         cred_testing = cred
-        single_cloud = True
 
     # Initialize the key pair name
     if config_scale['public_key_file']:
@@ -377,7 +375,7 @@ if __name__ == '__main__':
         pub_key = os.path.expanduser('~/.ssh/id_rsa.pub')
         if os.path.isfile(pub_key):
             config_scale['public_key_file'] = pub_key
-            LOG.info('Using %s as public key for all test VMs' % (pub_key))
+            LOG.info('Using %s as public key for all VMs' % (pub_key))
 
     # A bit of config dict surgery, extract out the client and server side
     # and transplant the remaining (common part) into the client and server dict

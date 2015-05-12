@@ -3,7 +3,7 @@
 # Name of the image to use for all test VMs (client, server and proxy)
 # The image name must exist in OpenStack and must be built with the appropriate
 # packages
-image_name: 'Scale Image v6b'
+image_name: 'Scale Image v7'
 
 # Flavor to use for the test images - the flavor name must exist in OpenStack
 flavor_type: 'm1.small'

@@ -160,7 +160,7 @@ class KBScheduler(object):
         if cnt_succ != len(self.client_dict):
             raise KBSetStaticRouteException()
 
-    def check_http_service(self, timeout=10):
+    def check_http_service(self, timeout=30):
         func = {'cmd': 'check_http_service'}
         self.send_cmd('EXEC', 'http', func)
         cnt_succ = self.polling_vms(timeout)[0]
