@@ -52,24 +52,26 @@ class KBScheduler(object):
         self.orches_chan_name = "kloudbuster_orches"
         self.report_chan_name = "kloudbuster_report"
 
-    def setup_redis(self):
+    def setup_redis(self, redis_server, redis_server_port=6379, timeout=120):
         LOG.info("Setting up redis connection pool...")
         # For now, the redis server is not in the scope of Kloud Buster, which has to be
         # pre-configured before executing Kloud Buster.
         connection_pool = redis.ConnectionPool(
-            host=self.config.redis_server, port=self.config.redis_server_port, db=0)
+            host=redis_server, port=redis_server_port, db=0)
 
         LOG.info("Setting up the redis connections...")
-        self.redis_obj = redis.StrictRedis(connection_pool=connection_pool)
+        self.redis_obj = redis.StrictRedis(connection_pool=connection_pool,
+                                           socket_connect_timeout=1)
         success = False
+        retry_count = max(timeout / self.config.polling_interval, 1)
         # Check for connections to redis server
-        for retry in xrange(1, self.config.redis_retry_count + 1):
+        for retry in xrange(retry_count):
             try:
                 self.redis_obj.get("test")
                 success = True
             except (redis.exceptions.ConnectionError):
-                LOG.warn("Connecting to redis server... Retry #%d", retry)
-                time.sleep(1)
+                LOG.info("Connecting to redis server... Retry #%d/%d", retry, retry_count)
+                time.sleep(self.config.polling_interval)
                 continue
             break
         if not success:

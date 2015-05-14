@@ -1,15 +1,38 @@
 #!/bin/sh
+# Copyright 2015 Cisco Systems, Inc.  All rights reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
 
-KB_DNS_SERVER=172.29.74.154
-KB_EXTERNAL_NET='ext-net'
-KB_IMAGE_VERSION=7
-KB_UBUNTU_IMAGE='http://172.29.172.152/downloads/scale_image/ubuntu-14.04-server-cloudimg-amd64-disk1.img'
+##############################################################################
+# The DNS Server
+KB_DNS_SERVER='8.8.8.8'
+# Image Version
+KB_IMAGE_VERSION='8'
+# The base image used to build the snapshot
+# Note: Must be a Debian-based Image
+KB_BASE_IMAGE_NAME='Ubuntu Server 14.04'
+# The URL for downloading the base image
+KB_BASE_IMAGE_URL='https://cloud-images.ubuntu.com/trusty/current/trusty-server-cloudimg-amd64-disk1.img'
+# Save the snapshot image to local host
+KB_SAVE_SNAPSHOT_IMAGE='yes'
+##############################################################################
 
 # ==================
 # Creating Resources
 # ==================
 KB_SNAPSHOT_IMG_NAME="Scale Image v$KB_IMAGE_VERSION"
 KB_SNAPSHOT_IMG_FILENAME="scale_image_v$KB_IMAGE_VERSION.qcow2"
+KB_EXTERNAL_NET=`neutron net-list -D -c 'name' -c 'router:external' | grep True -m1 | cut -d'|' -f2 | xargs`
 rm -f /var/tmp/kb_image_key /var/tmp/kb_image_key.pub
 ssh-keygen -b 1024 -C "KloudBuster Image" -t rsa -f /var/tmp/kb_image_key -N ""
 nova secgroup-create kb_secgroup "Temp Security Group for creating KloudBuster image"
@@ -20,14 +43,14 @@ neutron router-create kb_router
 neutron router-gateway-set kb_router $KB_EXTERNAL_NET
 neutron router-interface-add kb_router kb_subnet
 nova keypair-add --pub-key /var/tmp/kb_image_key.pub kb_image_key
-glance image-list | grep "\bUbuntu Server 14.04\b"
+glance image-list | grep "\b$KB_BASE_IMAGE_NAME\b"
 if [ $? -ne 0 ]; then
-    glance image-create --name="Ubuntu Server 14.04" --disk-format=qcow2 --container-format=bare --is-public True --copy-from $KB_UBUNTU_IMAGE
+    glance image-create --name="$KB_BASE_IMAGE_NAME" --disk-format=qcow2 --container-format=bare --is-public True --copy-from $KB_BASE_IMAGE_URL
 fi
 KB_NET_ID=`neutron net-list | grep 'kb_net' | cut -d'|' -f2 | xargs`
 KB_FLOATING_IP_ID=`neutron floatingip-create $KB_EXTERNAL_NET | grep '\bid\b' | cut -d'|' -f3 | xargs`
 KB_FLOATING_IP=`neutron floatingip-list | grep $KB_FLOATING_IP_ID | cut -d'|' -f4 | xargs`
-nova boot kb_scale_instance --flavor m1.small --image "Ubuntu Server 14.04" --key-name kb_image_key --security-group kb_secgroup --nic net-id=$KB_NET_ID --poll
+nova boot kb_scale_instance --flavor m1.small --image "$KB_BASE_IMAGE_NAME" --key-name kb_image_key --security-group kb_secgroup --nic net-id=$KB_NET_ID --poll
 KB_INSTANCE_IP=`nova list | grep 'kb_scale_instance' | cut -d'=' -f2 | sed 's/\s*|//g'`
 KB_PORT_ID=`neutron port-list | grep $KB_INSTANCE_IP | cut -d'|' -f2 | xargs`
 neutron floatingip-associate $KB_FLOATING_IP_ID $KB_PORT_ID
@@ -38,8 +61,7 @@ while true; do
     if [ $? -eq 0 ]; then break; fi
     sleep 5
 done
-scp -o StrictHostKeyChecking=no -i /var/tmp/kb_image_key scripts ubuntu@$KB_FLOATING_IP:/var/tmp/scripts
-ssh -o StrictHostKeyChecking=no -i /var/tmp/kb_image_key ubuntu@$KB_FLOATING_IP bash /var/tmp/scripts
+ssh -o StrictHostKeyChecking=no -i /var/tmp/kb_image_key ubuntu@$KB_FLOATING_IP 'bash -s' < scripts
 
 # ===============
 # Create Snapshot
@@ -53,7 +75,10 @@ while true; do
     fi
 done
 nova image-create --poll kb_scale_instance "$KB_SNAPSHOT_IMG_NAME"
-glance image-download "$KB_SNAPSHOT_IMG_NAME" --file $KB_SNAPSHOT_IMG_FILENAME
+if [ "$KB_SAVE_SNAPSHOT_IMAGE" = "yes" ]; then
+    echo "Saving snapshot to $KB_SNAPSHOT_IMG_FILENAME..."
+    glance image-download "$KB_SNAPSHOT_IMG_NAME" --file $KB_SNAPSHOT_IMG_FILENAME
+fi
 
 # =======
 # Cleanup

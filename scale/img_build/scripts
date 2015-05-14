@@ -1,4 +1,18 @@
 #!bin/sh
+# Copyright 2015 Cisco Systems, Inc.  All rights reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+
 sudo bash -c 'echo "* soft nofile 102400" >> /etc/security/limits.conf'
 sudo bash -c 'echo "* hard nofile 102400" >> /etc/security/limits.conf'
 sudo bash -c 'echo "fs.file-max=6553550" >> /etc/sysctl.conf'
@@ -30,25 +44,26 @@ sudo apt-key add nginx_signing.key
 sudo bash -c "echo 'deb http://nginx.org/packages/ubuntu/ trusty nginx' >> /etc/apt/sources.list"
 sudo apt-get update
 sudo apt-get -y install nginx redis-server
+sudo update-rc.d -f redis-server remove
+sudo update-rc.d -f nginx remove
 wget http://172.29.172.152/downloads/scale_image/nginx.conf
 sudo mv nginx.conf /etc/nginx/nginx.conf
 sudo mkdir /data
 sudo mkdir /data/www
 sudo chmod -R 777 /data
 cd /data/www
-wget http://172.29.172.152/downloads/scale_image/index.tar.gz .
+wget http://172.29.172.152/downloads/scale_image/index.tar.gz
 tar xzf index.tar.gz
 rm index.tar.gz
 cd /var/tmp
 wget http://172.29.172.152/downloads/scale_image/nuttcp-7.3.2
 chmod +x nuttcp-7.3.2
 sudo sed -i "s/127.0.0.1/0.0.0.0/g" /etc/redis/redis.conf
-sudo sed -i "s/^exit\s0/\/var\/tmp\/nuttcp-7.3.2 -P5002 -S --single-threaded\n\0/g" /etc/rc.local
+sudo sed -i 's/start-stop-daemon\ --start/ulimit\ \-n\ 102400\n\ \ \ \ \0/g' /etc/init.d/nginx
 sudo sed -i "s/^exit\s0/cd \/var\/tmp\n\0/g" /etc/rc.local
 sudo sed -i "s/^exit\s0/wget http\:\/\/169.254.169.254\/latest\/user-data\n\0/g" /etc/rc.local
 sudo sed -i "s/^exit\s0/python \/var\/tmp\/kb_vm_agent.py \&\n\0/g" /etc/rc.local
 sudo sed -i "s/^exit\s0/cd -\n\n\0/g" /etc/rc.local
-sudo sed -i 's/start-stop-daemon\ --start/ulimit\ \-n\ 102400\n\ \ \ \ \0/g' /etc/init.d/nginx
 
 # ======
 # Client
@@ -71,6 +86,5 @@ chmod +x wrk2-3.1.1
 # chmod +x gobench
 wget http://172.29.172.152/downloads/scale_image/kb_vm_agent.py
 wget http://172.29.172.152/downloads/scale_image/kb.lua
-rm -f /var/tmp/scripts
 sync
 history -cw

@@ -192,9 +192,25 @@ class KB_VM_Agent(object):
             **self.user_data['http_tool_configs'])
         return self.exec_command(self.last_cmd)
 
+def exec_command(cmd):
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (stdout, stderr) = p.communicate()
+
+    return p.returncode
+
+def start_redis_server():
+    cmd = ['sudo', 'service', 'redis-server', 'start']
+    return exec_command(cmd)
+
+def start_nuttcp_server():
+    cmd = ['/var/tmp/nuttcp-7.3.2', '-P5002', '-S', '--single-threaded']
+    return exec_command(cmd)
+
+def start_nginx_server():
+    cmd = ['sudo', 'service', 'nginx', 'start']
+    return exec_command(cmd)
 
 if __name__ == "__main__":
-
     try:
         f = open('/var/tmp/user-data', 'r')
         user_data = eval(f.read())
@@ -203,9 +219,21 @@ if __name__ == "__main__":
         print e.message
         sys.exit(1)
 
-    agent = KB_VM_Agent(user_data)
-    agent.setup_channels()
-    agent.hello_thread = threading.Thread(target=agent.send_hello)
-    agent.hello_thread.daemon = True
-    agent.hello_thread.start()
-    agent.work()
+    if 'role' not in user_data:
+        sys.exit(1)
+
+    if user_data['role'] == 'KB-PROXY':
+        sys.exit(start_redis_server())
+    if user_data['role'] == 'Server':
+        rc1 = start_nuttcp_server()
+        rc2 = start_nginx_server()
+        sys.exit(rc1 or rc2)
+    elif user_data['role'] == 'Client':
+        agent = KB_VM_Agent(user_data)
+        agent.setup_channels()
+        agent.hello_thread = threading.Thread(target=agent.send_hello)
+        agent.hello_thread.daemon = True
+        agent.hello_thread.start()
+        agent.work()
+    else:
+        sys.exit(1)

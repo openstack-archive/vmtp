@@ -19,6 +19,7 @@ import sys
 import threading
 import traceback
 
+import base_network
 import configure
 from kb_scheduler import KBScheduler
 from keystoneclient.v2_0 import client as keystoneclient
@@ -97,10 +98,13 @@ class Kloud(object):
             return self.tenant_list[0].get_first_network()
         return None
 
-    def get_all_instances(self):
+    def get_all_instances(self, include_kb_proxy=False):
         all_instances = []
         for tnt in self.tenant_list:
             all_instances.extend(tnt.get_all_instances())
+        if (not include_kb_proxy) and all_instances[-1].vm_name == 'KB-PROXY':
+            all_instances.pop()
+
         return all_instances
 
     def attach_to_shared_net(self, shared_net):
@@ -130,7 +134,13 @@ class Kloud(object):
             return
 
         instance.fixed_ip = instance.instance.networks.values()[0][0]
-        if instance.config['use_floatingip']:
+        if (instance.vm_name == "KB-PROXY") and (not instance.config['use_floatingip']):
+            neutron_client = instance.network.router.user.neutron_client
+            external_network = base_network.find_external_network(neutron_client)
+            instance.fip = base_network.create_floating_ip(neutron_client, external_network)
+            instance.fip_ip = instance.fip['floatingip']['floating_ip_address']
+
+        if instance.fip:
             # Associate the floating ip with this instance
             instance.instance.add_floating_ip(instance.fip_ip)
             instance.ssh_ip = instance.fip_ip
@@ -167,6 +177,7 @@ class KloudBuster(object):
             self.single_cloud = False
         self.kloud = Kloud(server_cfg, server_cred)
         self.testing_kloud = Kloud(client_cfg, client_cred, testing_side=True)
+        self.kb_proxy = None
         self.final_result = None
         self.server_vm_create_thread = None
         self.client_vm_create_thread = None
@@ -186,7 +197,7 @@ class KloudBuster(object):
                  tabulate(table, headers="firstrow", tablefmt="psql"))
 
         table = [["VM Name", "Host", "Internal IP", "Floating IP", "Subnet"]]
-        client_list = self.testing_kloud.get_all_instances()
+        client_list = self.testing_kloud.get_all_instances(include_kb_proxy=True)
         for instance in client_list:
             row = [instance.vm_name, instance.host, instance.fixed_ip,
                    instance.fip_ip, instance.subnet_ip]
@@ -194,25 +205,32 @@ class KloudBuster(object):
         LOG.info('Provision Details (Testing Kloud)\n' +
                  tabulate(table, headers="firstrow", tablefmt="psql"))
 
-    def gen_user_data(self):
-        LOG.info("Preparing metadata for testing VMs...")
-        # We supposed to have a mapping framework/algorithm to mapping clients to servers.
-        # e.g. 1:1 mapping, 1:n mapping, n:1 mapping, etc.
-        # Here we are using N*1:1
-        client_list = self.testing_kloud.get_all_instances()
-        svr_list = self.kloud.get_all_instances()
+    def gen_user_data(self, role):
+        LOG.info("Preparing metadata for VMs... (%s)" % role)
+        if role == "Server":
+            svr_list = self.kloud.get_all_instances()
+            for ins in svr_list:
+                ins.user_data['role'] = "Server"
+                ins.boot_info['user_data'] = str(ins.user_data)
+        elif role == "Client":
+            # We supposed to have a mapping framework/algorithm to mapping clients to servers.
+            # e.g. 1:1 mapping, 1:n mapping, n:1 mapping, etc.
+            # Here we are using N*1:1
+            client_list = self.testing_kloud.get_all_instances()
+            svr_list = self.kloud.get_all_instances()
 
-        for idx, ins in enumerate(client_list):
-            ins.target_url = "http://%s/index.html" %\
-                (svr_list[idx].fip_ip or svr_list[idx].fixed_ip)
-            ins.user_data['redis_server'] = ins.config['redis_server']
-            ins.user_data['redis_server_port'] = ins.config['redis_server_port']
-            ins.user_data['target_subnet_ip'] = svr_list[idx].subnet_ip
-            ins.user_data['target_shared_interface_ip'] = svr_list[idx].shared_interface_ip
-            ins.user_data['target_url'] = ins.target_url
-            ins.user_data['http_tool'] = ins.config['http_tool']
-            ins.user_data['http_tool_configs'] = ins.config['http_tool_configs']
-            ins.boot_info['user_data'] = str(ins.user_data)
+            for idx, ins in enumerate(client_list):
+                ins.target_url = "http://%s/index.html" %\
+                    (svr_list[idx].fip_ip or svr_list[idx].fixed_ip)
+                ins.user_data['role'] = "Client"
+                ins.user_data['redis_server'] = self.kb_proxy.fixed_ip
+                ins.user_data['redis_server_port'] = 6379
+                ins.user_data['target_subnet_ip'] = svr_list[idx].subnet_ip
+                ins.user_data['target_shared_interface_ip'] = svr_list[idx].shared_interface_ip
+                ins.user_data['target_url'] = ins.target_url
+                ins.user_data['http_tool'] = ins.config['http_tool']
+                ins.user_data['http_tool_configs'] = ins.config['http_tool_configs']
+                ins.boot_info['user_data'] = str(ins.user_data)
 
     def run(self):
         """
@@ -229,15 +247,25 @@ class KloudBuster(object):
             # Start the scheduler and ready for the incoming redis messages
             client_list = self.testing_kloud.get_all_instances()
             server_list = self.kloud.get_all_instances()
+
+            # Setting up the KloudBuster Proxy node
+            self.kb_proxy = client_list[-1]
+            client_list.pop()
+
+            self.kb_proxy.vm_name = "KB-PROXY"
+            self.kb_proxy.user_data['role'] = 'KB-PROXY'
+            self.kb_proxy.boot_info['flavor_type'] = 'm1.small'
+            self.kb_proxy.boot_info['user_data'] = str(self.kb_proxy.user_data)
+            self.testing_kloud.create_vm(self.kb_proxy)
+
             kbscheduler = KBScheduler(client_list, self.client_cfg, self.single_cloud)
-            kbscheduler.setup_redis()
+            kbscheduler.setup_redis(self.kb_proxy.fip_ip)
 
             if self.single_cloud:
                 # Find the shared network if the cloud used to testing is same
                 # Attach the router in tested kloud to the shared network
                 shared_net = self.testing_kloud.get_first_network()
                 self.kloud.attach_to_shared_net(shared_net)
-            self.gen_user_data()
 
             # Create VMs in both tested and testing kloud concurrently
             self.client_vm_create_thread = threading.Thread(target=self.testing_kloud.create_vms,
@@ -247,15 +275,19 @@ class KloudBuster(object):
             self.client_vm_create_thread.daemon = True
             self.server_vm_create_thread.daemon = True
             if self.single_cloud:
-                self.client_vm_create_thread.start()
-                self.client_vm_create_thread.join()
+                self.gen_user_data("Server")
                 self.server_vm_create_thread.start()
                 self.server_vm_create_thread.join()
+                self.gen_user_data("Client")
+                self.client_vm_create_thread.start()
+                self.client_vm_create_thread.join()
             else:
-                self.client_vm_create_thread.start()
+                self.gen_user_data("Server")
+                self.gen_user_data("Client")
                 self.server_vm_create_thread.start()
-                self.client_vm_create_thread.join()
+                self.client_vm_create_thread.start()
                 self.server_vm_create_thread.join()
+                self.client_vm_create_thread.join()
 
             # Function that print all the provisioning info
             self.print_provision_info()
@@ -389,7 +421,8 @@ if __name__ == '__main__':
 
     # Adjust the VMs per network on the client side to match the total
     # VMs on the server side (1:1)
-    client_side_cfg['vms_per_network'] = get_total_vm_count(server_side_cfg)
+    # There is an additional VM in client kloud as a proxy node
+    client_side_cfg['vms_per_network'] = get_total_vm_count(server_side_cfg) + 1
 
     # The KloudBuster class is just a wrapper class
     # levarages tenant and user class for resource creations and

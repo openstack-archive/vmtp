@@ -147,12 +147,7 @@ class User(object):
             self.key_pair.add_public_key(self.key_name, config_scale.public_key_file)
 
         # Find the external network that routers need to attach to
-        # if redis_server is configured, we need to attach the router to the
-        # external network in order to reach the redis_server
-        if config_scale['use_floatingip'] or 'redis_server' in config_scale:
-            external_network = base_network.find_external_network(self.neutron_client)
-        else:
-            external_network = None
+        external_network = base_network.find_external_network(self.neutron_client)
 
         # Create the required number of routers and append them to router list
         LOG.info("Creating routers and networks for user %s" % self.user_name)

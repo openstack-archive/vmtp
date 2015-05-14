@@ -29,6 +29,7 @@ class BaseCompute(object):
 
     def __init__(self, vm_name, network):
         self.novaclient = network.router.user.nova_client
+        self.network = network
         self.vm_name = vm_name
         self.instance = None
         self.host = None
@@ -144,6 +145,11 @@ class SecGroup(object):
                                                     ip_protocol="tcp",
                                                     from_port=80,
                                                     to_port=80)
+        # Allow Redis traffic
+        self.novaclient.security_group_rules.create(group.id,
+                                                    ip_protocol="tcp",
+                                                    from_port=6379,
+                                                    to_port=6379)
         # Allow Nuttcp traffic
         self.novaclient.security_group_rules.create(group.id,
                                                     ip_protocol="tcp",
@@ -163,7 +169,6 @@ class SecGroup(object):
         Sometimes this maybe in use if instance is just deleted
         Add a retry mechanism
         """
-        LOG.info("Deleting secgroup %s" % self.secgroup)
         for _ in range(10):
             try:
                 self.novaclient.security_groups.delete(self.secgroup)
