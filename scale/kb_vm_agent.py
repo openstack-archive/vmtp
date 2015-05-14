@@ -193,17 +193,27 @@ class KB_VM_Agent(object):
         return self.exec_command(self.last_cmd)
 
 
-if __name__ == "__main__":
+def start_redis_server():
+    cmd = ['sudo', 'service', 'redis-server', 'start']
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    (stdout, stderr) = p.communicate()
 
+    return p.returncode
+
+
+if __name__ == "__main__":
     try:
         f = open('/var/tmp/user-data', 'r')
-        user_data = eval(f.read())
+        user_data = f.read()
     except Exception as e:
         # TODO(Logging on Agent)
         print e.message
         sys.exit(1)
 
-    agent = KB_VM_Agent(user_data)
+    if 'KB Redis Server' in user_data:
+        sys.exit(start_redis_server())
+
+    agent = KB_VM_Agent(eval(user_data))
     agent.setup_channels()
     agent.hello_thread = threading.Thread(target=agent.send_hello)
     agent.hello_thread.daemon = True

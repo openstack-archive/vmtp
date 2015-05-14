@@ -3,7 +3,7 @@
 # Name of the image to use for all test VMs (client, server and proxy)
 # The image name must exist in OpenStack and must be built with the appropriate
 # packages
-image_name: 'Scale Image v7'
+image_name: 'Scale Image v8'
 
 # Flavor to use for the test images - the flavor name must exist in OpenStack
 flavor_type: 'm1.small'
@@ -76,10 +76,7 @@ client:
     # eparated by ':' (e.g. nova:tme100)
     availability_zone:
 
-    # (TEMP) Redis server configuration
-    redis_server: '172.29.172.180'
-    redis_server_port: 6379
-    redis_retry_count: 50
+    # Interval for polling status from all VMs
     polling_interval: 5
 
     # Tooling
