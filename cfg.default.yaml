@@ -99,17 +99,17 @@ internal_cidr: ['192.168.1.0/24' , '192.168.2.0/24']
 # Default CIDRs to use for data network for ipv6
 internal_cidr_v6: ['2001:45::/64','2001:46::/64']
 
-# The public key to use to ssh to all targets (VMs, containers, hosts)
-# If starting with './' is relative to the location of the VMTP script
-# else can be an absolute path
-public_key_file: './ssh/id_rsa.pub'
+# The public and private keys to use to ssh to all targets (VMs, containers, hosts)
+# By default the SSH library will try several methods to authenticate:
+# - password if provided on the command line
+# - user's own key pair (under the home directory $HOME) if already setup
+# - the below key pair if not empty 
+# If you want to use a specific key pair, specify the key pair files here.
+# This can be a pathname that is absolute or relative to the current directory
+public_key_file:
+private_key_file:
 
-# File containing the private key to use along with the publick key
-# If starting with './' is relative to the location of the script
-# else can be an absolute path
-private_key_file: './ssh/id_rsa'
-
-# Name of the P&S public key in OpenStack
+# Name of the P&S public key in OpenStack to create for all test VMs
 public_key_name: 'pns_public_key'
 
 # name of the server VM
@@ -122,6 +122,7 @@ vm_name_client:   'TestClient'
 security_group_name: 'pns-security'
 
 # Location to the performance test tools.
+# If relative, is relative to the vmtp directory
 perf_tool_path: './tools'
 
 # ping variables

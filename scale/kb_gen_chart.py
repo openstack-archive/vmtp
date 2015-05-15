@@ -124,7 +124,6 @@ class KbReport(object):
             'latency_tuples': self.latency_tuples,
             'search_page': 'true' if len(self.data_list) > 10 else 'false'
         }
-        print kbstats
         with open(dest_file, 'w') as dest:
             print('Generating chart drawing code to ' + dest_file + '...')
             output = self.tpl.render(kbstats=kbstats)

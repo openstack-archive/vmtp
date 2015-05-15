@@ -9,19 +9,19 @@ VMTP Usage
 
     usage: vmtp.py [-h] [-c <config_file>] [-r <openrc_file>]
                    [-m <gmond_ip>[:<port>]] [-p <password>] [-t <time>]
-                   [--host <user>@<host_ssh_ip>[:<server-listen-if-name>]]
+                   [--host <user>@<host_ssh_ip>[:<password>:<server-listen-if-name>]]
                    [--external-host <user>@<host_ssh_ip>[:password>]]
                    [--controller-node <user>@<host_ssh_ip>[:<password>]]
-                   [--mongod_server <server ip>] [--json <file>]
+                   [--mongod-server <server ip>] [--json <file>]
                    [--tp-tool <nuttcp|iperf>] [--hypervisor [<az>:] <hostname>]
                    [--inter-node-only] [--protocols <T|U|I>]
                    [--bandwidth <bandwidth>] [--tcpbuf <tcp_pkt_size1,...>]
                    [--udpbuf <udp_pkt_size1,...>] [--no-env]
                    [--vnic-type <direct|macvtap|normal>] [-d] [-v]
-                   [--stop-on-error] [--vm_image_url <url_to_image>]
-                   [--test_description <test_description>]
+                   [--stop-on-error] [--vm-image-url <url_to_image>]
+                   [--test-description <test_description>]
     
-    OpenStack VM Throughput V2.0.3
+    OpenStack VM Throughput V2.1.0
     
     optional arguments:
       -h, --help            show this help message and exit
@@ -35,15 +35,15 @@ VMTP Usage
                             OpenStack password
       -t <time>, --time <time>
                             throughput test duration in seconds (default 10 sec)
-      --host <user>@<host_ssh_ip>[:<server-listen-if-name>]
-                            native host throughput (targets requires ssh key)
+      --host <user>@<host_ssh_ip>[:<password>:<server-listen-if-name>]
+                            native host throughput (password or public key
+                            required)
       --external-host <user>@<host_ssh_ip>[:password>]
-                            external-VM throughput (host requires public key if no
-                            password)
+                            external-VM throughput (password or public key
+                            required)
       --controller-node <user>@<host_ssh_ip>[:<password>]
-                            controller node ssh (host requires public key if no
-                            password)
-      --mongod_server <server ip>
+                            controller node ssh (password or public key required)
+      --mongod-server <server ip>
                             provide mongoDB server IP to store results
       --json <file>         store results in json format file
       --tp-tool <nuttcp|iperf>
@@ -68,22 +68,30 @@ VMTP Usage
       -v, --version         print version of this script and exit
       --stop-on-error       Stop and keep everything as-is on error (must cleanup
                             manually)
-      --vm_image_url <url_to_image>
+      --vm-image-url <url_to_image>
                             URL to a Linux image in qcow2 format that can be
                             downloaded from
-      --test_description <test_description>
+      --test-description <test_description>
                             The test description to be stored in JSON or MongoDB
 
 Configuration File
 ^^^^^^^^^^^^^^^^^^
 
-VMTP configuration files follow the yaml syntax and contain variables used by VMTP to run and collect performance data. The default configuration is stored in the cfg.default.yaml file.
+VMTP configuration files follow the yaml syntax and contain variables used by VMTP to run and collect performance data.
+The default configuration is stored in the cfg.default.yaml file.
 
-Default values should be overwritten for any cloud under test by defining new variable values in a new configuration file that follows the same format. Variables that are not defined in the new configuration file will retain their default values.
+Default values should be overwritten for any cloud under test by defining new variable values in a new configuration file that follows the same format.
+Variables that are not defined in the new configuration file will retain their default values.
 
+The precedence order for configuration files is as follows:
+- the command line argument "-c <file>" has highest precedence
+- $HOME/.vmtp.yaml if the file exists in the user home directory
+- cfg.default.yaml has the lowest precedence (always exists in the VMTP package root directory)
+
+To override a default value set in cfg.default.yaml, simply redefine that value in the configuration file passed in -c or in the $HOME/.vmtp.yaml file.
 Check the content of cfg.default.yaml file as it contains the list of configuration variables and instructions on how to set them.
 
-**Note:** the configuration file is not needed if the VMTP only runs the native host throughput option (*--host*)
+**Note:** the configuration file is not needed if VMTP only runs the native host throughput option (*--host*)
 
 
 OpenStack openrc File
@@ -99,8 +107,12 @@ This file should then be passed to VMTP using the *-r* option or should be sourc
 Access Info for Controller Node
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-By default, VMTP is not able to get the Linux distro nor the OpenStack version of the cloud deployment under test. However, by providing the credentials of the controller node under test, VMTP will try to fetch these information, and output them along in the JSON file or to the MongoDB server.
+By default, VMTP is not able to get the Linux distro nor the OpenStack version of the cloud deployment under test.
+However, by providing the credentials of the controller node under test, VMTP will try to fetch these information, and output them along in the JSON file or to the MongoDB server.
+For example to retrieve the OpenStack distribution information on a given controller node:
 
+.. code:
+    python vmtp.py --json tb172.json --test-description 'Testbed 172' --controller-node root@172.22.191.172
 
 Bandwidth Limit for TCP/UDP Flow Measurements
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -171,9 +183,10 @@ Create one configuration file for your specific cloud and use the *-c* option to
 
 Upload the Linux image to the OpenStack controller node, so that OpenStack is able to spawning VMs. You will be prompted an error if the image defined in the config file is not available to use when running the tool. The image can be uploaded using either Horizon dashboard, or the command below::
 
+.. code::
     python vmtp.py -r admin-openrc.sh -p admin --vm_image_url http://<url_to_the_image>
 
-**Note:** Currently, VMTP only supports the Linux image in qcow2 format.
+**Note:** Currently, VMTP only supports the qcow2 format.
 
 
 Examples of running VMTP on an OpenStack Cloud
@@ -184,6 +197,7 @@ Example 1: Typical Run
 
 Run VMTP on an OpenStack cloud with the default configuration file, use "admin-openrc.sh" as the rc file, and "admin" as the password::
 
+.. code::
     python vmtp.py -r admin-openrc.sh -p admin
 
 This will generate 6 standard sets of performance data:
@@ -206,22 +220,26 @@ Example 2: Cloud upload/download performance measurement
 
 Run VMTP on an OpenStack cloud with a specified configuration file (mycfg.yaml), and saved the result to a JSON file::
 
+.. code::
     python vmtp.py -c mycfg.yaml -r admin-openrc.sh -p admin --external_host localadmin@172.29.87.29 --json res.json
 
 This run will generate 8 sets of performance data, the standard 6 sets mentioned above, plus two sets of upload/download performance data for both TCP and UDP.
+If you do not have ssh password-less access to the external host (public key) you must specify a password:
 
-**Note:** In order to perform the upload/download performance test, an external server must be specified and configured with SSH password-less access. See below for more info.
-
+.. code::
+    python vmtp.py -c mycfg.yaml -r admin-openrc.sh -p admin --external_host localadmin@172.29.87.29:secret --json res.json
 
 Example 3: Store the OpenStack deployment details
 """""""""""""""""""""""""""""""""""""""""""""""""
 
 Run VMTP on an OpenStack cloud, fetch the defails of the deployment and store it to JSON file. Assume the controlloer node is on 192.168.12.34 with admin/admin::
 
+.. code::
     python vmtp.py -r admin-openrc.sh -p admin --json res.json --controller-node root@192.168.12.34:admin
 
 In addition, VMTP also supports to store the results to a MongoDB server::
     
+.. code::
     python vmtp.py -r admin-openrc.sh -p admin --json res.json --mongod_server 172.29.87.29 --controller-node root@192.168.12.34:admin
 
 Before storing info into MongoDB, some configurations are needed to change to fit in your environment. By default, VMTP will store to database "client_db" with collection name "pns_web_entry", and of course these can be changed in the configuration file. Below are the fields which are related to accessing MongoDB::
@@ -236,6 +254,7 @@ Example 4: Specify which compute nodes to spawn VMs
 
 Run VMTP on an OpenStack cloud, spawn the test server VM on tme212, and the test client VM on tme210. Save the result, and perform the inter-node measurement only::
 
+.. code::
     python vmtp.py -r admin-openrc.sh -p admin --inter-node-only --json res.json --hypervisor tme212 --hypervisor tme210
 
 
@@ -244,30 +263,59 @@ Example 5: Collect native host performance data
 
 Run VMTP to get native host throughput between 172.29.87.29 and 172.29.87.30 using the localadmin ssh username and run each tcp/udp test session for 120 seconds (instead of the default 10 seconds)::
 
+.. code::
     python vmtp.py --host localadmin@172.29.87.29 --host localadmin@172.29.87.30 --time 120
 
-**Note:** This command requires each host to have the VMTP public key (ssh/id_rsa.pub) inserted into the ssh/authorized_keys file in the username home directory, i.e. SSH password-less access. See below for more info.
+The first IP passed (*--host*) is always the one running the server side.
+If you do not have public keys setup on these targets, you must provide a password:
+
+.. code::
+    python vmtp.py --host localadmin@172.29.87.29:secret --host localadmin@172.29.87.30:secret --time 120
+
+It is also possible to run VMTP between pre-existing VMs that are accessible through SSH (using floating IP) if you have the corresponding private key to access them.
+
+In the case of servers that have multiple NIC and IP addresses, it is possible to specify the server side listening interface name to use (if you want the client side to connect using the associated IP address)
+For example, to measure throughput between 2 hosts using the network attached to the server interface "eth5"::
+
+.. code::
+    python vmtp.py --host localadmin@172.29.87.29::eth5 --host localadmin@172.29.87.30
 
 
-Example 6: Measurement on pre-existing VMs
-""""""""""""""""""""""""""""""""""""""""""
+Example 6: IPV6 throughput measurement
+""""""""""""""""""""""""""""""""""""""
 
-It is possible to run VMTP between pre-existing VMs that are accessible through SSH (using floating IP).
+It is possible to use VMTP to measure throughput for IPv6
 
-The first IP passed (*--host*) is always the one running the server side. Optionally a server side listening interface name can be passed if clients should connect using a particular server IP. For example, to measure throughput between 2 hosts using the network attached to the server interface "eth5"::
+Set ipv6_mode to slaac, dhcpv6-stateful or dhcpv6-stateless. If SLAAC or DHCPv6 stateless is enabled make sure to have radvd packaged in as part of openstack install. For DHCPv6 stateful you need dnsmasq version >= 2.68. The test creates 2 networks and creates 1 IPv4 and 1 IPv6 subnet inside each of these networks. The subnets are created based on the IPv6 mode that you set in the configuration file. The Floating IP result case is skipped for IPv6 since there is no concept of a floating ip with IPv6. 
 
-    python vmtp.py --host localadmin@172.29.87.29:eth5 --host localadmin@172.29.87.30
+Generating charts from JSON results
+-----------------------------------
 
-**Note:** Prior to running, the VMTP public key must be installed on each VM.
+.. code::
+    usage: genchart.py [-h] [-c <file>] [-b] [-p <all|tcp|udp>] [-v]
+                       <file> [<file> ...]
 
-Example 7: IPV6 throughput measurement
-""""""""""""""""""""""""""""""""""""""""
+    VMTP Chart Generator V0.0.1
 
-It is possible to use VMTP to measure throughput for ipv6
+    positional arguments:
+      <file>                vmtp json result file
 
-Set ipv6_mode to slaac, dhcpv6-stateful or dhcpv6-stateless. If SLAAC or DHCPv6 stateless is enabled make sure to have
-radvd packaged in as part of openstack install. For DHCPv6 stateful you need dnsmasq version >= 2.68. The test creates
-2 networks and creates 1 ipv4 and 1 ipv6 subnet inside each of these networks. The subnets are created based on the ipv6
-mode that you set in the configuration file. The floatingip result case is skipped for ipv6 since there is no concept of
-a floating ip with ipv6. 
+    optional arguments:
+      -h, --help            show this help message and exit
+      -c <file>, --chart <file>
+                            create and save chart in html file
+      -b, --browser         display (-c) chart in the browser
+      -p <all|tcp|udp>, --protocol <all|tcp|udp>
+                            select protocols:all, tcp, udp
+      -v, --version         print version of this script and exit
+
+Examples of use:
+
+Generate charts from the JSON results file "tb172.json", store resulting html to "tb172.html" and open that file in the browser:
+.. code::
+    python genchart.py --chart tb172.html --browser tb172.json
+    
+Same but only show UDP numbers:
+.. code::
+    python genchart.py --chart tb172.html --browser --protocol udp tb172.json
 

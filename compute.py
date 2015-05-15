@@ -114,11 +114,12 @@ class Compute(object):
     def create_keypair(self, name, private_key_pair_file):
         self.remove_public_key(name)
         keypair = self.novaclient.keypairs.create(name)
-        # Now write the keypair to the file
-        kpf = os.open(private_key_pair_file,
-                      os.O_WRONLY | os.O_CREAT, 0o600)
-        with os.fdopen(kpf, 'w') as kpf:
-            kpf.write(keypair.private_key)
+        # Now write the keypair to the file if requested
+        if private_key_pair_file:
+            kpf = os.open(private_key_pair_file,
+                          os.O_WRONLY | os.O_CREAT, 0o600)
+            with os.fdopen(kpf, 'w') as kpf:
+                kpf.write(keypair.private_key)
         return keypair
 
     # Add an existing public key to openstack
@@ -133,9 +134,20 @@ class Compute(object):
             print 'ERROR: Cannot open public key file %s: %s' % \
                   (public_key_file, exc)
             return None
-        print 'Adding public key %s' % (name)
         keypair = self.novaclient.keypairs.create(name, public_key)
         return keypair
+
+    def init_key_pair(self, kp_name, ssh_access):
+        '''Initialize the key pair for all test VMs
+        if a key pair is specified in access, use that key pair else
+        create a temporary key pair
+        '''
+        if ssh_access.public_key_file:
+            return self.add_public_key(kp_name, ssh_access.public_key_file)
+        else:
+            keypair = self.create_keypair(kp_name, None)
+            ssh_access.private_key = keypair.private_key
+            return keypair
 
     def find_network(self, label):
         net = self.novaclient.networks.find(label=label)
@@ -312,7 +324,7 @@ class Compute(object):
         host_list = []
 
         try:
-            host_list = self.novaclient.hosts.list()
+            host_list = self.novaclient.services.list()
         except novaclient.exceptions.Forbidden:
             print ('Warning: Operation Forbidden: could not retrieve list of hosts'
                    ' (likely no permission)')
@@ -338,14 +350,14 @@ class Compute(object):
         else:
             for host in host_list:
                 # this host must be a compute node
-                if host._info['service'] != 'compute':
+                if host.binary != 'nova-compute' or host.state != 'up':
                     continue
                 candidate = None
                 if self.config.availability_zone:
                     if host.zone == self.config.availability_zone:
-                        candidate = self.normalize_az_host(None, host.host_name)
+                        candidate = self.normalize_az_host(None, host.host)
                 else:
-                    candidate = self.normalize_az_host(host.zone, host.host_name)
+                    candidate = self.normalize_az_host(host.zone, host.host)
                 if candidate:
                     avail_list.append(candidate)
                     # pick first 2 matches at most
