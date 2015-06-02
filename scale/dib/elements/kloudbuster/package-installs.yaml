@@ -1,0 +1,10 @@
+nginx:
+iperf:
+nuttcp:
+redis-server:
+python-pip:
+git:
+build-essential:
+libssl-dev:
+
+
