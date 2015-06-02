@@ -18,6 +18,7 @@ import datetime
 import hashlib
 import json
 import os
+import logging
 import pprint
 import re
 import sys
@@ -534,6 +535,7 @@ def get_controller_info(ssh_access, net, res_col):
 
 if __name__ == '__main__':
 
+    logging.basicConfig()
     fpr = FlowPrinter()
     rescol = ResultsCollector()
 
