@@ -37,19 +37,7 @@ update-rc.d -f nginx remove
 sed -i "s/127.0.0.1/0.0.0.0/g" /etc/redis/redis.conf
 
 # if started nginx should be allowed to open more file descriptors
-sed -i 's/start-stop-daemon\ --start/ulimit\ \-n\ 102400\n\ \ \ \ \0/g' /etc/init.d/nginx
-
-# copy the agent python script
-# the file is in the same directory as ./dib/elements, so need to go up one level
-(
- IFS=:
- for p in $ELEMENTS_PATH; do
-    if [ -f $p/../../kb_vm_agent.py ]; then
-       cp $p/../../kb_vm_agent.py /var/tmp 
-       break
-    fi
- done
-)
+sed -i 's/start-stop-daemon\ --start/ulimit\ \-n\ 102400\n\t\0/g' /etc/init.d/nginx
 
 # ======
 # Client
@@ -67,9 +55,8 @@ cd ..
 rm -rf wrk2
 
 # uninstall unneeded packages
-apt-get -y remove git
-apt-get -y remove python-pip
-apt-get -y remove build-essential
+apt-get -y --purge remove git
+apt-get -y --purge remove python-pip
+apt-get -y --purge remove build-essential
 apt-get -y autoremove
 apt-get -y autoclean
-

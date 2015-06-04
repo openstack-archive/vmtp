@@ -19,8 +19,10 @@ import sys
 import threading
 import traceback
 
+import base_compute
 import base_network
 import configure
+from kb_runner import KBRunner
 from kb_scheduler import KBScheduler
 from keystoneclient.v2_0 import client as keystoneclient
 import log as logging
@@ -89,7 +91,26 @@ class Kloud(object):
             self.tenant_list.append(new_tenant)
             new_tenant.create_resources()
 
+        # Create flavors for servers, clients, and kb-proxy nodes
+        nova_client = self.tenant_list[0].user_list[0].nova_client
+        flavor_manager = base_compute.Flavor(nova_client)
+        flavor_dict = self.scale_cfg.flavor
+        if self.testing_side:
+            flavor_manager.create_flavor('kb.client', override=True, **flavor_dict)
+            flavor_manager.create_flavor('kb.proxy', override=True, ram=2048, vcpus=1, disk=20)
+        else:
+            flavor_manager.create_flavor('kb.server', override=True, **flavor_dict)
+
     def delete_resources(self):
+        # Deleting flavors created by KloudBuster
+        nova_client = self.tenant_list[0].user_list[0].nova_client
+        flavor_manager = base_compute.Flavor(nova_client)
+        if self.testing_side:
+            flavor_manager.delete_flavor('kb.client')
+            flavor_manager.delete_flavor('kb.proxy')
+        else:
+            flavor_manager.delete_flavor('kb.server')
+
         for tnt in self.tenant_list:
             tnt.delete_resources()
 
@@ -162,7 +183,7 @@ class KloudBuster(object):
     4. Networks per router
     5. Instances per network
     """
-    def __init__(self, server_cred, client_cred, server_cfg, client_cfg):
+    def __init__(self, server_cred, client_cred, server_cfg, client_cfg, topology):
         # List of tenant objects to keep track of all tenants
         self.tenant_list = []
         self.tenant = None
@@ -170,6 +191,7 @@ class KloudBuster(object):
         self.tenant_testing = None
         self.server_cfg = server_cfg
         self.client_cfg = client_cfg
+        self.topology = topology
         # TODO(check on same auth_url instead)
         if server_cred == client_cred:
             self.single_cloud = True
@@ -209,27 +231,27 @@ class KloudBuster(object):
         LOG.info("Preparing metadata for VMs... (%s)" % role)
         if role == "Server":
             svr_list = self.kloud.get_all_instances()
+            KBScheduler.setup_vm_placement(role, svr_list, self.topology,
+                                           self.kloud.placement_az, "Round-robin")
             for ins in svr_list:
                 ins.user_data['role'] = "Server"
+                ins.boot_info['flavor_type'] = "kb.server"
                 ins.boot_info['user_data'] = str(ins.user_data)
         elif role == "Client":
-            # We supposed to have a mapping framework/algorithm to mapping clients to servers.
-            # e.g. 1:1 mapping, 1:n mapping, n:1 mapping, etc.
-            # Here we are using N*1:1
             client_list = self.testing_kloud.get_all_instances()
             svr_list = self.kloud.get_all_instances()
-
+            KBScheduler.setup_vm_mappings(client_list, svr_list, "1:1")
+            KBScheduler.setup_vm_placement(role, client_list, self.topology,
+                                           self.testing_kloud.placement_az, "Round-robin")
             for idx, ins in enumerate(client_list):
-                ins.target_url = "http://%s/index.html" %\
-                    (svr_list[idx].fip_ip or svr_list[idx].fixed_ip)
                 ins.user_data['role'] = "Client"
                 ins.user_data['redis_server'] = self.kb_proxy.fixed_ip
                 ins.user_data['redis_server_port'] = 6379
                 ins.user_data['target_subnet_ip'] = svr_list[idx].subnet_ip
                 ins.user_data['target_shared_interface_ip'] = svr_list[idx].shared_interface_ip
-                ins.user_data['target_url'] = ins.target_url
                 ins.user_data['http_tool'] = ins.config['http_tool']
                 ins.user_data['http_tool_configs'] = ins.config['http_tool_configs']
+                ins.boot_info['flavor_type'] = "kb.client"
                 ins.boot_info['user_data'] = str(ins.user_data)
 
     def run(self):
@@ -238,13 +260,13 @@ class KloudBuster(object):
         Executes tests serially
         Support concurrency in fututure
         """
-        kbscheduler = None
+        kbrunner = None
         vm_creation_concurrency = self.client_cfg.vm_creation_concurrency
         try:
             self.kloud.create_resources()
             self.testing_kloud.create_resources()
 
-            # Start the scheduler and ready for the incoming redis messages
+            # Start the runner and ready for the incoming redis messages
             client_list = self.testing_kloud.get_all_instances()
             server_list = self.kloud.get_all_instances()
 
@@ -254,12 +276,15 @@ class KloudBuster(object):
 
             self.kb_proxy.vm_name = "KB-PROXY"
             self.kb_proxy.user_data['role'] = 'KB-PROXY'
-            self.kb_proxy.boot_info['flavor_type'] = 'm1.small'
+            self.kb_proxy.boot_info['flavor_type'] = 'kb.proxy'
+            if self.testing_kloud.placement_az:
+                self.kb_proxy.boot_info['avail_zone'] = "%s:%s" %\
+                    (self.testing_kloud.placement_az, self.topology.clients_rack.split()[0])
             self.kb_proxy.boot_info['user_data'] = str(self.kb_proxy.user_data)
             self.testing_kloud.create_vm(self.kb_proxy)
 
-            kbscheduler = KBScheduler(client_list, self.client_cfg, self.single_cloud)
-            kbscheduler.setup_redis(self.kb_proxy.fip_ip)
+            kbrunner = KBRunner(client_list, self.client_cfg, self.single_cloud)
+            kbrunner.setup_redis(self.kb_proxy.fip_ip)
 
             if self.single_cloud:
                 # Find the shared network if the cloud used to testing is same
@@ -292,11 +317,12 @@ class KloudBuster(object):
             # Function that print all the provisioning info
             self.print_provision_info()
 
-            # Run the scheduler to perform benchmarkings
-            kbscheduler.run()
-            self.final_result = kbscheduler.tool_result
+            # Run the runner to perform benchmarkings
+            kbrunner.run()
+            self.final_result = kbrunner.tool_result
             self.final_result['total_server_vms'] = len(server_list)
             self.final_result['total_client_vms'] = len(client_list)
+            # self.final_result['host_stats'] = kbrunner.host_stats
             LOG.info(self.final_result)
         except KeyboardInterrupt:
             traceback.format_exc()
@@ -315,8 +341,8 @@ class KloudBuster(object):
                 self.testing_kloud.delete_resources()
             except Exception:
                 traceback.print_exc()
-        if kbscheduler:
-            kbscheduler.dispose()
+        if kbrunner:
+            kbrunner.dispose()
 
 def get_total_vm_count(config):
     return (config['number_tenants'] * config['users_per_tenant'] *
@@ -355,6 +381,10 @@ if __name__ == '__main__':
                    short="c",
                    default=None,
                    help="Override default values with a config file"),
+        cfg.StrOpt("topology",
+                   short="t",
+                   default=None,
+                   help="Topology files for compute hosts"),
         cfg.StrOpt("tested-rc",
                    default=None,
                    help="Tested cloud openrc credentials file"),
@@ -385,6 +415,11 @@ if __name__ == '__main__':
     if CONF.config:
         alt_config = configure.Configuration.from_file(CONF.config).configure()
         config_scale = config_scale.merge(alt_config)
+
+    if CONF.topology:
+        topology = configure.Configuration.from_file(CONF.topology).configure()
+    else:
+        topology = None
 
     # Retrieve the credentials
     cred = credentials.Credentials(CONF.tested_rc, CONF.passwd_tested, CONF.no_env)
@@ -427,7 +462,7 @@ if __name__ == '__main__':
     # The KloudBuster class is just a wrapper class
     # levarages tenant and user class for resource creations and
     # deletion
-    kloudbuster = KloudBuster(cred, cred_testing, server_side_cfg, client_side_cfg)
+    kloudbuster = KloudBuster(cred, cred_testing, server_side_cfg, client_side_cfg, topology)
     kloudbuster.run()
 
     if CONF.json:

@@ -123,7 +123,6 @@ class BaseNetwork(object):
 
             # Create the VMs on specified network, first keypair, first secgroup
             perf_instance.boot_info['image_name'] = config_scale['image_name']
-            perf_instance.boot_info['flavor_type'] = config_scale['flavor_type']
             perf_instance.boot_info['keyname'] = self.router.user.key_name
             perf_instance.boot_info['nic'] = [{'net-id': self.network['id']}]
             perf_instance.boot_info['sec_group'] = self.secgroup_list[0].secgroup

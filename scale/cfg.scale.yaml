@@ -5,9 +5,6 @@
 # packages
 image_name: 'Scale Image v8'
 
-# Flavor to use for the test images - the flavor name must exist in OpenStack
-flavor_type: 'm1.small'
-
 # Config options common to client and server side
 keystone_admin_role: "admin"
 
@@ -15,7 +12,7 @@ keystone_admin_role: "admin"
 cleanup_resources: True
 
 # VM creation concurrency
-vm_creation_concurrency: 5
+vm_creation_concurrency: 10
 
 #
 # ssh access to the test VMs launched by kloudbuster is not required
@@ -31,6 +28,15 @@ public_key_file:
 
 # SERVER SIDE CONFIG OPTIONS
 server:
+    # Flavor to use for the test images
+    flavor:
+        # Number of vCPUs for the flavor
+        vcpus: 1
+        # Memory for the flavor in MB
+        ram: 2048
+        # Size of local disk in GB
+        disk: 20
+
     # Number of tenants to be created on the cloud
     number_tenants: 1
 
@@ -46,13 +52,13 @@ server:
     networks_per_router: 1
 
     # Number of VM instances to be created within the context of each Network
-    vms_per_network: 1
+    vms_per_network: 2
 
     # Number of security groups per network
     secgroups_per_network: 1
 
     # Assign floating IP for every VM
-    use_floatingip: True
+    use_floatingip: False
 
     # Placement hint
     # Availability zone to use for servers in the server cloud
@@ -66,7 +72,16 @@ server:
 # CLIENT SIDE CONFIG OPTIONS
 client:
     # Assign floating IP for every VM
-    use_floatingip: True
+    use_floatingip: False
+
+    # Flavor to use for the test images
+    flavor:
+        # Number of vCPUs for the flavor
+        vcpus: 1
+        # Memory for the flavor in MB
+        ram: 2048
+        # Size of local disk in GB
+        disk: 20
 
     # Placement hint
     # Availability zone to use for clients in the client cloud

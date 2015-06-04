@@ -109,7 +109,6 @@ class BaseCompute(object):
         except Exception:
             return None
 
-
     def find_flavor(self, flavor_type):
         """
         Given a named flavor return the flavor
@@ -208,3 +207,22 @@ class KeyPair(object):
         Remove the keypair created by KloudBuster
         """
         self.novaclient.keypairs.delete(self.keypair)
+
+
+class Flavor(object):
+
+    def __init__(self, novaclient):
+        self.novaclient = novaclient
+
+    def create_flavor(self, name, ram, vcpus, disk, override=False):
+        # Creating flavors
+        if override:
+            self.delete_flavor(name)
+        return self.novaclient.flavors.create(name=name, ram=ram, vcpus=vcpus, disk=disk)
+
+    def delete_flavor(self, name):
+        try:
+            flavor = self.novaclient.flavors.find(name=name)
+            flavor.delete()
+        except Exception:
+            pass

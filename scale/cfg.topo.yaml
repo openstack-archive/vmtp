@@ -1,0 +1,7 @@
+# Compute host topology file for running KloudBuster
+
+servers_rack:
+    hh23-5
+
+clients_rack:
+    hh23-6
