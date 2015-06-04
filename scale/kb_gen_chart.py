@@ -70,7 +70,7 @@ def get_new_latency_tuples():
     ]
 
 class KbReport(object):
-    def __init__(self, data_list):
+    def __init__(self, data_list, line_rate):
         self.data_list = data_list
         self.latency_tuples = get_new_latency_tuples()
         self.common_stats = []
@@ -78,6 +78,7 @@ class KbReport(object):
         template_loader = FileSystemLoader(searchpath=".")
         template_env = Environment(loader=template_loader)
         self.tpl = template_env.get_template(kb_html_tpl)
+        self.line_rate = line_rate
 
     def add_latency_stats(self, run_results):
         # init a column list
@@ -103,13 +104,13 @@ class KbReport(object):
                      get_formatted_num(run_res['total_connections']),
                      get_formatted_num(run_res['total_server_vms']),
                      get_formatted_num(run_res['http_total_req']),
-                     get_formatted_num(run_res['http_sock_err']),
+                     get_formatted_num(run_res['http_sock_err']+run_res['http_sock_timeout']),
                      get_formatted_num(run_res['http_rps']),
                      get_formatted_num(rps_max)]
             row = {'cells': cells,
                    'rx': {'value': rx_tp,
-                          'max': 10,
-                          'percent': rx_tp * 10}}
+                          'max': self.line_rate,
+                          'percent': (rx_tp * 100) / self.line_rate}}
             rows.append(row)
         table['rows'] = rows
         self.table = table
@@ -135,7 +136,19 @@ def get_display_file_name(filename):
     res, _ = os.path.splitext(res)
     return res
 
-def gen_chart(file_list, chart_dest, browser):
+def guess_line_rate(data_list):
+    max_tp_kb = 0
+    for data_list in data_list:
+        max_tp_kb = max(max_tp_kb, data_list['http_throughput_kbytes'])
+    max_tp_gb = (max_tp_kb * 8) / (1000 * 1000)
+    # typical GE line rates are 10, 40 and 100
+    if max_tp_gb < 10:
+        return 10
+    if max_tp_gb < 40:
+        return 40
+    return 100
+
+def gen_chart(file_list, chart_dest, browser, line_rate):
 
     data_list = []
     for res_file in file_list:
@@ -147,7 +160,10 @@ def gen_chart(file_list, chart_dest, browser):
             results = json.load(data_file)
             results['filename'] = get_display_file_name(res_file)
             data_list.append(results)
-    chart = KbReport(data_list)
+    if not line_rate:
+        line_rate = guess_line_rate(data_list)
+    print line_rate
+    chart = KbReport(data_list, line_rate)
     print('Generating report to ' + chart_dest + '...')
     chart.plot(chart_dest)
     if browser:
@@ -181,6 +197,13 @@ if __name__ == '__main__':
                         action='store_true',
                         help='print version of this script and exit')
 
+    parser.add_argument('-l', '--line-rate', dest='line_rate',
+                        action='store',
+                        default=0,
+                        type=int,
+                        help='line rate in Gbps (default=10)',
+                        metavar='<rate-Gbps>')
+
     parser.add_argument(dest='files',
                         help='KloudBuster json result file', nargs="+",
                         metavar='<file>')
@@ -191,4 +214,4 @@ if __name__ == '__main__':
         print('Version ' + __version__)
         sys.exit(0)
 
-    gen_chart(opts.files, opts.chart, opts.browser)
+    gen_chart(opts.files, opts.chart, opts.browser, opts.line_rate)
