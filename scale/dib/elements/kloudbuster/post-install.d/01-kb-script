@@ -1,4 +1,6 @@
 # script for kloudbuster
+
+# Tune the Linux kernel for scale test
 echo "* soft nofile 102400" >> /etc/security/limits.conf
 echo "* hard nofile 102400" >> /etc/security/limits.conf
 
@@ -33,11 +35,27 @@ sysctl -p
 update-rc.d -f redis-server remove
 update-rc.d -f nginx remove
 
+# Change permission to 777 for kb_test
+chmod -R 777 /kb_test
+
+# Generate a 32K HTML files
+mkdir -p /data/www
+cd /data/www/
+dd if=/dev/zero of=index.html bs=32K count=1
+chmod -R 777 /data
+cd -
+
 # redis server should listen on all interfaces
 sed -i "s/127.0.0.1/0.0.0.0/g" /etc/redis/redis.conf
 
 # if started nginx should be allowed to open more file descriptors
 sed -i 's/start-stop-daemon\ --start/ulimit\ \-n\ 102400\n\t\0/g' /etc/init.d/nginx
+
+# Auto start the KloudBuster Agent, with user-data
+sed -i "s/^exit\s0/cd \/kb_test\n\0/g" /etc/rc.local
+sed -i "s/^exit\s0/wget http\:\/\/169.254.169.254\/latest\/user-data\n\0/g" /etc/rc.local
+sed -i "s/^exit\s0/python \/kb_test\/kb_vm_agent.py \&\n\0/g" /etc/rc.local
+
 
 # ======
 # Client
@@ -50,7 +68,7 @@ pip install redis
 git clone git://github.com/giltene/wrk2.git
 cd wrk2
 make
-mv wrk /usr/local/bin
+mv wrk /usr/local/bin/wrk2
 cd ..
 rm -rf wrk2
 
@@ -58,5 +76,5 @@ rm -rf wrk2
 apt-get -y --purge remove git
 apt-get -y --purge remove python-pip
 apt-get -y --purge remove build-essential
-apt-get -y autoremove
+apt-get -y --purge autoremove
 apt-get -y autoclean

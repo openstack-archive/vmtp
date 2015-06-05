@@ -55,8 +55,6 @@ class KBRunner(object):
 
     def setup_redis(self, redis_server, redis_server_port=6379, timeout=120):
         LOG.info("Setting up redis connection pool...")
-        # For now, the redis server is not in the scope of Kloud Buster, which has to be
-        # pre-configured before executing Kloud Buster.
         connection_pool = redis.ConnectionPool(
             host=redis_server, port=redis_server_port, db=0)
 
@@ -157,7 +155,7 @@ class KBRunner(object):
             raise KBVMUpException()
         self.send_cmd('ACK', None, None)
 
-    def setup_static_route(self, timeout=10):
+    def setup_static_route(self, timeout=30):
         func = {'cmd': 'setup_static_route'}
         self.send_cmd('EXEC', 'http', func)
         cnt_succ = self.polling_vms(timeout)[0]

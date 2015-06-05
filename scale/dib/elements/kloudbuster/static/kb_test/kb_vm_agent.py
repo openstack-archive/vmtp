@@ -78,7 +78,7 @@ class KB_Instance(object):
                       rate_limit, duration, timeout, connection_type):
         if not rate_limit:
             rate_limit = 65535
-        cmd = '%s -t%d -c%d -R%d -d%ds --timeout %ds --latency --s kb.lua %s' % \
+        cmd = '%s -t%d -c%d -R%d -d%ds --timeout %ds --latency --s /kb_test/kb_wrk2.lua %s' % \
             (dest_path, threads, connections, rate_limit, duration, timeout, target_url)
         return cmd
 
@@ -203,7 +203,7 @@ def start_redis_server():
     return exec_command(cmd)
 
 def start_nuttcp_server():
-    cmd = ['/var/tmp/nuttcp-7.3.2', '-P5002', '-S', '--single-threaded']
+    cmd = ['/usr/bin/nuttcp', '-P5002', '-S', '--single-threaded']
     return exec_command(cmd)
 
 def start_nginx_server():
@@ -212,7 +212,7 @@ def start_nginx_server():
 
 if __name__ == "__main__":
     try:
-        f = open('/var/tmp/user-data', 'r')
+        f = open('user-data', 'r')
         user_data = eval(f.read())
     except Exception as e:
         # TODO(Logging on Agent)

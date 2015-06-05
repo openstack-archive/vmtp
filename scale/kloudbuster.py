@@ -22,6 +22,7 @@ import traceback
 import base_compute
 import base_network
 import configure
+from glanceclient.v2 import client as glanceclient
 from kb_runner import KBRunner
 from kb_scheduler import KBScheduler
 from keystoneclient.v2_0 import client as keystoneclient
@@ -59,6 +60,35 @@ def create_keystone_client(admin_creds):
     """
     creds = admin_creds.get_credentials()
     return (keystoneclient.Client(**creds), creds['auth_url'])
+
+def check_and_upload_images(cred, cred_testing, server_img_name, client_img_name):
+    keystone_list = [create_keystone_client(cred)[0], create_keystone_client(cred_testing)[0]]
+    keystone_dict = dict(zip(['Server kloud', 'Client kloud'], keystone_list))
+    img_name_dict = dict(zip(['Server kloud', 'Client kloud'], [server_img_name, client_img_name]))
+
+    for kloud, keystone in keystone_dict.items():
+        img_found = False
+        glance_endpoint = keystone.service_catalog.url_for(
+            service_type='image', endpoint_type='publicURL')
+        glance_client = glanceclient.Client(glance_endpoint, token=keystone.auth_token)
+        for img in glance_client.images.list():
+            if img['name'] == img_name_dict[kloud]:
+                img_found = True
+                break
+        if not img_found:
+            # Trying upload images
+            LOG.info("Image is not found in %s, trying to upload..." % (kloud))
+            if not os.path.exists('dib/kloudbuster.qcow2'):
+                LOG.error("Image file dib/kloudbuster.qcow2 is not present, please refer "
+                          "to dib/README.rst for how to build image for KloudBuster.")
+                return False
+            with open('dib/kloudbuster.qcow2') as fimage:
+                image = glance_client.images.create(name=img_name_dict[kloud],
+                                                    disk_format="qcow2",
+                                                    container_format="bare")
+                glance_client.images.upload(image['id'], fimage)
+
+    return True
 
 class Kloud(object):
     def __init__(self, scale_cfg, admin_creds, testing_side=False):
@@ -372,6 +402,7 @@ hardcoded_client_cfg = {
     'secgroups_per_network': 1
 }
 
+
 if __name__ == '__main__':
     # The default configuration file for KloudBuster
     default_cfg_file = get_absolute_path_for_file("cfg.scale.yaml")
@@ -458,6 +489,11 @@ if __name__ == '__main__':
     # VMs on the server side (1:1)
     # There is an additional VM in client kloud as a proxy node
     client_side_cfg['vms_per_network'] = get_total_vm_count(server_side_cfg) + 1
+
+    image_check = check_and_upload_images(cred, cred_testing, server_side_cfg.image_name,
+                                          client_side_cfg.image_name)
+    if not image_check:
+        sys.exit(1)
 
     # The KloudBuster class is just a wrapper class
     # levarages tenant and user class for resource creations and

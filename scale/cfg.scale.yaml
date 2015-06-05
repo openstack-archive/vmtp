@@ -3,7 +3,7 @@
 # Name of the image to use for all test VMs (client, server and proxy)
 # The image name must exist in OpenStack and must be built with the appropriate
 # packages
-image_name: 'Scale Image v8'
+image_name: 'KloudBuster Image'
 
 # Config options common to client and server side
 keystone_admin_role: "admin"
@@ -12,7 +12,7 @@ keystone_admin_role: "admin"
 cleanup_resources: True
 
 # VM creation concurrency
-vm_creation_concurrency: 10
+vm_creation_concurrency: 5
 
 #
 # ssh access to the test VMs launched by kloudbuster is not required
@@ -52,13 +52,13 @@ server:
     networks_per_router: 1
 
     # Number of VM instances to be created within the context of each Network
-    vms_per_network: 2
+    vms_per_network: 1
 
     # Number of security groups per network
     secgroups_per_network: 1
 
     # Assign floating IP for every VM
-    use_floatingip: False
+    use_floatingip: True
 
     # Placement hint
     # Availability zone to use for servers in the server cloud
@@ -72,7 +72,7 @@ server:
 # CLIENT SIDE CONFIG OPTIONS
 client:
     # Assign floating IP for every VM
-    use_floatingip: False
+    use_floatingip: True
 
     # Flavor to use for the test images
     flavor:
@@ -97,10 +97,10 @@ client:
     # Tooling
     tp_tool:
         name: 'nuttcp'
-        dest_path: '/var/tmp/nuttcp-7.3.2'
+        dest_path: '/usr/bin/nuttcp'
     http_tool:
         name: 'wrk'
-        dest_path: '/var/tmp/wrk2-3.1.1'
+        dest_path: '/usr/local/bin/wrk2'
 
     # HTTP tool specific configs (per VM)
     http_tool_configs:
