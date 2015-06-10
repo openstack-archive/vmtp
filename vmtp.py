@@ -17,6 +17,7 @@ import argparse
 import datetime
 import hashlib
 import json
+import logging
 import os
 import pprint
 import re
@@ -37,6 +38,7 @@ from keystoneclient.v2_0 import client as keystoneclient
 from neutronclient.v2_0 import client as neutronclient
 from novaclient.client import Client
 from novaclient.exceptions import ClientException
+from tabulate import tabulate
 
 __version__ = '2.1.0'
 
@@ -531,11 +533,115 @@ def get_controller_info(ssh_access, net, res_col):
     res_col.pprint(res)
     res_col.add_properties(res)
 
+def gen_report_data(proto, result):
+    if proto in ['TCP', 'UDP', 'ICMP']:
+        result = [x for x in result if x['protocol'] == proto]
+    elif proto == 'Upload':
+        result = [x for x in result if ('direction' not in x) and (x['protocol'] == 'TCP')]
+    elif proto == 'Download':
+        result = [x for x in result if ('direction' in x) and (x['protocol'] == 'TCP')]
+
+    retval = {}
+    if proto in ['TCP', 'Upload', 'Download']:
+        tcp_test_count = 0
+        retval = {'tp_kbps': 0, 'rtt_ms': 0}
+    elif proto == 'UDP':
+        pkt_size_list = [x['pkt_size'] for x in result]
+        retval = dict(zip(pkt_size_list, [{}, {}, {}]))
+
+    for item in result:
+        if proto in ['TCP', 'Upload', 'Download']:
+            tcp_test_count = tcp_test_count + 1
+            retval['tp_kbps'] += item['throughput_kbps']
+            retval['rtt_ms'] += item['rtt_ms']
+        elif proto == 'UDP':
+            retval[item['pkt_size']]['tp_kbps'] = item['throughput_kbps']
+            retval[item['pkt_size']]['loss_rate'] = item['loss_rate']
+        elif proto == 'ICMP':
+            for key in ['rtt_avg_ms', 'rtt_max_ms', 'rtt_min_ms', 'rtt_stddev']:
+                retval[key] = item[key]
+
+    if proto in ['TCP', 'Upload', 'Download']:
+        for key in retval:
+            retval[key] = '{0:n}'.format(retval[key] / tcp_test_count)
+
+
+    return retval
+
+def print_report(results):
+    # In order to parse the results with less logic, we are encoding the results as below:
+    # Same Network = 0, Different Network = 1
+    # Fixed IP = 0, Floating IP = 1
+    # Intra-node = 0, Inter-node = 1
+    SPASS = "\033[92mPASSED\033[0m"
+    SFAIL = "\033[91mFAILED\033[0m"
+
+    # Initilize a run_status[3][2][2][3] array
+    run_status = [([([(["SKIPPED"] * 3) for i in range(2)]) for i in range(2)]) for i in range(3)]
+    run_data = [([([([{}] * 3) for i in range(2)]) for i in range(2)]) for i in range(3)]
+    flows = results['flows']
+    for flow in flows:
+        res = flow['results']
+        if flow['desc'].find('External-VM') != -1:
+            for item in res:
+                if 'direction' not in item:
+                    run_status[2][0][0][0] = SPASS if 'error' not in item else SFAIL
+                    if run_status[2][0][0][0] == SPASS:
+                        run_data[2][0][0][0] = gen_report_data('Upload', res)
+                else:
+                    run_status[2][0][0][1] = SPASS if 'error' not in item else SFAIL
+                    if run_status[2][0][0][1] == SPASS:
+                        run_data[2][0][0][1] = gen_report_data('Download', res)
+        else:
+            idx0 = 0 if flow['desc'].find('same network') != -1 else 1
+            idx1 = 0 if flow['desc'].find('fixed IP') != -1 else 1
+            idx2 = 0 if flow['desc'].find('intra-node') != -1 else 1
+            for item in res:
+                for idx3, proto in enumerate(['TCP', 'UDP', 'ICMP']):
+                    if item['protocol'] == proto:
+                        run_status[idx0][idx1][idx2][idx3] =\
+                            SPASS if 'error' not in item else SFAIL
+                        if run_status[idx0][idx1][idx2][idx3] == SPASS:
+                            run_data[idx0][idx1][idx2][idx3] = gen_report_data(proto, res)
+
+    table = [['Scenario', 'Scenario Name', 'Functional Status', 'Data']]
+    scenario = 0
+    for idx0, net in enumerate(['Same Network', 'Different Network']):
+        for idx1, ip in enumerate(['Fixed IP', 'Floating IP']):
+            if net == 'Same Network' and ip == 'Floating IP':
+                continue
+            for idx2, node in enumerate(['Intra-node', 'Inter-node']):
+                for idx3, proto in enumerate(['TCP', 'UDP', 'ICMP']):
+                    row = [str(scenario / 3 + 1) + "." + str(idx3 + 1),
+                           "%s, %s, %s, %s" % (net, ip, node, proto),
+                           run_status[idx0][idx1][idx2][idx3],
+                           run_data[idx0][idx1][idx2][idx3]]
+                    table.append(row)
+                    scenario = scenario + 1
+    table.append(['7.1', 'VM to Host Uploading', run_status[2][0][0][0], run_data[2][0][0][0]])
+    table.append(['7.2', 'VM to Host Downloading', run_status[2][0][0][1], run_data[2][0][0][1]])
+
+    ptable = zip(*table[1:])[2]
+    cnt_passed = ptable.count(SPASS)
+    cnt_failed = ptable.count(SFAIL)
+    cnt_skipped = ptable.count("SKIPPED")
+    cnt_valid = len(table) - 1 - cnt_skipped
+    passed_rate = float(cnt_passed) / cnt_valid * 100 if cnt_valid != 0 else 0
+    failed_rate = float(cnt_failed) / cnt_valid * 100 if cnt_valid != 0 else 0
+    print "\nSummary of results"
+    print "=================="
+    print "Total Scenarios:   %d" % (len(table) - 1)
+    print "Passed Scenarios:  %d [%.2f%%]" % (cnt_passed, passed_rate)
+    print "Failed Scenarios:  %d [%.2f%%]" % (cnt_failed, failed_rate)
+    print "Skipped Scenarios: %d" % (cnt_skipped)
+    print tabulate(table, headers="firstrow", tablefmt="psql", stralign="left")
+
 
 if __name__ == '__main__':
 
     fpr = FlowPrinter()
     rescol = ResultsCollector()
+    logging.basicConfig()
 
     parser = argparse.ArgumentParser(description='OpenStack VM Throughput V' + __version__)
 
@@ -884,6 +990,8 @@ if __name__ == '__main__':
     # controller node ssh access to collect metadata for the run.
     ctrl_host_access = _get_ssh_access('controller-node', opts.controller_node)
     get_controller_info(ctrl_host_access, vmtp_net, rescol)
+
+    print_report(rescol.results)
 
     # If saving the results to JSON or MongoDB, get additional details:
     if config.json_file or config.vmtp_mongod_ip:

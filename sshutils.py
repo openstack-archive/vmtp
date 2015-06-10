@@ -203,7 +203,8 @@ class SSH(object):
             except (paramiko.AuthenticationException,
                     paramiko.BadHostKeyException,
                     paramiko.SSHException,
-                    socket.error):
+                    socket.error,
+                    Exception):
                 time.sleep(self.connect_retry_wait_sec)
 
         self._client = None
