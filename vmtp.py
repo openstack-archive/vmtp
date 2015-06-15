@@ -38,9 +38,9 @@ from keystoneclient.v2_0 import client as keystoneclient
 from neutronclient.v2_0 import client as neutronclient
 from novaclient.client import Client
 from novaclient.exceptions import ClientException
-from tabulate import tabulate
+from prettytable import PrettyTable
 
-__version__ = '2.1.0'
+__version__ = '2.1.1'
 
 from perf_instance import PerfInstance as PerfInstance
 
@@ -604,7 +604,7 @@ def print_report(results):
                         if run_status[idx0][idx1][idx2][idx3] == SPASS:
                             run_data[idx0][idx1][idx2][idx3] = gen_report_data(proto, res)
 
-    table = [['Scenario', 'Scenario Name', 'Functional Status', 'Data']]
+    table = []
     scenario = 0
     for idx0, net in enumerate(['Same Network', 'Different Network']):
         for idx1, ip in enumerate(['Fixed IP', 'Floating IP']):
@@ -628,13 +628,20 @@ def print_report(results):
     cnt_valid = len(table) - 1 - cnt_skipped
     passed_rate = float(cnt_passed) / cnt_valid * 100 if cnt_valid != 0 else 0
     failed_rate = float(cnt_failed) / cnt_valid * 100 if cnt_valid != 0 else 0
+
+    ptable = PrettyTable(['Scenario', 'Scenario Name', 'Functional Status', 'Data'])
+    ptable.align = "l"
+    ptable.max_width = 80
+    for row in table:
+        ptable.add_row(row)
+
     print "\nSummary of results"
     print "=================="
     print "Total Scenarios:   %d" % (len(table) - 1)
     print "Passed Scenarios:  %d [%.2f%%]" % (cnt_passed, passed_rate)
     print "Failed Scenarios:  %d [%.2f%%]" % (cnt_failed, failed_rate)
     print "Skipped Scenarios: %d" % (cnt_skipped)
-    print tabulate(table, headers="firstrow", tablefmt="psql", stralign="left")
+    print ptable
 
 
 if __name__ == '__main__':
