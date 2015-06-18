@@ -330,6 +330,8 @@ class Network(object):
             if self.ext_router_created:
                 try:
                     if self.ext_router['name'] == self.ext_router_name:
+                        self.neutron_client.remove_gateway_router(
+                            self.ext_router['id'])
                         self.neutron_client.delete_router(self.ext_router['id'])
                         print 'External router %s deleted' % \
                               (self.ext_router['name'])
