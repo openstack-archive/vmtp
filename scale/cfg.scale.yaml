@@ -114,6 +114,8 @@ client:
         timeout: 5
         # Connection Type: "Keep-alive", "New"
         connection_type: 'Keep-alive'
+        # Interval for periodical report
+        report_interval: 5
         # Duration of testing tools (seconds)
         duration: 30
 

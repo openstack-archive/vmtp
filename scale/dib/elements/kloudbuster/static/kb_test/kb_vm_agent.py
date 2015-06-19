@@ -75,11 +75,14 @@ class KB_Instance(object):
     # Run the HTTP benchmarking tool
     @staticmethod
     def run_http_test(dest_path, target_url, threads, connections,
-                      rate_limit, duration, timeout, connection_type):
+                      rate_limit, duration, timeout, connection_type,
+                      report_interval):
         if not rate_limit:
             rate_limit = 65535
-        cmd = '%s -t%d -c%d -R%d -d%ds --timeout %ds --latency --s /kb_test/kb_wrk2.lua %s' % \
-            (dest_path, threads, connections, rate_limit, duration, timeout, target_url)
+        cmd = '%s -t%d -c%d -R%d -d%ds -p%ds --timeout %ds --latency '\
+              '--s /kb_test/kb_wrk2.lua %s' % \
+              (dest_path, threads, connections, rate_limit, duration,
+               report_interval, timeout, target_url)
         return cmd
 
 
@@ -133,6 +136,24 @@ class KB_VM_Agent(object):
         (stdout, stderr) = p.communicate()
 
         return (p.returncode, stdout, stderr)
+
+    def exec_command_report(self, cmd):
+        # Execute the command, reporting periodically, and returns the outputs
+        cmds = ['bash', '-c']
+        cmds.append(cmd)
+        p_output = ''
+        p = subprocess.Popen(cmds, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        lines_iterator = iter(p.stdout.readline, b"")
+        for line in lines_iterator:
+            p_output += line
+            if line.strip() == "=== REPORT END ===":
+                cmd_res_dict = dict(zip(("status", "stdout", "stderr"), (0, p_output, '')))
+                self.report('REPORT', 'http', cmd_res_dict)
+                p_output = ''
+
+        stderr = p.communicate()[1]
+        return (p.returncode, p_output, stderr)
 
     def process_cmd(self, message):
         if message['cmd'] == 'ACK':
@@ -190,7 +211,7 @@ class KB_VM_Agent(object):
             dest_path=self.user_data['http_tool']['dest_path'],
             target_url=self.user_data['target_url'],
             **self.user_data['http_tool_configs'])
-        return self.exec_command(self.last_cmd)
+        return self.exec_command_report(self.last_cmd)
 
 def exec_command(cmd):
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

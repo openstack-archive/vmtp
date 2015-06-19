@@ -126,20 +126,30 @@ class WrkTool(PerfTool):
                     all_res[key] += item['results'][key]
             all_res[key] = int(all_res[key])
 
+        # for item in results:
+        #     print item['results']['latency_stats']
+
         if 'latency_stats' in results[0]['results']:
             all_res['latency_stats'] = []
             first_result = results[0]['results']['latency_stats']
             latency_counts = len(first_result)
+            for i in range(latency_counts):
+                latency_avg = 0
+                for item in results:
+                    latency_avg += item['results']['latency_stats'][i][1]
+                latency_avg = int(latency_avg / total_count)
+                latency_tup = [first_result[i][0], latency_avg]
+                all_res['latency_stats'].append(latency_tup)
 
-        # for item in results:
-        #     print item['results']['latency_stats']
+        return all_res
 
-        for i in range(latency_counts):
-            latency_avg = 0
-            for item in results:
-                latency_avg += item['results']['latency_stats'][i][1]
-            latency_avg = int(latency_avg / total_count)
-            latency_tup = [first_result[i][0], latency_avg]
-            all_res['latency_stats'].append(latency_tup)
+    @staticmethod
+    def consolidate_samples(results, vm_count):
+        all_res = WrkTool.consolidate_results(results)
+        total_count = len(results) / vm_count
+        if not total_count:
+            return all_res
 
+        all_res['http_rps'] = all_res['http_rps'] / total_count
+        all_res['http_throughput_kbytes'] = all_res['http_throughput_kbytes'] / total_count
         return all_res

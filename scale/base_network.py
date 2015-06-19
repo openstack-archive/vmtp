@@ -266,8 +266,13 @@ class Router(object):
                 network.delete_network()
         # Also delete the shared port and remove it from router interface
         if self.shared_network:
-            self.remove_router_interface(self.shared_network, use_port=True)
-            self.shared_network = None
+            for _ in range(10):
+                try:
+                    self.remove_router_interface(self.shared_network, use_port=True)
+                    self.shared_network = None
+                    break
+                except Exception:
+                    time.sleep(1)
 
     def create_router(self, router_name, ext_net):
         """
@@ -302,7 +307,19 @@ class Router(object):
         """
         # Delete the network resources first and than delete the router itself
         self.delete_network_resources()
-        self.neutron_client.delete_router(self.router['router']['id'])
+        for _ in range(10):
+            try:
+                self.neutron_client.remove_gateway_router(self.router['router']['id'])
+                self.shared_network = None
+                break
+            except Exception:
+                time.sleep(1)
+        for _ in range(10):
+            try:
+                self.neutron_client.delete_router(self.router['router']['id'])
+                break
+            except Exception:
+                time.sleep(1)
 
     def _port_create_neutron(self, network_instance):
         """

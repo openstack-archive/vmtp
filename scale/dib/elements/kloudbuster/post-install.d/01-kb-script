@@ -65,7 +65,7 @@ sed -i "s/^exit\s0/python \/kb_test\/kb_vm_agent.py \&\n\0/g" /etc/rc.local
 pip install redis
 
 # install the http traffic generator
-git clone git://github.com/giltene/wrk2.git
+git clone git://github.com/yicwang/wrk2.git
 cd wrk2
 make
 mv wrk /usr/local/bin/wrk2

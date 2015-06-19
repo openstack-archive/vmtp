@@ -103,9 +103,12 @@ class KBRunner(object):
         retry_count = max(timeout / polling_interval, 1)
         retry = cnt_succ = cnt_failed = 0
         clist = self.client_dict.copy()
+        samples = []
+        http_tool = self.client_dict.values()[0].http_tool
 
         while (retry < retry_count and len(clist)):
             time.sleep(polling_interval)
+            sample_count = 0
             while True:
                 msg = self.pubsub.get_message()
                 if not msg:
@@ -127,6 +130,12 @@ class KBRunner(object):
                         clist[vm_name].up_flag = True
                         clist.pop(vm_name)
                         cnt_succ = cnt_succ + 1
+                elif cmd == 'REPORT':
+                    sample_count = sample_count + 1
+                    # Parse the results from HTTP Tools
+                    instance = self.client_dict[vm_name]
+                    self.result[vm_name] = instance.http_client_parser(**payload['data'])
+                    samples.append(self.result[vm_name])
                 elif cmd == 'DONE':
                     self.result[vm_name] = payload['data']
                     clist.pop(vm_name)
@@ -142,9 +151,15 @@ class KBRunner(object):
                 else:
                     LOG.error('[%s] received invalid command: %s' + (vm_name, cmd))
 
+            log_msg = "%d Succeed, %d Failed, %d Pending... Retry #%d" %\
+                      (cnt_succ, cnt_failed, len(clist), retry)
+            if sample_count != 0:
+                log_msg += " (%d sample(s) received)" % sample_count
+            LOG.info(log_msg)
 
-            LOG.info("%d Succeed, %d Failed, %d Pending... Retry #%d" %
-                     (cnt_succ, cnt_failed, len(clist), retry))
+            if sample_count != 0:
+                print http_tool.consolidate_samples(samples, len(self.client_dict))
+                samples = []
             retry = retry + 1
 
         return (cnt_succ, cnt_failed, len(clist))
