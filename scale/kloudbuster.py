@@ -21,8 +21,8 @@ import traceback
 
 import base_compute
 import base_network
-import configure
 from glanceclient.v2 import client as glanceclient
+from kb_config import KBConfig
 from kb_runner import KBRunner
 from kb_scheduler import KBScheduler
 from keystoneclient.v2_0 import client as keystoneclient
@@ -32,27 +32,11 @@ from oslo_config import cfg
 from tabulate import tabulate
 import tenant
 
-import credentials
 import sshutils
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
-
-def get_absolute_path_for_file(file_name):
-    '''
-    Return the filename in absolute path for any file
-    passed as relateive path.
-    '''
-    if os.path.isabs(__file__):
-        abs_file_path = os.path.join(__file__.split("kloudbuster.py")[0],
-                                     file_name)
-    else:
-        abs_file = os.path.abspath(__file__)
-        abs_file_path = os.path.join(abs_file.split("kloudbuster.py")[0],
-                                     file_name)
-
-    return abs_file_path
 
 def create_keystone_client(admin_creds):
     """
@@ -404,8 +388,6 @@ hardcoded_client_cfg = {
 
 
 if __name__ == '__main__':
-    # The default configuration file for KloudBuster
-    default_cfg_file = get_absolute_path_for_file("cfg.scale.yaml")
 
     cli_opts = [
         cfg.StrOpt("config",
@@ -441,64 +423,23 @@ if __name__ == '__main__':
 
     logging.setup("kloudbuster")
 
-    # Read the configuration file
-    config_scale = configure.Configuration.from_file(default_cfg_file).configure()
-    if CONF.config:
-        alt_config = configure.Configuration.from_file(CONF.config).configure()
-        config_scale = config_scale.merge(alt_config)
+    kb_config = KBConfig()
+    kb_config.init_with_cli()
 
-    if CONF.topology:
-        topology = configure.Configuration.from_file(CONF.topology).configure()
-    else:
-        topology = None
-
-    # Retrieve the credentials
-    cred = credentials.Credentials(CONF.tested_rc, CONF.passwd_tested, CONF.no_env)
-    if CONF.testing_rc and CONF.testing_rc != CONF.tested_rc:
-        cred_testing = credentials.Credentials(CONF.testing_rc,
-                                               CONF.passwd_testing,
-                                               CONF.no_env)
-    else:
-        # Use the same openrc file for both cases
-        cred_testing = cred
-
-    # Initialize the key pair name
-    if config_scale['public_key_file']:
-        # verify the public key file exists
-        if not os.path.exists(config_scale['public_key_file']):
-            LOG.error('Error: Invalid public key file: ' + config_scale['public_key_file'])
-            sys.exit(1)
-    else:
-        # pick the user's public key if there is one
-        pub_key = os.path.expanduser('~/.ssh/id_rsa.pub')
-        if os.path.isfile(pub_key):
-            config_scale['public_key_file'] = pub_key
-            LOG.info('Using %s as public key for all VMs' % (pub_key))
-
-    # A bit of config dict surgery, extract out the client and server side
-    # and transplant the remaining (common part) into the client and server dict
-    server_side_cfg = config_scale.pop('server')
-    client_side_cfg = config_scale.pop('client')
-    server_side_cfg.update(config_scale)
-    client_side_cfg.update(config_scale)
-
-    # Hardcode a few client side options
-    client_side_cfg.update(hardcoded_client_cfg)
-
-    # Adjust the VMs per network on the client side to match the total
-    # VMs on the server side (1:1)
-    # There is an additional VM in client kloud as a proxy node
-    client_side_cfg['vms_per_network'] = get_total_vm_count(server_side_cfg) + 1
-
-    image_check = check_and_upload_images(cred, cred_testing, server_side_cfg.image_name,
-                                          client_side_cfg.image_name)
+    image_check = check_and_upload_images(
+        kb_config.cred_tested,
+        kb_config.cred_testing,
+        kb_config.server_cfg.image_name,
+        kb_config.client_cfg.image_name)
     if not image_check:
         sys.exit(1)
 
     # The KloudBuster class is just a wrapper class
-    # levarages tenant and user class for resource creations and
-    # deletion
-    kloudbuster = KloudBuster(cred, cred_testing, server_side_cfg, client_side_cfg, topology)
+    # levarages tenant and user class for resource creations and deletion
+    kloudbuster = KloudBuster(
+        kb_config.cred_tested, kb_config.cred_testing,
+        kb_config.server_cfg, kb_config.client_cfg,
+        kb_config.topo_cfg)
     kloudbuster.run()
 
     if CONF.json:

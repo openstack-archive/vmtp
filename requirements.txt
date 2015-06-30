@@ -13,6 +13,7 @@ lxml>=3.4.0
 oslo.log>=1.0.0
 oslo.utils>=1.2.0
 paramiko>=1.14.0
+pecan>=0.9.0
 pycrypto>=2.6.1
 pymongo>=2.7.2
 python-glanceclient>=0.15.0
