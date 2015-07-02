@@ -26,7 +26,7 @@ class Tenant(object):
     2. Uses the User class to perform all user resource creation and deletion
     """
 
-    def __init__(self, tenant_name, kloud):
+    def __init__(self, tenant_name, kloud, tenant_quota):
         """
         Holds the tenant name
         tenant id and keystone client
@@ -38,6 +38,7 @@ class Tenant(object):
         self.kloud = kloud
         self.tenant_object = self._get_tenant()
         self.tenant_id = self.tenant_object.id
+        self.tenant_quota = tenant_quota
         # Contains a list of user instance objects
         self.user_list = []
 

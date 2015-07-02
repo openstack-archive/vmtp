@@ -14,6 +14,7 @@
 
 import base_compute
 import base_network
+from cinderclient.v2 import client as cinderclient
 import keystoneclient.openstack.common.apiclient.exceptions as keystone_exception
 import log as logging
 from neutronclient.v2_0 import client as neutronclient
@@ -40,9 +41,10 @@ class User(object):
         self.tenant = tenant
         self.user_id = None
         self.router_list = []
-        # Store the neutron and nova client
-        self.neutron_client = None
+        # Store the nova, neutron and cinder client
         self.nova_client = None
+        self.neutron_client = None
+        self.cinder_client = None
         self.admin_user = self._get_user()
         # Each user is associated to 1 key pair at most
         self.key_pair = None
@@ -113,6 +115,16 @@ class User(object):
         # Finally delete the user
         self.tenant.kloud.keystone.users.delete(self.user_id)
 
+    def update_tenant_quota(self, tenant_quota):
+        nova_quota = base_compute.NovaQuota(self.nova_client, self.tenant.tenant_id)
+        nova_quota.update_quota(**tenant_quota['nova'])
+
+        cinder_quota = base_compute.CinderQuota(self.cinder_client, self.tenant.tenant_id)
+        cinder_quota.update_quota(**tenant_quota['cinder'])
+
+        neutron_quota = base_network.NeutronQuota(self.neutron_client, self.tenant.tenant_id)
+        neutron_quota.update_quota(tenant_quota['neutron'])
+
     def create_resources(self):
         """
         Creates all the User elements associated with a User
@@ -129,14 +141,18 @@ class User(object):
         # Create the neutron client to be used for all operations
         self.neutron_client = neutronclient.Client(**creden)
 
-        # Create a new nova client for this User with correct credentials
+        # Create a new nova and cinder client for this User with correct credentials
         creden_nova = {}
         creden_nova['username'] = self.user_name
         creden_nova['api_key'] = self.user_name
         creden_nova['auth_url'] = self.tenant.kloud.auth_url
         creden_nova['project_id'] = self.tenant.tenant_name
         creden_nova['version'] = 2
+
         self.nova_client = Client(**creden_nova)
+        self.cinder_client = cinderclient.Client(**creden_nova)
+
+        self.update_tenant_quota(self.tenant.tenant_quota)
 
         config_scale = self.tenant.kloud.scale_cfg
 

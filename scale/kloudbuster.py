@@ -98,10 +98,10 @@ class Kloud(object):
             self.placement_az = scale_cfg['availability_zone']
         LOG.info('%s Availability Zone: %s' % (self.name, self.placement_az))
 
-    def create_resources(self):
+    def create_resources(self, tenant_quota):
         for tenant_count in xrange(self.scale_cfg['number_tenants']):
             tenant_name = self.prefix + "-T" + str(tenant_count)
-            new_tenant = tenant.Tenant(tenant_name, self)
+            new_tenant = tenant.Tenant(tenant_name, self, tenant_quota)
             self.tenant_list.append(new_tenant)
             new_tenant.create_resources()
 
@@ -277,8 +277,9 @@ class KloudBuster(object):
         kbrunner = None
         vm_creation_concurrency = self.client_cfg.vm_creation_concurrency
         try:
-            self.kloud.create_resources()
-            self.testing_kloud.create_resources()
+            tenant_quota = self.calc_tenant_quota()
+            self.kloud.create_resources(tenant_quota['server'])
+            self.testing_kloud.create_resources(tenant_quota['client'])
 
             # Start the runner and ready for the incoming redis messages
             client_list = self.testing_kloud.get_all_instances()
@@ -358,10 +359,98 @@ class KloudBuster(object):
         if kbrunner:
             kbrunner.dispose()
 
-def get_total_vm_count(config):
-    return (config['number_tenants'] * config['users_per_tenant'] *
-            config['routers_per_user'] * config['networks_per_router'] *
-            config['vms_per_network'])
+    def get_tenant_vm_count(self, config):
+        return (config['users_per_tenant'] * config['routers_per_user'] *
+                config['networks_per_router'] * config['vms_per_network'])
+
+    def calc_neutron_quota(self):
+        total_vm = self.get_tenant_vm_count(self.server_cfg)
+
+        server_quota = {}
+        server_quota['network'] = self.server_cfg['networks_per_router']
+        server_quota['subnet'] = server_quota['network']
+        server_quota['router'] = self.server_cfg['routers_per_user']
+        if (self.server_cfg['use_floatingip']):
+            # (1) Each VM has one floating IP
+            # (2) Each Router has one external IP
+            server_quota['floatingip'] = total_vm + server_quota['router']
+            # (1) Each VM Floating IP takes up 1 port, total of $total_vm port(s)
+            # (2) Each VM Fixed IP takes up 1 port, total of $total_vm port(s)
+            # (3) Each Network has one router_interface (gateway), and one DHCP agent, total of
+            #     server_quota['network'] * 2 port(s)
+            # (4) Each Router has one external IP, takes up 1 port, total of
+            #     server_quota['router'] port(s)
+            server_quota['port'] = 2 * total_vm + 2 * server_quota['network'] +\
+                server_quota['router']
+        else:
+            server_quota['floatingip'] = server_quota['router']
+            server_quota['port'] = total_vm + 2 * server_quota['network'] + server_quota['router']
+        server_quota['security_group'] = server_quota['network'] + 1
+        server_quota['security_group_rule'] = server_quota['security_group'] * 100
+
+        client_quota = {}
+        client_quota['network'] = 1
+        client_quota['subnet'] = 1
+        client_quota['router'] = 1
+        if (self.client_cfg['use_floatingip']):
+            # (1) Each VM has one floating IP
+            # (2) Each Router has one external IP, total of 1 router
+            # (3) KB-Proxy node has one floating IP
+            client_quota['floatingip'] = total_vm + 1 + 1
+            # (1) Each VM Floating IP takes up 1 port, total of $total_vm port(s)
+            # (2) Each VM Fixed IP takes up 1 port, total of $total_vm port(s)
+            # (3) Each Network has one router_interface (gateway), and one DHCP agent, total of
+            #     client_quota['network'] * 2 port(s)
+            # (4) KB-Proxy node takes up 2 ports, one for fixed IP, one for floating IP
+            # (5) Each Router has one external IP, takes up 1 port, total of 1 router/port
+            client_quota['port'] = 2 * total_vm + 2 * client_quota['network'] + 2 + 1
+        else:
+            client_quota['floatingip'] = 1 + 1
+            client_quota['port'] = total_vm + 2 * client_quota['network'] + 2 + 1
+        if self.single_cloud:
+            # Under single-cloud mode, the shared network is attached to every router in server
+            # cloud, and each one takes up 1 port on client side.
+            client_quota['port'] = client_quota['port'] + server_quota['router']
+        client_quota['security_group'] = client_quota['network'] + 1
+        client_quota['security_group_rule'] = client_quota['security_group'] * 100
+
+        return [server_quota, client_quota]
+
+    def calc_nova_quota(self):
+        total_vm = self.get_tenant_vm_count(self.server_cfg)
+        server_quota = {}
+        server_quota['instances'] = total_vm
+        server_quota['cores'] = total_vm * self.server_cfg['flavor']['vcpus']
+        server_quota['ram'] = total_vm * self.server_cfg['flavor']['ram']
+
+        client_quota = {}
+        client_quota['instances'] = total_vm + 1
+        client_quota['cores'] = total_vm * self.client_cfg['flavor']['vcpus'] + 1
+        client_quota['ram'] = total_vm * self.client_cfg['flavor']['ram'] + 2048
+
+        return [server_quota, client_quota]
+
+    def calc_cinder_quota(self):
+        total_vm = self.get_tenant_vm_count(self.server_cfg)
+        server_quota = {}
+        server_quota['gigabytes'] = total_vm * self.server_cfg['flavor']['disk']
+
+        client_quota = {}
+        client_quota['gigabytes'] = total_vm * self.client_cfg['flavor']['disk'] + 20
+
+        return [server_quota, client_quota]
+
+    def calc_tenant_quota(self):
+        quota_dict = {'server': {}, 'client': {}}
+        nova_quota = self.calc_nova_quota()
+        neutron_quota = self.calc_neutron_quota()
+        cinder_quota = self.calc_cinder_quota()
+        for idx, val in enumerate(['server', 'client']):
+            quota_dict[val]['nova'] = nova_quota[idx]
+            quota_dict[val]['neutron'] = neutron_quota[idx]
+            quota_dict[val]['cinder'] = cinder_quota[idx]
+
+        return quota_dict
 
 # Some hardcoded client side options we do not want users to change
 hardcoded_client_cfg = {

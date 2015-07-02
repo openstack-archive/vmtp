@@ -41,6 +41,7 @@ server:
     number_tenants: 1
 
     # Number of Users to be created inside the tenant
+    # For now support only 1 user per tenant
     users_per_tenant: 1
 
     # Number of routers to be created within the context of each User

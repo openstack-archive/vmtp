@@ -367,3 +367,16 @@ class Router(object):
                 'subnet_id': network_instance.network['subnets'][0]
             }
         self.neutron_client.remove_interface_router(self.router['router']['id'], body)
+
+
+class NeutronQuota(object):
+
+    def __init__(self, neutronclient, tenant_id):
+        self.neutronclient = neutronclient
+        self.tenant_id = tenant_id
+
+    def update_quota(self, quotas):
+        body = {
+            'quota': quotas
+        }
+        self.neutronclient.update_quota(self.tenant_id, body)
