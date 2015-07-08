@@ -114,6 +114,8 @@ class NuttcpTool(PerfTool):
         # scaling is normally enabled by default so setting explicit window
         # size is not going to help achieve better results)
         opts = ''
+        protocol = 'UDP' if udp else 'TCP'
+
         if mss:
             opts += "-M" + str(mss)
         if reverse_dir:
@@ -160,7 +162,7 @@ class NuttcpTool(PerfTool):
         except sshutils.SSHError as exc:
             # Timout or any SSH error
             self.instance.display('SSH Error:' + str(exc))
-            return [self.parse_error('TCP', str(exc))]
+            return [self.parse_error(protocol, str(exc))]
 
         if udp:
             # UDP output (unicast and multicast):
@@ -200,4 +202,4 @@ class NuttcpTool(PerfTool):
                                            reverse_dir=reverse_dir,
                                            msg_size=length,
                                            cpu_load=cpu_load)]
-        return [self.parse_error('TCP', 'Could not parse: %s' % (cmd_out))]
+        return [self.parse_error(protocol, 'Could not parse: %s' % (cmd_out))]

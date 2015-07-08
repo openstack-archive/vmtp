@@ -61,7 +61,7 @@ class IperfTool(PerfTool):
                 bidir = False
                 loop_count = 1
             else:
-                # For accuracy purpose, TCP throughput will be measured 3 times
+                # For accuracy purpose, TCP throughput will be measured multiple times
                 bidir = bidirectional
                 loop_count = self.instance.config.tcp_tp_loop_count
             for pkt_size in pkt_size_list:
@@ -97,6 +97,7 @@ class IperfTool(PerfTool):
         # scaling is normally enabled by default so setting explicit window
         # size is not going to help achieve better results)
         opts = ''
+        protocol = 'UDP' if udp else 'TCP'
 
         # run iperf client using the default TCP window size (tcp window
         # scaling is normally enabled by default so setting explicit window
@@ -203,4 +204,4 @@ class IperfTool(PerfTool):
                                                       msg_size=length,
                                                       cpu_load=cpu_load))
                 return res
-        return [self.parse_error('TCP', 'Could not parse: %s' % (cmd_out))]
+        return [self.parse_error(protocol, 'Could not parse: %s' % (cmd_out))]

@@ -534,37 +534,39 @@ def get_controller_info(ssh_access, net, res_col):
     res_col.add_properties(res)
 
 def gen_report_data(proto, result):
-    if proto in ['TCP', 'UDP', 'ICMP']:
-        result = [x for x in result if x['protocol'] == proto]
-    elif proto == 'Upload':
-        result = [x for x in result if ('direction' not in x) and (x['protocol'] == 'TCP')]
-    elif proto == 'Download':
-        result = [x for x in result if ('direction' in x) and (x['protocol'] == 'TCP')]
+    try:
+        if proto in ['TCP', 'UDP', 'ICMP']:
+            result = [x for x in result if x['protocol'] == proto]
+        elif proto == 'Upload':
+            result = [x for x in result if ('direction' not in x) and (x['protocol'] == 'TCP')]
+        elif proto == 'Download':
+            result = [x for x in result if ('direction' in x) and (x['protocol'] == 'TCP')]
 
-    retval = {}
-    if proto in ['TCP', 'Upload', 'Download']:
-        tcp_test_count = 0
-        retval = {'tp_kbps': 0, 'rtt_ms': 0}
-    elif proto == 'UDP':
-        pkt_size_list = [x['pkt_size'] for x in result]
-        retval = dict(zip(pkt_size_list, [{}, {}, {}]))
-
-    for item in result:
+        retval = {}
         if proto in ['TCP', 'Upload', 'Download']:
-            tcp_test_count = tcp_test_count + 1
-            retval['tp_kbps'] += item['throughput_kbps']
-            retval['rtt_ms'] += item['rtt_ms']
+            tcp_test_count = 0
+            retval = {'tp_kbps': 0, 'rtt_ms': 0}
         elif proto == 'UDP':
-            retval[item['pkt_size']]['tp_kbps'] = item['throughput_kbps']
-            retval[item['pkt_size']]['loss_rate'] = item['loss_rate']
-        elif proto == 'ICMP':
-            for key in ['rtt_avg_ms', 'rtt_max_ms', 'rtt_min_ms', 'rtt_stddev']:
-                retval[key] = item[key]
+            pkt_size_list = [x['pkt_size'] for x in result]
+            retval = dict(zip(pkt_size_list, [{}, {}, {}]))
 
-    if proto in ['TCP', 'Upload', 'Download']:
-        for key in retval:
-            retval[key] = '{0:n}'.format(retval[key] / tcp_test_count)
+        for item in result:
+            if proto in ['TCP', 'Upload', 'Download']:
+                tcp_test_count = tcp_test_count + 1
+                retval['tp_kbps'] += item['throughput_kbps']
+                retval['rtt_ms'] += item['rtt_ms']
+            elif proto == 'UDP':
+                retval[item['pkt_size']]['tp_kbps'] = item['throughput_kbps']
+                retval[item['pkt_size']]['loss_rate'] = item['loss_rate']
+            elif proto == 'ICMP':
+                for key in ['rtt_avg_ms', 'rtt_max_ms', 'rtt_min_ms', 'rtt_stddev']:
+                    retval[key] = item[key]
 
+        if proto in ['TCP', 'Upload', 'Download']:
+            for key in retval:
+                retval[key] = '{0:n}'.format(retval[key] / tcp_test_count)
+    except Exception:
+        retval = "ERROR! Check JSON outputs for more details."
 
     return retval
 
@@ -592,17 +594,19 @@ def print_report(results):
                     run_status[2][0][0][1] = SPASS if 'error' not in item else SFAIL
                     if run_status[2][0][0][1] == SPASS:
                         run_data[2][0][0][1] = gen_report_data('Download', res)
-        else:
-            idx0 = 0 if flow['desc'].find('same network') != -1 else 1
-            idx1 = 0 if flow['desc'].find('fixed IP') != -1 else 1
-            idx2 = 0 if flow['desc'].find('intra-node') != -1 else 1
-            for item in res:
-                for idx3, proto in enumerate(['TCP', 'UDP', 'ICMP']):
-                    if item['protocol'] == proto:
-                        run_status[idx0][idx1][idx2][idx3] =\
-                            SPASS if 'error' not in item else SFAIL
-                        if run_status[idx0][idx1][idx2][idx3] == SPASS:
-                            run_data[idx0][idx1][idx2][idx3] = gen_report_data(proto, res)
+            continue
+
+        idx0 = 0 if flow['desc'].find('same network') != -1 else 1
+        idx1 = 0 if flow['desc'].find('fixed IP') != -1 else 1
+        idx2 = 0 if flow['desc'].find('intra-node') != -1 else 1
+        for item in res:
+            for idx3, proto in enumerate(['TCP', 'UDP', 'ICMP']):
+                if (item['protocol'] == proto) and (run_status[idx0][idx1][idx2][idx3] != SFAIL):
+                    if 'error' in item:
+                        run_status[idx0][idx1][idx2][idx3] = SFAIL
+                    else:
+                        run_status[idx0][idx1][idx2][idx3] = SPASS
+                        run_data[idx0][idx1][idx2][idx3] = gen_report_data(proto, res)
 
     table = []
     scenario = 0
