@@ -37,6 +37,9 @@ import sshutils
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
+class KBVMCreationException(Exception):
+    pass
+
 
 def create_keystone_client(admin_creds):
     """
@@ -166,7 +169,7 @@ class Kloud(object):
         LOG.info("Creating Instance: " + instance.vm_name)
         instance.create_server(**instance.boot_info)
         if not instance.instance:
-            return
+            raise KBVMCreationException()
 
         instance.fixed_ip = instance.instance.networks.values()[0][0]
         if (instance.vm_name == "KB-PROXY") and (not instance.config['use_floatingip']):
@@ -389,6 +392,7 @@ class KloudBuster(object):
         server_quota['security_group_rule'] = server_quota['security_group'] * 100
 
         client_quota = {}
+        total_vm = total_vm * self.server_cfg['number_tenants']
         client_quota['network'] = 1
         client_quota['subnet'] = 1
         client_quota['router'] = 1
@@ -424,6 +428,7 @@ class KloudBuster(object):
         server_quota['ram'] = total_vm * self.server_cfg['flavor']['ram']
 
         client_quota = {}
+        total_vm = total_vm * self.server_cfg['number_tenants']
         client_quota['instances'] = total_vm + 1
         client_quota['cores'] = total_vm * self.client_cfg['flavor']['vcpus'] + 1
         client_quota['ram'] = total_vm * self.client_cfg['flavor']['ram'] + 2048
@@ -436,6 +441,7 @@ class KloudBuster(object):
         server_quota['gigabytes'] = total_vm * self.server_cfg['flavor']['disk']
 
         client_quota = {}
+        total_vm = total_vm * self.server_cfg['number_tenants']
         client_quota['gigabytes'] = total_vm * self.client_cfg['flavor']['disk'] + 20
 
         return [server_quota, client_quota]

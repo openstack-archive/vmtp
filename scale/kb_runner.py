@@ -54,11 +54,10 @@ class KBRunner(object):
         self.report_chan_name = "kloudbuster_report"
 
     def setup_redis(self, redis_server, redis_server_port=6379, timeout=120):
-        LOG.info("Setting up redis connection pool...")
+        LOG.info("Setting up the redis connections...")
         connection_pool = redis.ConnectionPool(
             host=redis_server, port=redis_server_port, db=0)
 
-        LOG.info("Setting up the redis connections...")
         self.redis_obj = redis.StrictRedis(connection_pool=connection_pool,
                                            socket_connect_timeout=1,
                                            socket_timeout=1)
