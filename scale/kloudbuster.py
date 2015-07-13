@@ -120,7 +120,12 @@ class Kloud(object):
 
     def delete_resources(self):
         # Deleting flavors created by KloudBuster
-        nova_client = self.tenant_list[0].user_list[0].nova_client
+        try:
+            nova_client = self.tenant_list[0].user_list[0].nova_client
+        except Exception:
+            # NOVA Client is not yet initialized, so skip cleaning up...
+            return
+
         flavor_manager = base_compute.Flavor(nova_client)
         if self.testing_side:
             flavor_manager.delete_flavor('kb.client')
@@ -370,7 +375,8 @@ class KloudBuster(object):
         total_vm = self.get_tenant_vm_count(self.server_cfg)
 
         server_quota = {}
-        server_quota['network'] = self.server_cfg['networks_per_router']
+        server_quota['network'] = self.server_cfg['routers_per_user'] *\
+            self.server_cfg['networks_per_router']
         server_quota['subnet'] = server_quota['network']
         server_quota['router'] = self.server_cfg['routers_per_user']
         if (self.server_cfg['use_floatingip']):

@@ -234,7 +234,7 @@ class Router(object):
             network_instance = BaseNetwork(self)
             self.network_list.append(network_instance)
             # Create the network and subnet
-            network_name = self.user.user_name + "-N" + str(network_count)
+            network_name = self.router['router']['name'] + "-N" + str(network_count)
             network_instance.create_network_and_subnet(network_name)
             # Attach the created network to router interface
             self.attach_router_interface(network_instance)

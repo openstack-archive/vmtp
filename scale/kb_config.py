@@ -75,39 +75,7 @@ class KBConfig(object):
         self.client_cfg = None
         self.topo_cfg = None
 
-    def init_with_cli(self):
-        self.get_credentials()
-        self.get_configs()
-        self.get_topo_cfg()
-
-    def init_with_rest_api(self, **kwargs):
-        self.cred_tested = kwargs['cred_tested']
-        self.cred_testing = kwargs['cred_testing']
-        self.server_cfg = kwargs['server_cfg']
-        self.client_cfg = kwargs['client_cfg']
-        self.topo_cfg = kwargs['topo_cfg']
-
-    def get_total_vm_count(self, config):
-        return (config['number_tenants'] * config['users_per_tenant'] *
-                config['routers_per_user'] * config['networks_per_router'] *
-                config['vms_per_network'])
-
-    def get_credentials(self):
-        # Retrieve the credentials
-        self.cred_tested = credentials.Credentials(CONF.tested_rc, CONF.passwd_tested, CONF.no_env)
-        if CONF.testing_rc and CONF.testing_rc != CONF.tested_rc:
-            self.cred_testing = credentials.Credentials(CONF.testing_rc,
-                                                        CONF.passwd_testing,
-                                                        CONF.no_env)
-        else:
-            # Use the same openrc file for both cases
-            self.cred_testing = self.cred_tested
-
-    def get_configs(self):
-        if CONF.config:
-            alt_config = configure.Configuration.from_file(CONF.config).configure()
-            self.config_scale = self.config_scale.merge(alt_config)
-
+    def update_configs(self):
         # Initialize the key pair name
         if self.config_scale['public_key_file']:
             # verify the public key file exists
@@ -136,6 +104,41 @@ class KBConfig(object):
         # There is an additional VM in client kloud as a proxy node
         self.client_cfg['vms_per_network'] =\
             self.get_total_vm_count(self.server_cfg) + 1
+
+    def init_with_cli(self):
+        self.get_credentials()
+        self.get_configs()
+        self.get_topo_cfg()
+        self.update_configs()
+
+    def init_with_rest_api(self, **kwargs):
+        self.cred_tested = kwargs['cred_tested']
+        self.cred_testing = kwargs['cred_testing']
+        self.topo_cfg = kwargs['topo_cfg']
+        self.update_configs()
+
+    def get_total_vm_count(self, config):
+        return (config['number_tenants'] * config['users_per_tenant'] *
+                config['routers_per_user'] * config['networks_per_router'] *
+                config['vms_per_network'])
+
+    def get_credentials(self):
+        # Retrieve the credentials
+        self.cred_tested = credentials.Credentials(openrc_file=CONF.tested_rc,
+                                                   pwd=CONF.passwd_tested,
+                                                   no_env=CONF.no_env)
+        if CONF.testing_rc and CONF.testing_rc != CONF.tested_rc:
+            self.cred_testing = credentials.Credentials(openrc_file=CONF.testing_rc,
+                                                        pwd=CONF.passwd_testing,
+                                                        no_env=CONF.no_env)
+        else:
+            # Use the same openrc file for both cases
+            self.cred_testing = self.cred_tested
+
+    def get_configs(self):
+        if CONF.config:
+            alt_config = configure.Configuration.from_file(CONF.config).configure()
+            self.config_scale = self.config_scale.merge(alt_config)
 
     def get_topo_cfg(self):
         if CONF.topology:

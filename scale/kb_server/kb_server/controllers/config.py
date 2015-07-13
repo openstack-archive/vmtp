@@ -17,23 +17,78 @@ import sys
 kb_main_path = os.path.split(os.path.abspath(__file__))[0] + "/../../.."
 sys.path.append(kb_main_path)
 
+from credentials import Credentials
+
+from configure import Configuration
 from kb_config import KBConfig
 from pecan import expose
+from pecan import response
 
 class ConfigController(object):
 
     def __init__(self):
         self.kb_config = KBConfig()
-        self.cur_config = None
+        self.status = 'READY'
+        self.def_config = self.kb_config.config_scale
 
     @expose(generic=True)
     def default_config(self):
-        def_config = self.kb_config.config_scale
-        return str(def_config)
+        return str(self.def_config)
 
     @expose(generic=True)
-    def current_config(self):
-        return str(self.cur_config)
+    def running_config(self):
+        return str(self.kb_config.config_scale)
+
+    @running_config.when(method='POST')
+    def running_config_POST(self, args):
+        try:
+            user_config = eval(args)
+        except Exception:
+            response.status = 403
+            response.text = "Error while parsing configurations!"
+            return response.text
+
+        # Expectation:
+        # {
+        #  'credentials': {'tested_rc': '<STRING>', 'passwd_tested': '<STRING>',
+        #                  'testing_rc': '<STRING>', 'passwd_testing': '<STRING>'},
+        #  'kb_cfg': {<USER_OVERRIDED_CONFIGS>},
+        #  'topo_cfg': {<TOPOLOGY_CONFIGS>}
+        # }
+
+        # Parsing credentials from application input
+        cred_config = user_config['credentials']
+        cred_tested = Credentials(openrc_contents=cred_config['tested_rc'],
+                                  pwd=cred_config['passwd_tested'])
+        if ('testing_rc' in cred_config and cred_config['testing_rc'] != cred_config['tested_rc']):
+            cred_testing = Credentials(openrc_contents=cred_config['testing_rc'],
+                                       pwd=cred_config['passwd_testing'])
+        else:
+            # Use the same openrc file for both cases
+            cred_testing = cred_tested
+
+        # Parsing server and client configs from application input
+        # Save the public key into a temporary file
+        if 'public_key' in user_config['kb_cfg']:
+            pubkey_filename = '/tmp/kb_public_key.pub'
+            f = open(pubkey_filename, 'w')
+            f.write(user_config['kb_cfg']['public_key_file'])
+            f.close()
+            self.kb_config.config_scale['public_key_file'] = pubkey_filename
+
+        alt_config = Configuration.from_string(user_config['kb_cfg']).configure()
+        self.kb_config.config_scale = self.kb_config.config_scale.merge(alt_config)
+
+        # Parsing topology configs from application input
+        if 'topo_cfg' in user_config:
+            topo_cfg = Configuration.from_string(user_config['topo_cfg']).configure()
+        else:
+            topo_cfg = None
+
+        self.kb_config.init_with_rest_api(cred_tested=cred_tested,
+                                          cred_testing=cred_testing,
+                                          topo_cfg=topo_cfg)
+        return str(self.kb_config.config_scale)
 
     @expose(generic=True)
     def status(self):

@@ -46,46 +46,53 @@ class Credentials(object):
         dct['version'] = 2
         return dct
 
-    #
+    def _init_with_openrc_(self, openrc_contents):
+        export_re = re.compile('export OS_([A-Z_]*)="?(.*)')
+        for line in openrc_contents:
+            line = line.strip()
+            mstr = export_re.match(line)
+            if mstr:
+                # get rif of posible trailing double quote
+                # the first one was removed by the re
+                name = mstr.group(1)
+                value = mstr.group(2)
+                if value.endswith('"'):
+                    value = value[:-1]
+                # get rid of password assignment
+                # echo "Please enter your OpenStack Password: "
+                # read -sr OS_PASSWORD_INPUT
+                # export OS_PASSWORD=$OS_PASSWORD_INPUT
+                if value.startswith('$'):
+                    continue
+                # now match against wanted variable names
+                if name == 'USERNAME':
+                    self.rc_username = value
+                elif name == 'AUTH_URL':
+                    self.rc_auth_url = value
+                elif name == 'TENANT_NAME':
+                    self.rc_tenant_name = value
+
     # Read a openrc file and take care of the password
     # The 2 args are passed from the command line and can be None
-    #
-    def __init__(self, openrc_file, pwd, no_env):
+    def __init__(self, openrc_file=None, openrc_contents=None, pwd=None, no_env=False):
         self.rc_password = None
         self.rc_username = None
         self.rc_tenant_name = None
         self.rc_auth_url = None
+        self.openrc_contents = openrc_contents
         success = True
 
         if openrc_file:
             if os.path.exists(openrc_file):
-                export_re = re.compile('export OS_([A-Z_]*)="?(.*)')
-                for line in open(openrc_file):
-                    line = line.strip()
-                    mstr = export_re.match(line)
-                    if mstr:
-                        # get rif of posible trailing double quote
-                        # the first one was removed by the re
-                        name = mstr.group(1)
-                        value = mstr.group(2)
-                        if value.endswith('"'):
-                            value = value[:-1]
-                        # get rid of password assignment
-                        # echo "Please enter your OpenStack Password: "
-                        # read -sr OS_PASSWORD_INPUT
-                        # export OS_PASSWORD=$OS_PASSWORD_INPUT
-                        if value.startswith('$'):
-                            continue
-                        # now match against wanted variable names
-                        if name == 'USERNAME':
-                            self.rc_username = value
-                        elif name == 'AUTH_URL':
-                            self.rc_auth_url = value
-                        elif name == 'TENANT_NAME':
-                            self.rc_tenant_name = value
+                self.openrc_contents = open(openrc_file).read()
+                self._init_with_openrc_(self.openrc_contents)
             else:
                 LOG.error("rc file does not exist %s" % openrc_file)
                 success = False
+                return
+
+        if self.openrc_contents:
+            self._init_with_openrc_(self.openrc_contents)
         elif not no_env:
             # no openrc file passed - we assume the variables have been
             # sourced by the calling shell
