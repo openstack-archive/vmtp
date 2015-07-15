@@ -48,11 +48,11 @@ class Credentials(object):
 
     def _init_with_openrc_(self, openrc_contents):
         export_re = re.compile('export OS_([A-Z_]*)="?(.*)')
-        for line in openrc_contents:
+        for line in openrc_contents.splitlines():
             line = line.strip()
             mstr = export_re.match(line)
             if mstr:
-                # get rif of posible trailing double quote
+                # get rid of posible trailing double quote
                 # the first one was removed by the re
                 name = mstr.group(1)
                 value = mstr.group(2)
@@ -85,7 +85,6 @@ class Credentials(object):
         if openrc_file:
             if os.path.exists(openrc_file):
                 self.openrc_contents = open(openrc_file).read()
-                self._init_with_openrc_(self.openrc_contents)
             else:
                 LOG.error("rc file does not exist %s" % openrc_file)
                 success = False
