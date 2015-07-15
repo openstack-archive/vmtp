@@ -35,7 +35,8 @@ class Compute(object):
         except novaclient.exceptions.NotFound:
             return None
 
-    def upload_image_via_url(self, glance_client, final_image_name, image_url, retry_count=60):
+    def upload_image_via_url(self, creds, glance_client,
+                             final_image_name, image_url, retry_count=60):
         '''
         Directly uploads image to Nova via URL if image is not present
         '''
@@ -78,15 +79,18 @@ class Compute(object):
         #     time.sleep(5)
 
         # upload in glance
-        glance_cmd = "glance image-create --name=\"" + str(final_image_name) + \
-            "\" --disk-format=qcow2" + " --container-format=bare " + \
-            " --is-public True --copy-from " + image_url
+        cred = "--os-username %s --os-password %s --os-tenant-name %s --os-auth-url %s" %\
+            (creds['username'], creds['password'], creds['tenant_name'], creds['auth_url'])
+        glance_cmd = "glance %s image-create --name=\"%s\" --disk-format=qcow2 "\
+            "--container-format=bare --is-public True --copy-from %s" %\
+            (cred, str(final_image_name), image_url)
         if self.config.debug:
             print "Will update image to glance via CLI: %s" % (glance_cmd)
         subprocess.check_output(glance_cmd, shell=True)
 
         # check for the image in glance
-        glance_check_cmd = "glance image-list --name \"" + str(final_image_name) + "\""
+        glance_check_cmd = "glance %s image-list --name \"%s\"" %\
+            (cred, str(final_image_name))
         for retry_attempt in range(retry_count):
             result = subprocess.check_output(glance_check_cmd, shell=True)
             if "active" in result:

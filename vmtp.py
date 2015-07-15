@@ -207,7 +207,7 @@ class VmtpTest(object):
 
             self.image_instance = self.comp.find_image(config.image_name)
             if self.image_instance is None:
-                if config.vm_image_url is not None:
+                if config.vm_image_url != "":
                     print '%s: image for VM not found, uploading it ...' \
                         % (config.image_name)
                     keystone = keystoneclient.Client(**creds)
@@ -216,7 +216,7 @@ class VmtpTest(object):
                     glance_client = glanceclient.Client(
                         glance_endpoint, token=keystone.auth_token)
                     self.comp.upload_image_via_url(
-                        glance_client, config.image_name, config.vm_image_url)
+                        creds, glance_client, config.image_name, config.vm_image_url)
                     self.image_instance = self.comp.find_image(config.image_name)
                 else:
                     # Exit the pogram
