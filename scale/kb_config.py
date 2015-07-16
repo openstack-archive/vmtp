@@ -74,6 +74,7 @@ class KBConfig(object):
         self.server_cfg = None
         self.client_cfg = None
         self.topo_cfg = None
+        self.tenants_list = None
 
     def update_configs(self):
         # Initialize the key pair name
@@ -109,12 +110,14 @@ class KBConfig(object):
         self.get_credentials()
         self.get_configs()
         self.get_topo_cfg()
+        self.get_tenants_list()
         self.update_configs()
 
     def init_with_rest_api(self, **kwargs):
         self.cred_tested = kwargs['cred_tested']
         self.cred_testing = kwargs['cred_testing']
         self.topo_cfg = kwargs['topo_cfg']
+        self.tenants_list = kwargs['tenants_list']
         self.update_configs()
 
     def get_total_vm_count(self, config):
@@ -125,11 +128,11 @@ class KBConfig(object):
     def get_credentials(self):
         # Retrieve the credentials
         self.cred_tested = credentials.Credentials(openrc_file=CONF.tested_rc,
-                                                   pwd=CONF.passwd_tested,
+                                                   pwd=CONF.tested_passwd,
                                                    no_env=CONF.no_env)
         if CONF.testing_rc and CONF.testing_rc != CONF.tested_rc:
             self.cred_testing = credentials.Credentials(openrc_file=CONF.testing_rc,
-                                                        pwd=CONF.passwd_testing,
+                                                        pwd=CONF.testing_passwd,
                                                         no_env=CONF.no_env)
         else:
             # Use the same openrc file for both cases
@@ -143,3 +146,9 @@ class KBConfig(object):
     def get_topo_cfg(self):
         if CONF.topology:
             self.topo_cfg = configure.Configuration.from_file(CONF.topology).configure()
+
+    def get_tenants_list(self):
+        if CONF.tenants_list:
+            self.tenants_list = configure.Configuration.from_file(CONF.tenants_list).configure()
+            self.config_scale['number_tenants'] = self.tenants_list['number_tenants']
+            self.config_scale['users_per_tenant'] = self.tenants_list['users_per_tenant']

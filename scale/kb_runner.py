@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from distutils.version import StrictVersion
 import time
 
 import log as logging
@@ -39,13 +40,15 @@ class KBRunner(object):
     Control the testing VMs on the testing cloud
     """
 
-    def __init__(self, client_list, config, single_cloud=True):
-        self.client_dict = dict(zip([x.vm_name.lower() for x in client_list], client_list))
+    def __init__(self, client_list, config, required_agent_version, single_cloud=True):
+        self.client_dict = dict(zip([x.vm_name for x in client_list], client_list))
         self.config = config
         self.single_cloud = single_cloud
         self.result = {}
         self.host_stats = {}
         self.tool_result = {}
+        self.required_agent_version = required_agent_version
+        self.agent_version = None
 
         # Redis
         self.redis_obj = None
@@ -129,6 +132,7 @@ class KBRunner(object):
                         clist[vm_name].up_flag = True
                         clist.pop(vm_name)
                         cnt_succ = cnt_succ + 1
+                        self.agent_version = payload['data']
                 elif cmd == 'REPORT':
                     sample_count = sample_count + 1
                     # Parse the results from HTTP Tools
@@ -212,7 +216,11 @@ class KBRunner(object):
         try:
             LOG.info("Waiting for agents on VMs to come up...")
             self.wait_for_vm_up()
-
+            if (StrictVersion(self.agent_version) < StrictVersion(self.required_agent_version)):
+                LOG.error("The VM image you are running is too old (%s), the minimum version "
+                          "required is %s. Please build the image from latest repository." %
+                          (self.agent_version, self.required_agent_version))
+                return
             if self.single_cloud:
                 LOG.info("Setting up static route to reach tested cloud...")
                 self.setup_static_route()
@@ -224,7 +232,7 @@ class KBRunner(object):
                 print "Press enter to start running benchmarking tools..."
                 raw_input()
 
-            LOG.info("Starting HTTP Benchmarking...")
+            LOG.info("Running HTTP Benchmarking...")
             self.run_http_test()
 
             # Call the method in corresponding tools to consolidate results

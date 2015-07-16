@@ -158,7 +158,7 @@ class BaseNetwork(object):
         """
         Create a network with 1 subnet inside it
         """
-        subnet_name = "kloudbuster_subnet_" + network_name
+        subnet_name = "KB_subnet_" + network_name
         body = {
             'network': {
                 'name': network_name,

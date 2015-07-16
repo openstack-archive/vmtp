@@ -48,6 +48,7 @@ class ConfigController(object):
             #                  'testing_rc': '<STRING>', 'passwd_testing': '<STRING>'},
             #  'kb_cfg': {<USER_OVERRIDED_CONFIGS>},
             #  'topo_cfg': {<TOPOLOGY_CONFIGS>}
+            #  'tenants_cfg': {<TENANT_AND_USER_LISTS_FOR_REUSING>}
             # }
             user_config = eval(args)
 
@@ -80,6 +81,12 @@ class ConfigController(object):
                 topo_cfg = Configuration.from_string(user_config['topo_cfg']).configure()
             else:
                 topo_cfg = None
+
+            # Parsing tenants configs from application input
+            if 'tenants_list' in user_config:
+                tenants_list = Configuration.from_string(user_config['tenants_list']).configure()
+            else:
+                tenants_list = None
         except Exception as e:
             response.status = 403
             response.text = "Error while parsing configurations: %s" % e.message
@@ -87,7 +94,8 @@ class ConfigController(object):
 
         self.kb_config.init_with_rest_api(cred_tested=cred_tested,
                                           cred_testing=cred_testing,
-                                          topo_cfg=topo_cfg)
+                                          topo_cfg=topo_cfg,
+                                          tenants_list=tenants_list)
         return str(self.kb_config.config_scale)
 
     @expose(generic=True)
