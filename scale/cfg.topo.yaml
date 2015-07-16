@@ -1,4 +1,5 @@
 # Compute host topology file for running KloudBuster
+# Usage: Pass to KloudBuster using -t
 
 # The compute host name must be exactly the same as shown from NOVA:
 # i.e. "nova hypervisor-list"

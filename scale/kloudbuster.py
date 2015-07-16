@@ -37,6 +37,9 @@ import sshutils
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
+__version__ = '1.0.0'
+KB_IMAGE_MAJOR_VERSION = 1
+
 class KBVMCreationException(Exception):
     pass
 
@@ -62,6 +65,10 @@ def check_and_upload_images(cred, cred_testing, server_img_name, client_img_name
             if img['name'] == img_name_dict[kloud]:
                 img_found = True
                 break
+        if img.visibility != 'public' and CONF.tenants_list:
+            LOG.error("Image must be public when running in reusing mode.")
+            sys.exit(1)
+
         if not img_found:
             # Trying upload images
             LOG.info("Image is not found in %s, trying to upload..." % (kloud))
@@ -72,17 +79,19 @@ def check_and_upload_images(cred, cred_testing, server_img_name, client_img_name
             with open('dib/kloudbuster.qcow2') as fimage:
                 image = glance_client.images.create(name=img_name_dict[kloud],
                                                     disk_format="qcow2",
-                                                    container_format="bare")
+                                                    container_format="bare",
+                                                    visibility='public')
                 glance_client.images.upload(image['id'], fimage)
 
     return True
 
 class Kloud(object):
-    def __init__(self, scale_cfg, admin_creds, testing_side=False):
+    def __init__(self, scale_cfg, admin_creds, reusing_tenants, testing_side=False):
         self.cred = admin_creds
         self.tenant_list = []
         self.testing_side = testing_side
         self.scale_cfg = scale_cfg
+        self.reusing_tenants = reusing_tenants
         self.keystone, self.auth_url = create_keystone_client(self.cred)
         if testing_side:
             self.prefix = 'KBc'
@@ -102,21 +111,32 @@ class Kloud(object):
         LOG.info('%s Availability Zone: %s' % (self.name, self.placement_az))
 
     def create_resources(self, tenant_quota):
-        for tenant_count in xrange(self.scale_cfg['number_tenants']):
-            tenant_name = self.prefix + "-T" + str(tenant_count)
-            new_tenant = tenant.Tenant(tenant_name, self, tenant_quota)
-            self.tenant_list.append(new_tenant)
-            new_tenant.create_resources()
-
-        # Create flavors for servers, clients, and kb-proxy nodes
-        nova_client = self.tenant_list[0].user_list[0].nova_client
-        flavor_manager = base_compute.Flavor(nova_client)
-        flavor_dict = self.scale_cfg.flavor
-        if self.testing_side:
-            flavor_manager.create_flavor('kb.client', override=True, **flavor_dict)
-            flavor_manager.create_flavor('kb.proxy', override=True, ram=2048, vcpus=1, disk=20)
+        if self.reusing_tenants:
+            for tenant_info in self.reusing_tenants:
+                tenant_name = tenant_info['name']
+                user_list = tenant_info['user']
+                tenant_instance = tenant.Tenant(tenant_name, self, tenant_quota,
+                                                reusing_users=user_list)
+                self.tenant_list.append(tenant_instance)
         else:
-            flavor_manager.create_flavor('kb.server', override=True, **flavor_dict)
+            for tenant_count in xrange(self.scale_cfg['number_tenants']):
+                tenant_name = self.prefix + "-T" + str(tenant_count)
+                tenant_instance = tenant.Tenant(tenant_name, self, tenant_quota)
+                self.tenant_list.append(tenant_instance)
+
+        for tenant_instance in self.tenant_list:
+            tenant_instance.create_resources()
+
+        if not self.reusing_tenants:
+            # Create flavors for servers, clients, and kb-proxy nodes
+            nova_client = self.tenant_list[0].user_list[0].nova_client
+            flavor_manager = base_compute.Flavor(nova_client)
+            flavor_dict = self.scale_cfg.flavor
+            if self.testing_side:
+                flavor_manager.create_flavor('kb.client', override=True, **flavor_dict)
+                flavor_manager.create_flavor('kb.proxy', override=True, ram=2048, vcpus=1, disk=20)
+            else:
+                flavor_manager.create_flavor('kb.server', override=True, **flavor_dict)
 
     def delete_resources(self):
         # Deleting flavors created by KloudBuster
@@ -126,12 +146,13 @@ class Kloud(object):
             # NOVA Client is not yet initialized, so skip cleaning up...
             return
 
-        flavor_manager = base_compute.Flavor(nova_client)
-        if self.testing_side:
-            flavor_manager.delete_flavor('kb.client')
-            flavor_manager.delete_flavor('kb.proxy')
-        else:
-            flavor_manager.delete_flavor('kb.server')
+        if not self.reusing_tenants:
+            flavor_manager = base_compute.Flavor(nova_client)
+            if self.testing_side:
+                flavor_manager.delete_flavor('kb.client')
+                flavor_manager.delete_flavor('kb.proxy')
+            else:
+                flavor_manager.delete_flavor('kb.server')
 
         for tnt in self.tenant_list:
             tnt.delete_resources()
@@ -205,22 +226,30 @@ class KloudBuster(object):
     4. Networks per router
     5. Instances per network
     """
-    def __init__(self, server_cred, client_cred, server_cfg, client_cfg, topology):
+    def __init__(self, server_cred, client_cred, server_cfg, client_cfg, topology, tenants_list):
         # List of tenant objects to keep track of all tenants
-        self.tenant_list = []
-        self.tenant = None
-        self.tenant_list_testing = []
-        self.tenant_testing = None
         self.server_cfg = server_cfg
         self.client_cfg = client_cfg
-        self.topology = topology
+        if topology and tenants_list:
+            self.topology = None
+            LOG.warn("REUSING MODE: Topology configs will be ignored.")
+        else:
+            self.topology = topology
+        if tenants_list:
+            self.tenants_list = tenants_list
+            LOG.warn("REUSING MODE: The quota will not adjust automatically.")
+            LOG.warn("REUSING MODE: The flavor configs will be ignored, and m1.small is used.")
+        else:
+            self.tenants_list = {'server': None, 'client': None}
         # TODO(check on same auth_url instead)
         if server_cred == client_cred:
             self.single_cloud = True
         else:
             self.single_cloud = False
-        self.kloud = Kloud(server_cfg, server_cred)
-        self.testing_kloud = Kloud(client_cfg, client_cred, testing_side=True)
+        self.kloud = Kloud(server_cfg, server_cred, self.tenants_list['server'])
+        self.testing_kloud = Kloud(client_cfg, client_cred,
+                                   self.tenants_list['client'],
+                                   testing_side=True)
         self.kb_proxy = None
         self.final_result = None
         self.server_vm_create_thread = None
@@ -256,8 +285,8 @@ class KloudBuster(object):
             KBScheduler.setup_vm_placement(role, svr_list, self.topology,
                                            self.kloud.placement_az, "Round-robin")
             for ins in svr_list:
-                ins.user_data['role'] = "Server"
-                ins.boot_info['flavor_type'] = "kb.server"
+                ins.user_data['role'] = 'Server'
+                ins.boot_info['flavor_type'] = 'm1.small' if self.tenants_list else 'kb.server'
                 ins.boot_info['user_data'] = str(ins.user_data)
         elif role == "Client":
             client_list = self.testing_kloud.get_all_instances()
@@ -266,14 +295,15 @@ class KloudBuster(object):
             KBScheduler.setup_vm_placement(role, client_list, self.topology,
                                            self.testing_kloud.placement_az, "Round-robin")
             for idx, ins in enumerate(client_list):
-                ins.user_data['role'] = "Client"
+                ins.user_data['role'] = 'Client'
+                ins.user_data['vm_name'] = ins.vm_name
                 ins.user_data['redis_server'] = self.kb_proxy.fixed_ip
                 ins.user_data['redis_server_port'] = 6379
                 ins.user_data['target_subnet_ip'] = svr_list[idx].subnet_ip
                 ins.user_data['target_shared_interface_ip'] = svr_list[idx].shared_interface_ip
                 ins.user_data['http_tool'] = ins.config['http_tool']
                 ins.user_data['http_tool_configs'] = ins.config['http_tool_configs']
-                ins.boot_info['flavor_type'] = "kb.client"
+                ins.boot_info['flavor_type'] = 'm1.small' if self.tenants_list else 'kb.client'
                 ins.boot_info['user_data'] = str(ins.user_data)
 
     def run(self):
@@ -297,16 +327,18 @@ class KloudBuster(object):
             self.kb_proxy = client_list[-1]
             client_list.pop()
 
-            self.kb_proxy.vm_name = "KB-PROXY"
+            self.kb_proxy.vm_name = 'KB-PROXY'
             self.kb_proxy.user_data['role'] = 'KB-PROXY'
-            self.kb_proxy.boot_info['flavor_type'] = 'kb.proxy'
+            self.kb_proxy.boot_info['flavor_type'] = 'm1.small' if self.tenants_list else 'kb.proxy'
             if self.testing_kloud.placement_az:
                 self.kb_proxy.boot_info['avail_zone'] = "%s:%s" %\
                     (self.testing_kloud.placement_az, self.topology.clients_rack.split()[0])
             self.kb_proxy.boot_info['user_data'] = str(self.kb_proxy.user_data)
             self.testing_kloud.create_vm(self.kb_proxy)
 
-            kbrunner = KBRunner(client_list, self.client_cfg, self.single_cloud)
+            kbrunner = KBRunner(client_list, self.client_cfg,
+                                KB_IMAGE_MAJOR_VERSION,
+                                self.single_cloud)
             kbrunner.setup_redis(self.kb_proxy.fip_ip)
 
             if self.single_cloud:
@@ -499,18 +531,24 @@ if __name__ == '__main__':
                    short="t",
                    default=None,
                    help="Topology files for compute hosts"),
+        cfg.StrOpt("tenants-list",
+                   short="l",
+                   default=None,
+                   help="Existing tenant and user lists for reusing"),
         cfg.StrOpt("tested-rc",
                    default=None,
                    help="Tested cloud openrc credentials file"),
         cfg.StrOpt("testing-rc",
                    default=None,
                    help="Testing cloud openrc credentials file"),
-        cfg.StrOpt("passwd_tested",
+        cfg.StrOpt("tested-passwd",
                    default=None,
+                   secret=True,
                    help="Tested cloud password"),
-        cfg.StrOpt("passwd_testing",
+        cfg.StrOpt("testing-passwd",
                    default=None,
-                   help="OpenStack password testing cloud"),
+                   secret=True,
+                   help="Testing cloud password"),
         cfg.StrOpt("json",
                    default=None,
                    help='store results in JSON format file'),
@@ -540,7 +578,7 @@ if __name__ == '__main__':
     kloudbuster = KloudBuster(
         kb_config.cred_tested, kb_config.cred_testing,
         kb_config.server_cfg, kb_config.client_cfg,
-        kb_config.topo_cfg)
+        kb_config.topo_cfg, kb_config.tenants_list)
     kloudbuster.run()
 
     if CONF.json:

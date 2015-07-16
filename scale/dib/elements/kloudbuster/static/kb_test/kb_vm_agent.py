@@ -13,13 +13,22 @@
 #    under the License.
 #
 
-import socket
 import subprocess
 import sys
 import threading
 import time
 
 import redis
+
+# Define the version of the KloudBuster agent.
+#
+# When VM is up running, the agent will send the READY message to the
+# KloudBuster main program, along with its version. The main program
+# will check the version to see whether the image meets the minimum
+# requirements to run, and stopped with an error if not.
+#
+# Note: All majors are compatible regardless of minor.
+__version__ = '1.0'
 
 class KB_Instance(object):
 
@@ -96,10 +105,7 @@ class KB_VM_Agent(object):
         self.pubsub = self.redis_obj.pubsub(ignore_subscribe_messages=True)
         self.hello_thread = None
         self.stop_hello = threading.Event()
-        # Assumption:
-        # Here we assume the vm_name is the same as the host name (lower case),
-        # which is true if the VM is spawned by Kloud Buster.
-        self.vm_name = socket.gethostname().lower()
+        self.vm_name = user_data['vm_name']
         self.orches_chan_name = "kloudbuster_orches"
         self.report_chan_name = "kloudbuster_report"
         self.last_cmd = None
@@ -125,7 +131,7 @@ class KB_VM_Agent(object):
     def send_hello(self):
         # Sending "hello" message to master node every 2 seconds
         while not self.stop_hello.is_set():
-            self.report('READY', None, None)
+            self.report('READY', None, __version__)
             time.sleep(2)
 
     def exec_command(self, cmd):

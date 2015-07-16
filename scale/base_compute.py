@@ -79,7 +79,10 @@ class BaseCompute(object):
             instance = self.novaclient.servers.get(instance.id)
             if instance.status == 'ACTIVE':
                 self.instance = instance
-                self.host = instance.__dict__['OS-EXT-SRV-ATTR:hypervisor_hostname']
+                if 'OS-EXT-SRV-ATTR:hypervisor_hostname' in instance.__dict__:
+                    self.host = instance.__dict__['OS-EXT-SRV-ATTR:hypervisor_hostname']
+                else:
+                    self.host = "Unknown"
                 return instance
             if instance.status == 'ERROR':
                 LOG.error('Instance creation error:' + instance.fault['message'])

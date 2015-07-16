@@ -26,7 +26,7 @@ class Tenant(object):
     2. Uses the User class to perform all user resource creation and deletion
     """
 
-    def __init__(self, tenant_name, kloud, tenant_quota):
+    def __init__(self, tenant_name, kloud, tenant_quota, reusing_users=None):
         """
         Holds the tenant name
         tenant id and keystone client
@@ -39,32 +39,42 @@ class Tenant(object):
         self.tenant_object = self._get_tenant()
         self.tenant_id = self.tenant_object.id
         self.tenant_quota = tenant_quota
+        self.reusing_users = reusing_users
         # Contains a list of user instance objects
         self.user_list = []
 
     def _get_tenant(self):
+        if self.kloud.reusing_tenants:
+            LOG.info("Using tenant: " + self.tenant_name)
+            tenant_list = self.kloud.keystone.tenants.list()
+            for tenant in tenant_list:
+                if tenant.name == self.tenant_name:
+                    return tenant
+            raise Exception("Tenant not found")
+
         '''
         Create or reuse a tenant object of a given name
         '''
         try:
             LOG.info("Creating tenant: " + self.tenant_name)
-            self.tenant_object = \
+            tenant_object = \
                 self.kloud.keystone.tenants.create(tenant_name=self.tenant_name,
                                                    description="KloudBuster tenant",
                                                    enabled=True)
+            return tenant_object
         except keystone_exception.Conflict as exc:
             # ost likely the entry already exists:
             # Conflict: Conflict occurred attempting to store project - Duplicate Entry (HTTP 409)
             if exc.http_status != 409:
                 raise exc
             LOG.info("Tenant %s already present, reusing it" % self.tenant_name)
+            # It is a hassle to find a tenant by name as the only way seems to retrieve
+            # the list of all tenants which can be very large
+            tenant_list = self.kloud.keystone.tenants.list()
+            for tenant in tenant_list:
+                if tenant.name == self.tenant_name:
+                    return tenant
 
-        # It is a hassle to find a tenant by name as the only way seems to retrieve
-        # the list of all tenants which can be very large
-        tenant_list = self.kloud.keystone.tenants.list()
-        for tenant in tenant_list:
-            if tenant.name == self.tenant_name:
-                return tenant
         # Should never come here
         raise Exception("Tenant not found")
 
@@ -73,16 +83,22 @@ class Tenant(object):
         Creates all the entities associated with
         a user offloads tasks to user class
         """
+        if self.reusing_users:
+            for user_info in self.reusing_users:
+                user_name = user_info['username']
+                password = user_info['password']
+                user_instance = users.User(user_name, password, self, None)
+                self.user_list.append(user_instance)
+        else:
+            # Loop over the required number of users and create resources
+            for user_count in xrange(self.kloud.scale_cfg['users_per_tenant']):
+                user_name = self.tenant_name + "-U" + str(user_count)
+                user_instance = users.User(user_name, user_name, self,
+                                           self.kloud.scale_cfg['keystone_admin_role'])
+                # Global list with all user instances
+                self.user_list.append(user_instance)
 
-        # Loop over the required number of users and create resources
-        for user_count in xrange(self.kloud.scale_cfg['users_per_tenant']):
-            user_name = self.tenant_name + "-U" + str(user_count)
-            user_instance = users.User(user_name,
-                                       self,
-                                       self.kloud.scale_cfg['keystone_admin_role'])
-            # Global list with all user instances
-            self.user_list.append(user_instance)
-
+        for user_instance in self.user_list:
             # Now create the user resources like routers which inturn trigger network and
             # vm creation
             user_instance.create_resources()
@@ -110,5 +126,6 @@ class Tenant(object):
         for user in self.user_list:
             user.delete_resources()
 
-        # Delete the tenant (self)
-        self.kloud.keystone.tenants.delete(self.tenant_id)
+        if not self.reusing_users:
+            # Delete the tenant (self)
+            self.kloud.keystone.tenants.delete(self.tenant_id)

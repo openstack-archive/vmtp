@@ -1,0 +1,28 @@
+# KloudBuster tenant and users files
+# Usage: Pass to KloudBuster using "-l"
+#
+# This file contains the a list of tenants and users that will be reused by
+# KloudBuster instead of creating them. This is useful when running
+# KloudBuster on clouds without admin permissions.
+#
+# Settings in this file has higher priority than user configs. It determines
+# the final count of tenants and useres that KloudBuster will use.
+
+
+# Sections for listing the tenant and user lists for server cloud.
+# Note: For now we only support 1 user per tenant
+server:
+    - name: ts_1
+      user:
+          - username: tsu_1
+            password: tsu_1
+    - name: ts_2
+      user:
+          - username: tsu_2
+            password: tsu_2
+
+client:
+    - name: tc_1
+      user:
+          - username: tcu_1
+            password: tcu_1

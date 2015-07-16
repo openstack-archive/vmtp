@@ -29,7 +29,7 @@ class User(object):
     Creates and deletes N routers based on num of routers
     """
 
-    def __init__(self, user_name, tenant, user_role):
+    def __init__(self, user_name, password, tenant, user_role):
         """
         Store all resources
         1. Keystone client object
@@ -38,14 +38,14 @@ class User(object):
         4. router list
         """
         self.user_name = user_name
+        self.password = password
         self.tenant = tenant
-        self.user_id = None
         self.router_list = []
         # Store the nova, neutron and cinder client
         self.nova_client = None
         self.neutron_client = None
         self.cinder_client = None
-        self.admin_user = self._get_user()
+        self.user = self._get_user()
         # Each user is associated to 1 key pair at most
         self.key_pair = None
         self.key_name = None
@@ -53,25 +53,35 @@ class User(object):
         # Create the user within the given tenant associate
         # admin role with user. We need admin role for user
         # since we perform VM placement in future
-
-        current_role = None
-        for role in self.tenant.kloud.keystone.roles.list():
-            if role.name == user_role:
-                current_role = role
-                break
-        self.tenant.kloud.keystone.roles.add_user_role(self.admin_user,
-                                                       current_role,
-                                                       tenant.tenant_id)
-        self.user_id = self.admin_user.id
+        #
+        # If running on top of existing tenants/users, skip
+        # the step for admin role association.
+        if not self.tenant.kloud.reusing_tenants:
+            current_role = None
+            for role in self.tenant.kloud.keystone.roles.list():
+                if role.name == user_role:
+                    current_role = role
+                    break
+            self.tenant.kloud.keystone.roles.add_user_role(self.user,
+                                                           current_role,
+                                                           tenant.tenant_id)
 
     def _create_user(self):
         LOG.info("Creating user: " + self.user_name)
         return self.tenant.kloud.keystone.users.create(name=self.user_name,
-                                                       password=self.user_name,
+                                                       password=self.password,
                                                        email="kloudbuster@localhost",
                                                        tenant_id=self.tenant.tenant_id)
 
     def _get_user(self):
+        if self.tenant.reusing_users:
+            LOG.info("Using user: " + self.user_name)
+            users_list = self.tenant.kloud.keystone.users.list()
+            for user in users_list:
+                if user.name == self.user_name:
+                    return user
+            raise Exception('Cannot find stale user:' + self.user_name)
+
         '''
         Create a new user or reuse if it already exists (on a different tenant)
         delete the user and create a new one
@@ -112,8 +122,9 @@ class User(object):
         for router in self.router_list:
             router.delete_router()
 
-        # Finally delete the user
-        self.tenant.kloud.keystone.users.delete(self.user_id)
+        if not self.tenant.reusing_users:
+            # Finally delete the user
+            self.tenant.kloud.keystone.users.delete(self.user.id)
 
     def update_tenant_quota(self, tenant_quota):
         nova_quota = base_compute.NovaQuota(self.nova_client, self.tenant.tenant_id)
@@ -152,7 +163,8 @@ class User(object):
         self.nova_client = Client(**creden_nova)
         self.cinder_client = cinderclient.Client(**creden_nova)
 
-        self.update_tenant_quota(self.tenant.tenant_quota)
+        if not self.tenant.kloud.reusing_tenants:
+            self.update_tenant_quota(self.tenant.tenant_quota)
 
         config_scale = self.tenant.kloud.scale_cfg
 
