@@ -88,8 +88,7 @@ class KB_Instance(object):
                       report_interval):
         if not rate_limit:
             rate_limit = 65535
-        cmd = '%s -t%d -c%d -R%d -d%ds -p%ds --timeout %ds --latency '\
-              '--s /kb_test/kb_wrk2.lua %s' % \
+        cmd = '%s -t%d -c%d -R%d -d%ds -p%ds --timeout %ds -j %s' % \
               (dest_path, threads, connections, rate_limit, duration,
                report_interval, timeout, target_url)
         return cmd
@@ -145,6 +144,7 @@ class KB_VM_Agent(object):
 
     def exec_command_report(self, cmd):
         # Execute the command, reporting periodically, and returns the outputs
+        cmd_res_dict = None
         cmds = ['bash', '-c']
         cmds.append(cmd)
         p_output = ''
@@ -152,11 +152,18 @@ class KB_VM_Agent(object):
 
         lines_iterator = iter(p.stdout.readline, b"")
         for line in lines_iterator:
-            p_output += line
-            if line.strip() == "=== REPORT END ===":
-                cmd_res_dict = dict(zip(("status", "stdout", "stderr"), (0, p_output, '')))
+            # One exception, if this is the very last report, we will send it
+            # through "DONE" command, not "REPORT". So what's happening here
+            # is to determine whether this is the last report.
+            if cmd_res_dict:
                 self.report('REPORT', 'http', cmd_res_dict)
-                p_output = ''
+                cmd_res_dict = None
+                p_output = line
+            else:
+                p_output += line
+                if line.strip() == "}":
+                    cmd_res_dict = dict(zip(("status", "stdout", "stderr"), (0, p_output, '')))
+                    continue
 
         stderr = p.communicate()[1]
         return (p.returncode, p_output, stderr)

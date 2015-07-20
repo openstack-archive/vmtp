@@ -13,11 +13,12 @@
 #    under the License.
 #
 
-import re
-
-import log as logging
+import json
 
 from perf_tool import PerfTool
+
+from hdrh.histogram import HdrHistogram
+import log as logging
 
 LOG = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class WrkTool(PerfTool):
         duration_sec = self.instance.config.http_tool_configs.duration
         if not rate_limit:
             rate_limit = 65535
-        cmd = '%s -t%d -c%d -R%d -d%ds --timeout %ds --latency -s kb.lua %s' % \
+        cmd = '%s -t%d -c%d -R%d -d%ds --timeout %ds -j %s' % \
             (self.dest_path, threads, connections, rate_limit,
              duration_sec, timeout, target_url)
         LOG.kbdebug("[%s] %s" % (self.instance.vm_name, cmd))
@@ -46,30 +47,31 @@ class WrkTool(PerfTool):
             return self.parse_error(stderr)
 
         # Sample Output:
-        # Running 10s test @ http://192.168.1.1/index.html
-        #   8 threads and 5000 connections
-        #   Thread Stats   Avg      Stdev     Max   +/- Stdev
-        #     Latency   314.97ms  280.34ms 999.98ms   74.05%
-        #     Req/Sec   768.45    251.19     2.61k    74.47%
-        #   Latency Distribution
-        #      50%  281.43ms
-        #      75%  556.37ms
-        #      90%  790.04ms
-        #      99%  969.79ms
-        #   61420 requests in 10.10s, 2.79GB read
-        #   Socket errors: connect 0, read 0, write 0, timeout 10579
-        #   Non-2xx or 3xx responses: 828
-        # Requests/sec:   6080.66
-        # Transfer/sec:    282.53MB
+        # {
+        # "seq": 1,
+        # "latency": {
+        #     "min": 509440, "max": 798720,
+        #     "counters": [
+        #         8, [1990, 1, 2027, 1],
+        #         9, [1032, 1, 1058, 1, 1085, 1, 1093, 1, 1110, 1, 1111, 1,
+        #         1128, 1, 1129, 1, 1146, 1, 1147, 1, 1148, 1, 1165, 1, 1166, 1, 1169, 1,
+        #         1172, 1, 1182, 1, 1184, 1, 1187, 1, 1191, 1, 1201, 1, 1203, 1, 1206, 1,
+        #         1209, 1, 1219, 1, 1221, 1, 1223, 1, 1235, 1, 1237, 1, 1239, 1, 1242, 1,
+        #         1255, 1, 1257, 1, 1260, 1, 1276, 1, 1282, 1, 1286, 1, 1294, 1, 1308, 1,
+        #         1312, 1, 1320, 1, 1330, 1, 1334, 1, 1346, 1, 1349, 1, 1352, 1, 1364, 1,
+        #         1374, 1, 1383, 1, 1401, 1, 1427, 1, 1452, 1, 1479, 1, 1497, 1, 1523, 1,
+        #         1541, 1, 1560, 1]
+        #     ]
+        # },
+        # "errors": {"read": 1},
+        # "total_req": 58, "rps": 28.97, "rx_bps": "1.48MB"
+        # }
+
         try:
-            total_req_str = r'(\d+)\srequests\sin'
-            http_total_req = int(re.search(total_req_str, stdout).group(1))
-
-            re_str = r'Requests/sec:\s+(\d+\.\d+)'
-            http_rps = float(re.search(re_str, stdout).group(1))
-
-            re_str = r'Transfer/sec:\s+(\d+\.\d+.B)'
-            http_tp_kbytes = re.search(re_str, stdout).group(1)
+            result = json.loads(stdout)
+            http_total_req = int(result['total_req'])
+            http_rps = float(result['rps'])
+            http_tp_kbytes = result['rx_bps']
             # Uniform in unit MB
             ex_unit = 'KMG'.find(http_tp_kbytes[-2])
             if ex_unit == -1:
@@ -77,31 +79,24 @@ class WrkTool(PerfTool):
             val = float(http_tp_kbytes[0:-2])
             http_tp_kbytes = float(val * (1024 ** (ex_unit)))
 
-            re_str = r'Socket errors: connect (\d+), read (\d+), write (\d+), timeout (\d+)'
-            http_sock_err = re.search(re_str, stdout)
-            if http_sock_err:
-                v1 = int(http_sock_err.group(1))
-                v2 = int(http_sock_err.group(2))
-                v3 = int(http_sock_err.group(3))
-                v4 = int(http_sock_err.group(4))
-                http_sock_err = v1 + v2 + v3
-                http_sock_timeout = v4
+            if 'errors' in result:
+                errs = []
+                for key in ['connect', 'read', 'write', 'timeout', 'http_error']:
+                    if key in result['errors']:
+                        errs.append(int(result['errors'][key]))
+                    else:
+                        errs.append(0)
+                http_sock_err = errs[0] + errs[1] + errs[2]
+                http_sock_timeout = errs[3]
+                http_err = errs[4]
             else:
                 http_sock_err = 0
                 http_sock_timeout = 0
-
-            re_str = r'Non-2xx or 3xx responses: (\d+)'
-            http_err = re.search(re_str, stdout)
-            if http_err:
-                http_err = http_err.group(1)
-            else:
                 http_err = 0
 
-            re_str = r'__START_KLOUDBUSTER_DATA__\n(((.*)\n)*)__END_KLOUDBUSTER_DATA__'
-            latency_stats = re.search(re_str, stdout).group(1).split()
-            latency_stats = [[float(x.split(',')[0]), int(x.split(',')[1])] for x in latency_stats]
+            latency_stats = result['latency']
         except Exception:
-            return self.parse_error('Could not parse: %s' % (stdout))
+            return self.parse_error('Could not parse: "%s"' % (stdout))
 
         return self.parse_results(http_total_req=http_total_req,
                                   http_rps=http_rps,
@@ -113,7 +108,7 @@ class WrkTool(PerfTool):
 
     @staticmethod
     def consolidate_results(results):
-        all_res = {'tool': 'wrk'}
+        all_res = {'tool': 'wrk2'}
         total_count = len(results)
         if not total_count:
             return all_res
@@ -126,19 +121,16 @@ class WrkTool(PerfTool):
                     all_res[key] += item['results'][key]
             all_res[key] = int(all_res[key])
 
-        # for item in results:
-        #     print item['results']['latency_stats']
 
         if 'latency_stats' in results[0]['results']:
+            # for item in results:
+            #     print item['results']['latency_stats']
             all_res['latency_stats'] = []
-            first_result = results[0]['results']['latency_stats']
-            latency_counts = len(first_result)
-            for i in range(latency_counts):
-                latency_avg = 0
-                for item in results:
-                    latency_avg += item['results']['latency_stats'][i][1]
-                latency_avg = int(latency_avg / total_count)
-                latency_tup = [first_result[i][0], latency_avg]
+            histogram = HdrHistogram(1, 3600 * 1000 * 1000, 3)
+            for item in results:
+                histogram.add_bucket_counts(item['results']['latency_stats'])
+            for perc in [50, 75, 90, 99, 99.9, 99.99, 99.999]:
+                latency_tup = [perc, histogram.get_value_at_percentile(perc)]
                 all_res['latency_stats'].append(latency_tup)
 
         return all_res
