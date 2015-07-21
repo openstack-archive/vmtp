@@ -36,7 +36,7 @@ class WrkTool(PerfTool):
         duration_sec = self.instance.config.http_tool_configs.duration
         if not rate_limit:
             rate_limit = 65535
-        cmd = '%s -t%d -c%d -R%d -d%ds --timeout %ds -j %s' % \
+        cmd = '%s -t%d -c%d -R%d -d%ds --timeout %ds -D2 -j %s' % \
             (self.dest_path, threads, connections, rate_limit,
              duration_sec, timeout, target_url)
         LOG.kbdebug("[%s] %s" % (self.instance.vm_name, cmd))
@@ -126,12 +126,14 @@ class WrkTool(PerfTool):
             # for item in results:
             #     print item['results']['latency_stats']
             all_res['latency_stats'] = []
-            histogram = HdrHistogram(1, 3600 * 1000 * 1000, 3)
+            histogram = HdrHistogram(1, 3600 * 1000 * 1000, 2)
             for item in results:
                 histogram.add_bucket_counts(item['results']['latency_stats'])
-            for perc in [50, 75, 90, 99, 99.9, 99.99, 99.999]:
-                latency_tup = [perc, histogram.get_value_at_percentile(perc)]
-                all_res['latency_stats'].append(latency_tup)
+            perc_list = [50, 75, 90, 99, 99.9, 99.99, 99.999]
+            latency_dict = histogram.get_percentile_to_value_dict(perc_list)
+            for key, value in latency_dict.iteritems():
+                all_res['latency_stats'].append([key, value])
+            all_res['latency_stats'].sort()
 
         return all_res
 

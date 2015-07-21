@@ -88,7 +88,7 @@ class KB_Instance(object):
                       report_interval):
         if not rate_limit:
             rate_limit = 65535
-        cmd = '%s -t%d -c%d -R%d -d%ds -p%ds --timeout %ds -j %s' % \
+        cmd = '%s -t%d -c%d -R%d -d%ds -p%ds --timeout %ds -D2 -j %s' % \
               (dest_path, threads, connections, rate_limit, duration,
                report_interval, timeout, target_url)
         return cmd
