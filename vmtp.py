@@ -857,6 +857,11 @@ if __name__ == '__main__':
         if os.path.isfile(pub_key) and os.path.isfile(priv_key):
             instance_access.public_key_file = pub_key
             instance_access.private_key_file = priv_key
+        else:
+            print('Error: Default keypair ~/.ssh/id_rsa[.pub] is not existed. Please '
+                  'either create one in your home directory, or specify your keypair '
+                  'information in the config file before running VMTP.')
+            sys.exit(1)
 
     if opts.debug and instance_access.public_key_file:
         print('VM public key:  ' + instance_access.public_key_file)
