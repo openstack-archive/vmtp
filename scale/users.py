@@ -22,6 +22,11 @@ from novaclient.client import Client
 
 LOG = logging.getLogger(__name__)
 
+class KBFlavorCheckException(Exception):
+    pass
+
+class KBQuotaCheckException(Exception):
+    pass
 
 class User(object):
     """
@@ -45,7 +50,6 @@ class User(object):
         self.nova_client = None
         self.neutron_client = None
         self.cinder_client = None
-        self.user = self._get_user()
         # Each user is associated to 1 key pair at most
         self.key_pair = None
         self.key_name = None
@@ -56,15 +60,17 @@ class User(object):
         #
         # If running on top of existing tenants/users, skip
         # the step for admin role association.
-        if not self.tenant.kloud.reusing_tenants:
-            current_role = None
-            for role in self.tenant.kloud.keystone.roles.list():
-                if role.name == user_role:
-                    current_role = role
-                    break
+        if not self.tenant.reusing_users:
+            self.user = self._get_user()
+            current_role = self.tenant.kloud.keystone.roles.find(name=user_role)
             self.tenant.kloud.keystone.roles.add_user_role(self.user,
                                                            current_role,
                                                            tenant.tenant_id)
+        else:
+            # Only admin can retrive the object via Keystone API
+            self.user = None
+            LOG.info("Using user: " + self.user_name)
+
 
     def _create_user(self):
         LOG.info("Creating user: " + self.user_name)
@@ -74,14 +80,6 @@ class User(object):
                                                        tenant_id=self.tenant.tenant_id)
 
     def _get_user(self):
-        if self.tenant.reusing_users:
-            LOG.info("Using user: " + self.user_name)
-            users_list = self.tenant.kloud.keystone.users.list()
-            for user in users_list:
-                if user.name == self.user_name:
-                    return user
-            raise Exception('Cannot find stale user:' + self.user_name)
-
         '''
         Create a new user or reuse if it already exists (on a different tenant)
         delete the user and create a new one
@@ -97,19 +95,13 @@ class User(object):
             # Try to repair keystone by removing that user
             LOG.warn("User creation failed due to stale user with same name: " +
                      self.user_name)
-            # Again, trying to find a user by name is pretty inefficient as one has to list all
-            # of them
-            users_list = self.tenant.kloud.keystone.users.list()
-            for user in users_list:
-                if user.name == self.user_name:
-                    # Found it, time to delete it
-                    LOG.info("Deleting stale user with name: " + self.user_name)
-                    self.tenant.kloud.keystone.users.delete(user)
-                    user = self._create_user()
-                    return user
+            user = self.tenant.kloud.keystone.users.find(name=self.user_name)
+            LOG.info("Deleting stale user with name: " + self.user_name)
+            self.tenant.kloud.keystone.users.delete(user)
+            return self._create_user()
 
-        # Not found there is something wrong
-        raise Exception('Cannot find stale user:' + self.user_name)
+        # Should never come here
+        raise Exception()
 
     def delete_resources(self):
         LOG.info("Deleting all user resources for user %s" % self.user_name)
@@ -136,6 +128,47 @@ class User(object):
         neutron_quota = base_network.NeutronQuota(self.neutron_client, self.tenant.tenant_id)
         neutron_quota.update_quota(tenant_quota['neutron'])
 
+    def check_resources_quota(self):
+        # Flavor check
+        flavor_manager = base_compute.Flavor(self.nova_client)
+        flavor_to_use = None
+        for flavor in flavor_manager.list():
+            flavor = flavor.__dict__
+            if flavor['vcpus'] < 1 or flavor['ram'] < 1024 or flavor['disk'] < 10:
+                continue
+            flavor_to_use = flavor
+            break
+        if flavor_to_use:
+            LOG.info('Automatically selects flavor %s to instantiate VMs.' %
+                     (flavor_to_use['name']))
+        else:
+            LOG.error('Cannot find a flavor which meets the minimum '
+                      'requirements to instantiate VMs.')
+            raise KBFlavorCheckException()
+
+        # Nova/Cinder/Neutron quota check
+        tenant_id = self.tenant.tenant_id
+        meet_quota = True
+        for quota_type in ['nova', 'cinder', 'neutron']:
+            if quota_type == 'nova':
+                quota_manager = base_compute.NovaQuota(self.nova_client, tenant_id)
+            elif quota_type == 'cinder':
+                quota_manager = base_compute.CinderQuota(self.cinder_client, tenant_id)
+            else:
+                quota_manager = base_network.NeutronQuota(self.neutron_client, tenant_id)
+
+            meet_quota = True
+            quota = quota_manager.get()
+            for key, value in self.tenant.tenant_quota[quota_type].iteritems():
+                if quota[key] < value:
+                    meet_quota = False
+                    break
+
+        if not meet_quota:
+            LOG.error('%s quota is too small. Minimum requirement: %s.' %
+                      (quota_type, self.tenant.tenant_quota[quota_type]))
+            raise KBQuotaCheckException()
+
     def create_resources(self):
         """
         Creates all the User elements associated with a User
@@ -145,7 +178,7 @@ class User(object):
         # Create a new neutron client for this User with correct credentials
         creden = {}
         creden['username'] = self.user_name
-        creden['password'] = self.user_name
+        creden['password'] = self.password
         creden['auth_url'] = self.tenant.kloud.auth_url
         creden['tenant_name'] = self.tenant.tenant_name
 
@@ -155,7 +188,7 @@ class User(object):
         # Create a new nova and cinder client for this User with correct credentials
         creden_nova = {}
         creden_nova['username'] = self.user_name
-        creden_nova['api_key'] = self.user_name
+        creden_nova['api_key'] = self.password
         creden_nova['auth_url'] = self.tenant.kloud.auth_url
         creden_nova['project_id'] = self.tenant.tenant_name
         creden_nova['version'] = 2
@@ -163,7 +196,9 @@ class User(object):
         self.nova_client = Client(**creden_nova)
         self.cinder_client = cinderclient.Client(**creden_nova)
 
-        if not self.tenant.kloud.reusing_tenants:
+        if self.tenant.kloud.reusing_tenants:
+            self.check_resources_quota()
+        else:
             self.update_tenant_quota(self.tenant.tenant_quota)
 
         config_scale = self.tenant.kloud.scale_cfg

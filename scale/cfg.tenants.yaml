@@ -7,22 +7,20 @@
 #
 # Settings in this file has higher priority than user configs. It determines
 # the final count of tenants and useres that KloudBuster will use.
+#
+# If running under tenant/user reusing mode, KloudBuster will use *only* one
+# tenant to hold the resources for both server cloud and client cloud.
+#
+# NOTE:
+# (1) For now, we only support one user per tenant;
+# (2) Under tenant/user resuing mode, all resources will be sitting under
+#     the same tenant, so there will be fixed *ONLY* one user for holding
+#     client side resources;
 
-
-# Sections for listing the tenant and user lists for server cloud.
-# Note: For now we only support 1 user per tenant
-server:
-    - name: ts_1
-      user:
-          - username: tsu_1
-            password: tsu_1
-    - name: ts_2
-      user:
-          - username: tsu_2
-            password: tsu_2
-
-client:
-    - name: tc_1
-      user:
-          - username: tcu_1
-            password: tcu_1
+tenant_name: demo_tenant
+server_user:
+    - username: demo_user_1
+      password: demo_user_1
+client_user:
+    username: demo_user_2
+    password: demo_user_2

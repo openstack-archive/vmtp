@@ -217,6 +217,9 @@ class Flavor(object):
     def __init__(self, novaclient):
         self.novaclient = novaclient
 
+    def list(self):
+        return self.novaclient.flavors.list()
+
     def create_flavor(self, name, ram, vcpus, disk, override=False):
         # Creating flavors
         if override:
@@ -236,6 +239,9 @@ class NovaQuota(object):
         self.novaclient = novaclient
         self.tenant_id = tenant_id
 
+    def get(self):
+        return self.novaclient.quotas.get(self.tenant_id).__dict__
+
     def update_quota(self, **kwargs):
         self.novaclient.quotas.update(self.tenant_id, **kwargs)
 
@@ -244,6 +250,9 @@ class CinderQuota(object):
     def __init__(self, cinderclient, tenant_id):
         self.cinderclient = cinderclient
         self.tenant_id = tenant_id
+
+    def get(self):
+        return self.cinderclient.quotas.get(self.tenant_id).__dict__
 
     def update_quota(self, **kwargs):
         self.cinderclient.quotas.update(self.tenant_id, **kwargs)

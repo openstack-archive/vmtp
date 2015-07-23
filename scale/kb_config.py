@@ -154,8 +154,8 @@ class KBConfig(object):
         if CONF.tenants_list:
             self.tenants_list = configure.Configuration.from_file(CONF.tenants_list).configure()
             try:
-                self.config_scale['number_tenants'] = len(self.tenants_list['server'])
-                self.config_scale['users_per_tenant'] = len(self.tenants_list['server'][0]['user'])
+                self.config_scale['number_tenants'] = 1
+                self.config_scale['users_per_tenant'] = len(self.tenants_list['server_user'])
             except Exception as e:
                 LOG.error('Cannot parse the count of tenant/user from the config file.')
                 raise KBConfigParseException(e.message)

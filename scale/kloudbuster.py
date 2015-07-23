@@ -65,8 +65,8 @@ def check_and_upload_images(cred, cred_testing, server_img_name, client_img_name
             if img['name'] == img_name_dict[kloud]:
                 img_found = True
                 break
-        if img.visibility != 'public' and CONF.tenants_list:
-            LOG.error("Image must be public when running in reusing mode.")
+        if img_found and img.visibility != 'public' and CONF.tenants_list:
+            LOG.error("Image must be public when running in tenant/user reusing mode.")
             sys.exit(1)
 
         if not img_found:
@@ -236,9 +236,13 @@ class KloudBuster(object):
         else:
             self.topology = topology
         if tenants_list:
-            self.tenants_list = tenants_list
-            LOG.warn("REUSING MODE: The quota will not adjust automatically.")
-            LOG.warn("REUSING MODE: The flavor configs will be ignored, and m1.small is used.")
+            self.tenants_list = {}
+            self.tenants_list['server'] =\
+                [{'name': tenants_list['tenant_name'], 'user': tenants_list['server_user']}]
+            self.tenants_list['client'] =\
+                [{'name': tenants_list['tenant_name'], 'user': [tenants_list['client_user']]}]
+            LOG.warn("REUSING MODE: The quotas will not be adjusted automatically.")
+            LOG.warn("REUSING MODE: The flavor configs will be ignored.")
         else:
             self.tenants_list = {'server': None, 'client': None}
         # TODO(check on same auth_url instead)
@@ -427,7 +431,7 @@ class KloudBuster(object):
             server_quota['floatingip'] = server_quota['router']
             server_quota['port'] = total_vm + 2 * server_quota['network'] + server_quota['router']
         server_quota['security_group'] = server_quota['network'] + 1
-        server_quota['security_group_rule'] = server_quota['security_group'] * 100
+        server_quota['security_group_rule'] = server_quota['security_group'] * 10
 
         client_quota = {}
         total_vm = total_vm * self.server_cfg['number_tenants']
@@ -454,7 +458,7 @@ class KloudBuster(object):
             # cloud, and each one takes up 1 port on client side.
             client_quota['port'] = client_quota['port'] + server_quota['router']
         client_quota['security_group'] = client_quota['network'] + 1
-        client_quota['security_group_rule'] = client_quota['security_group'] * 100
+        client_quota['security_group_rule'] = client_quota['security_group'] * 10
 
         return [server_quota, client_quota]
 

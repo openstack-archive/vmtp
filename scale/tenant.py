@@ -34,23 +34,28 @@ class Tenant(object):
         Stores the shared network in case of testing and
         tested cloud being on same cloud
         """
-        self.tenant_name = tenant_name
         self.kloud = kloud
-        self.tenant_object = self._get_tenant()
-        self.tenant_id = self.tenant_object.id
+        self.tenant_name = tenant_name
+        if not self.kloud.reusing_tenants:
+            self.tenant_object = self._get_tenant()
+            self.tenant_id = self.tenant_object.id
+        else:
+            LOG.info("Using tenant: " + self.tenant_name)
+            # Only admin can retrive the object via Keystone API
+            self.tenant_object = None
+            try:
+                # Try to see if we have the admin access to retrive the tenant id using
+                # tenant name directly from keystone
+                self.tenant_id = self.kloud.keystone.tenants.find(name=self.tenant_name).id
+            except Exception:
+                self.tenant_id = self.kloud.keystone.tenant_id
+
         self.tenant_quota = tenant_quota
         self.reusing_users = reusing_users
         # Contains a list of user instance objects
         self.user_list = []
 
     def _get_tenant(self):
-        if self.kloud.reusing_tenants:
-            LOG.info("Using tenant: " + self.tenant_name)
-            tenant_list = self.kloud.keystone.tenants.list()
-            for tenant in tenant_list:
-                if tenant.name == self.tenant_name:
-                    return tenant
-            raise Exception("Tenant not found")
 
         '''
         Create or reuse a tenant object of a given name
@@ -68,15 +73,10 @@ class Tenant(object):
             if exc.http_status != 409:
                 raise exc
             LOG.info("Tenant %s already present, reusing it" % self.tenant_name)
-            # It is a hassle to find a tenant by name as the only way seems to retrieve
-            # the list of all tenants which can be very large
-            tenant_list = self.kloud.keystone.tenants.list()
-            for tenant in tenant_list:
-                if tenant.name == self.tenant_name:
-                    return tenant
+            return self.kloud.keystone.tenants.find(name=self.tenant_name)
 
         # Should never come here
-        raise Exception("Tenant not found")
+        raise Exception()
 
     def create_resources(self):
         """
@@ -87,7 +87,7 @@ class Tenant(object):
             for user_info in self.reusing_users:
                 user_name = user_info['username']
                 password = user_info['password']
-                user_instance = users.User(user_name, password, self, None)
+                user_instance = users.User(user_name, password, self, '_member_')
                 self.user_list.append(user_instance)
         else:
             # Loop over the required number of users and create resources

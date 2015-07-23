@@ -23,11 +23,13 @@ from neutronclient.common.exceptions import NetworkInUseClient
 
 LOG = logging.getLogger(__name__)
 
-
 # Global CIDR shared by all objects of this class
 # Enables each network to get a unique CIDR
 START_CIDR = "10.0.0.0/16"
 cidr = START_CIDR
+
+class KBGetExtNetException(Exception):
+    pass
 
 def create_floating_ip(neutron_client, ext_net):
     """
@@ -63,8 +65,8 @@ def find_external_network(neutron_client):
         if network['router:external']:
             return network
 
-    LOG.error("No external network found!!!")
-    return None
+    LOG.error("No external network is found.")
+    raise KBGetExtNetException()
 
 
 class BaseNetwork(object):
@@ -374,6 +376,9 @@ class NeutronQuota(object):
     def __init__(self, neutronclient, tenant_id):
         self.neutronclient = neutronclient
         self.tenant_id = tenant_id
+
+    def get(self):
+        return self.neutronclient.show_quota(self.tenant_id)['quota']
 
     def update_quota(self, quotas):
         body = {
