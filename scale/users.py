@@ -141,6 +141,7 @@ class User(object):
         if flavor_to_use:
             LOG.info('Automatically selects flavor %s to instantiate VMs.' %
                      (flavor_to_use['name']))
+            self.tenant.kloud.flavor_to_use = flavor_to_use['name']
         else:
             LOG.error('Cannot find a flavor which meets the minimum '
                       'requirements to instantiate VMs.')

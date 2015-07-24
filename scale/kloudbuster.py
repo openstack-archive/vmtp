@@ -21,6 +21,7 @@ import traceback
 
 import base_compute
 import base_network
+import glanceclient.exc as glance_exception
 from glanceclient.v2 import client as glanceclient
 from kb_config import KBConfig
 from kb_runner import KBRunner
@@ -57,31 +58,33 @@ def check_and_upload_images(cred, cred_testing, server_img_name, client_img_name
     img_name_dict = dict(zip(['Server kloud', 'Client kloud'], [server_img_name, client_img_name]))
 
     for kloud, keystone in keystone_dict.items():
-        img_found = False
         glance_endpoint = keystone.service_catalog.url_for(
             service_type='image', endpoint_type='publicURL')
         glance_client = glanceclient.Client(glance_endpoint, token=keystone.auth_token)
-        for img in glance_client.images.list():
-            if img['name'] == img_name_dict[kloud]:
-                img_found = True
-                break
-        if img_found and img.visibility != 'public' and CONF.tenants_list:
-            LOG.error("Image must be public when running in tenant/user reusing mode.")
-            sys.exit(1)
+        try:
+            # Search for the image
+            glance_client.images.list(filters={'name': img_name_dict[kloud]}).next()
+            return True
+        except StopIteration:
+            pass
 
-        if not img_found:
-            # Trying upload images
-            LOG.info("Image is not found in %s, trying to upload..." % (kloud))
-            if not os.path.exists('dib/kloudbuster.qcow2'):
-                LOG.error("Image file dib/kloudbuster.qcow2 is not present, please refer "
-                          "to dib/README.rst for how to build image for KloudBuster.")
-                return False
-            with open('dib/kloudbuster.qcow2') as fimage:
+        # Trying upload images
+        LOG.info("Image is not found in %s, trying to upload..." % (kloud))
+        if not os.path.exists('dib/kloudbuster.qcow2'):
+            LOG.error("Image file dib/kloudbuster.qcow2 is not present, please refer "
+                      "to dib/README.rst for how to build image for KloudBuster.")
+            return False
+        with open('dib/kloudbuster.qcow2') as fimage:
+            try:
                 image = glance_client.images.create(name=img_name_dict[kloud],
                                                     disk_format="qcow2",
                                                     container_format="bare",
                                                     visibility='public')
                 glance_client.images.upload(image['id'], fimage)
+            except glance_exception.HTTPForbidden:
+                LOG.error("Cannot upload image without admin access. Please make sure the "
+                          "image is existed in cloud, and is either public or owned by you.")
+                sys.exit(1)
 
     return True
 
@@ -93,6 +96,7 @@ class Kloud(object):
         self.scale_cfg = scale_cfg
         self.reusing_tenants = reusing_tenants
         self.keystone, self.auth_url = create_keystone_client(self.cred)
+        self.flavor_to_use = None
         if testing_side:
             self.prefix = 'KBc'
             self.name = 'Client Kloud'
@@ -290,7 +294,8 @@ class KloudBuster(object):
                                            self.kloud.placement_az, "Round-robin")
             for ins in svr_list:
                 ins.user_data['role'] = 'Server'
-                ins.boot_info['flavor_type'] = 'm1.small' if self.tenants_list else 'kb.server'
+                ins.boot_info['flavor_type'] =\
+                    self.kloud.flavor_to_use if self.tenants_list else 'kb.server'
                 ins.boot_info['user_data'] = str(ins.user_data)
         elif role == "Client":
             client_list = self.testing_kloud.get_all_instances()
@@ -307,7 +312,8 @@ class KloudBuster(object):
                 ins.user_data['target_shared_interface_ip'] = svr_list[idx].shared_interface_ip
                 ins.user_data['http_tool'] = ins.config['http_tool']
                 ins.user_data['http_tool_configs'] = ins.config['http_tool_configs']
-                ins.boot_info['flavor_type'] = 'm1.small' if self.tenants_list else 'kb.client'
+                ins.boot_info['flavor_type'] =\
+                    self.testing_kloud.flavor_to_use if self.tenants_list else 'kb.client'
                 ins.boot_info['user_data'] = str(ins.user_data)
 
     def run(self):
@@ -333,7 +339,8 @@ class KloudBuster(object):
 
             self.kb_proxy.vm_name = 'KB-PROXY'
             self.kb_proxy.user_data['role'] = 'KB-PROXY'
-            self.kb_proxy.boot_info['flavor_type'] = 'm1.small' if self.tenants_list else 'kb.proxy'
+            self.kb_proxy.boot_info['flavor_type'] =\
+                self.testing_kloud.flavor_to_use if self.tenants_list else 'kb.proxy'
             if self.testing_kloud.placement_az:
                 self.kb_proxy.boot_info['avail_zone'] = "%s:%s" %\
                     (self.testing_kloud.placement_az, self.topology.clients_rack.split()[0])
