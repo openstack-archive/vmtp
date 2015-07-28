@@ -94,6 +94,21 @@ Super quick installation on Ubuntu/Debian
     $ pip install -r requirements-dev.txt
     $ python vmtp.py -h
 
+Super quick installation on RHEL/CentOS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code::
+
+    $ sudo yum install python-devel python-virtualenv git
+    # sudo yum install libxml2-devel libxslt-devel libffi-devel libyaml-devel openssl-devel
+    $ # create a virtual environment
+    $ virtualenv ./vmtpenv
+    $ source ./vmtpenv/bin/activate
+    $ git clone git://git.openstack.org/stackforge/vmtp
+    $ cd vmtp
+    $ pip install -r requirements-dev.txt
+    $ python vmtp.py -h
+
 
 Super quick installation on MacOSX
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

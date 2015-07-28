@@ -327,6 +327,7 @@ class VmtpTest(object):
         self.client = PerfInstance(config.vm_name_client, config,
                                    self.comp,
                                    self.net)
+        self.client.display('Creating client VM...')
         self.create_instance(self.client, client_az, int_net)
 
     def measure_flow(self, label, target_ip):
