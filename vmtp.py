@@ -40,7 +40,7 @@ from novaclient.client import Client
 from novaclient.exceptions import ClientException
 from prettytable import PrettyTable
 
-__version__ = '2.1.1'
+__version__ = '2.1.2'
 
 from perf_instance import PerfInstance as PerfInstance
 
@@ -327,6 +327,7 @@ class VmtpTest(object):
         self.client = PerfInstance(config.vm_name_client, config,
                                    self.comp,
                                    self.net)
+        self.client.display('Creating client VM...')
         self.create_instance(self.client, client_az, int_net)
 
     def measure_flow(self, label, target_ip):
