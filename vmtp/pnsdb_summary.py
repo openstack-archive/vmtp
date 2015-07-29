@@ -20,7 +20,6 @@ import re
 import sys
 
 import pns_mongo
-
 import tabulate
 
 ###########################################

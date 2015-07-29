@@ -27,7 +27,7 @@ class PerfInstance(Instance):
         else:
             self.ping = None
         if config.tp_tool:
-            self.tp_tool = config.tp_tool(self, config.perf_tool_path)
+            self.tp_tool = config.tp_tool(self)
         else:
             self.tp_tool = None
         # Override the config drive option to save in instance

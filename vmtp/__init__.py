@@ -16,4 +16,4 @@ import pbr.version
 
 
 __version__ = pbr.version.VersionInfo(
-    'vmtp').version_string()
+    'vmtp').version_string_with_vcs()

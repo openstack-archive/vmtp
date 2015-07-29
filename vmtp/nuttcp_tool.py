@@ -20,8 +20,8 @@ import sshutils
 
 class NuttcpTool(PerfTool):
 
-    def __init__(self, instance, perf_tool_path):
-        PerfTool.__init__(self, 'nuttcp-7.3.2', perf_tool_path, instance)
+    def __init__(self, instance):
+        PerfTool.__init__(self, 'nuttcp-7.3.2', instance)
 
     def get_server_launch_cmd(self):
         '''Return the commands to launch the server side.'''
