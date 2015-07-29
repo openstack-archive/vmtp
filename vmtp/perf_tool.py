@@ -14,13 +14,12 @@
 #
 
 import abc
-import os
 import re
+
+from pkg_resources import resource_filename
 
 # where to copy the tool on the target, must end with slash
 SCP_DEST_DIR = '/tmp/'
-
-
 
 #
 # A base class for all tools that can be associated to an instance
@@ -28,21 +27,18 @@ SCP_DEST_DIR = '/tmp/'
 class PerfTool(object):
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, name, perf_tool_path, instance):
+    def __init__(self, name, instance):
         self.name = name
         self.instance = instance
         self.dest_path = SCP_DEST_DIR + name
         self.pid = None
-        self.perf_tool_path = perf_tool_path
 
     # install the tool to the instance
     # returns False if fail, True if success
     def install(self):
-        if self.perf_tool_path:
-            local_path = os.path.join(self.perf_tool_path, self.name)
-            return self.instance.scp(self.name, local_path, self.dest_path)
-        # no install needed
-        return True
+        self.instance.display('Installing %s...' % (self.name))
+        local_path = resource_filename(__name__, 'tools/%s' % (self.name))
+        return self.instance.scp(self.name, local_path, self.dest_path)
 
     @abc.abstractmethod
     def get_server_launch_cmd(self):
@@ -225,7 +221,7 @@ class PingTool(PerfTool):
     '''
 
     def __init__(self, instance):
-        PerfTool.__init__(self, 'ping', None, instance)
+        PerfTool.__init__(self, 'ping', instance)
 
     def run_client(self, target_ip, ping_count=5):
         '''Perform the ping operation

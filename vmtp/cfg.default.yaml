@@ -121,10 +121,6 @@ vm_name_client:   'TestClient'
 # name of the security group to create and use
 security_group_name: 'pns-security'
 
-# Location to the performance test tools.
-# If relative, is relative to the vmtp directory
-perf_tool_path: './tools'
-
 # ping variables
 ping_count: 2
 ping_pass_threshold: 80

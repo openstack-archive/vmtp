@@ -18,12 +18,10 @@ import re
 import stat
 import subprocess
 
-
 import monitor
+from netaddr import IPAddress
 import sshutils
 
-
-from netaddr import IPAddress
 # a dictionary of sequence number indexed by a name prefix
 prefix_seq = {}
 
