@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # Copyright 2014 Cisco Systems, Inc.  All rights reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -25,65 +26,32 @@ import sys
 import traceback
 
 import compute
-import credentials
-import iperf_tool
-import network
-import nuttcp_tool
-import pns_mongo
-import sshutils
-
 import configure
+import credentials
 from glanceclient.v2 import client as glanceclient
+import iperf_tool
 from keystoneclient.v2_0 import client as keystoneclient
+import network
 from neutronclient.v2_0 import client as neutronclient
 from novaclient.client import Client
 from novaclient.exceptions import ClientException
-from prettytable import PrettyTable
-
-__version__ = '2.1.2'
-
+import nuttcp_tool
 from perf_instance import PerfInstance as PerfInstance
+from pkg_resources import resource_string
+import pns_mongo
+from prettytable import PrettyTable
+import sshutils
 
-def get_vmtp_absolute_path_for_file(file_name):
-    '''
-    Return the filename in absolute path for any file
-    passed as relative path to the vmtp directory
-    '''
-    if os.path.isabs(__file__):
-        abs_file_path = os.path.join(__file__.split("vmtp.py")[0],
-                                     file_name)
-    else:
-        abs_file = os.path.abspath(__file__)
-        abs_file_path = os.path.join(abs_file.split("vmtp.py")[0],
-                                     file_name)
+__version__ = '2.2.0'
 
-    return abs_file_path
-
-
-def normalize_paths(cfg):
-    '''
-    Normalize the various paths to config files, tools, ssh priv and pub key
-    files.
-    If a relative path is entered:
-    - the key pair file names are relative to the current directory
-    - the perftool path is relative to vmtp itself
-    '''
-    if cfg.public_key_file:
-        cfg.public_key_file = os.path.abspath(os.path.expanduser(cfg.public_key_file))
-    if cfg.private_key_file:
-        cfg.private_key_file = os.path.expanduser(os.path.expanduser(cfg.private_key_file))
-    if cfg.perf_tool_path:
-        cfg.perf_tool_path = get_vmtp_absolute_path_for_file(cfg.perf_tool_path)
-
+flow_num = 0
 class FlowPrinter(object):
-
-    def __init__(self):
-        self.flow_num = 0
-
-    def print_desc(self, desc):
-        self.flow_num += 1
+    @staticmethod
+    def print_desc(desc):
+        global flow_num
+        flow_num = flow_num + 1
         print "=" * 60
-        print('Flow %d: %s' % (self.flow_num, desc))
+        print('Flow %d: %s' % (flow_num, desc))
 
 class ResultsCollector(object):
 
@@ -154,7 +122,7 @@ class VmtpException(Exception):
     pass
 
 class VmtpTest(object):
-    def __init__(self):
+    def __init__(self, config, cred):
         '''
             1. Authenticate nova and neutron with keystone
             2. Create new client objects for neutron and nova
@@ -176,12 +144,16 @@ class VmtpTest(object):
         self.sec_group = None
         self.image_instance = None
         self.flavor_type = None
+        self.instance_access = None
+        self.rescol = ResultsCollector()
+        self.config = config
+        self.cred = cred
 
     # Create an instance on a particular availability zone
     def create_instance(self, inst, az, int_net):
         self.assert_true(inst.create(self.image_instance,
                                      self.flavor_type,
-                                     instance_access,
+                                     self.instance_access,
                                      int_net,
                                      az,
                                      int_net['name'],
@@ -192,49 +164,78 @@ class VmtpTest(object):
             raise VmtpException('Assert failure')
 
     def setup(self):
+        # This is a template host access that will be used for all instances
+        # (the only specific field specific to each instance is the host IP)
+        # For test VM access, we never use password and always need a key pair
+        self.instance_access = sshutils.SSHAccess()
+        self.instance_access.username = self.config.ssh_vm_username
+        # if the configuration does not have a
+        # key pair specified, we check if the user has a personal key pair
+        # if no key pair is configured or usable, a temporary key pair will be created
+        if self.config.public_key_file and self.config.private_key_file:
+            self.instance_access.public_key_file = self.config.public_key_file
+            self.instance_access.private_key_file = self.config.private_key_file
+        else:
+            pub_key = os.path.expanduser('~/.ssh/id_rsa.pub')
+            priv_key = os.path.expanduser('~/.ssh/id_rsa')
+            if os.path.isfile(pub_key) and os.path.isfile(priv_key):
+                self.instance_access.public_key_file = pub_key
+                self.instance_access.private_key_file = priv_key
+            else:
+                print('Error: Default keypair ~/.ssh/id_rsa[.pub] is not existed. Please '
+                      'either create one in your home directory, or specify your keypair '
+                      'information in the config file before running VMTP.')
+                sys.exit(1)
+
+        if self.config.debug and self.instance_access.public_key_file:
+            print('VM public key:  ' + self.instance_access.public_key_file)
+            print('VM private key: ' + self.instance_access.private_key_file)
+
         # If we need to reuse existing vms just return without setup
-        if not config.reuse_existing_vm:
-            creds = cred.get_credentials()
-            creds_nova = cred.get_nova_credentials_v2()
+        if not self.config.reuse_existing_vm:
+            creds = self.cred.get_credentials()
+            creds_nova = self.cred.get_nova_credentials_v2()
             # Create the nova and neutron instances
             nova_client = Client(**creds_nova)
             neutron = neutronclient.Client(**creds)
 
-            self.comp = compute.Compute(nova_client, config)
+            self.comp = compute.Compute(nova_client, self.config)
 
             # Add the appropriate public key to openstack
-            self.comp.init_key_pair(config.public_key_name, instance_access)
+            self.comp.init_key_pair(self.config.public_key_name, self.instance_access)
 
-            self.image_instance = self.comp.find_image(config.image_name)
+            self.image_instance = self.comp.find_image(self.config.image_name)
             if self.image_instance is None:
-                if config.vm_image_url != "":
+                if self.config.vm_image_url != "":
                     print '%s: image for VM not found, uploading it ...' \
-                        % (config.image_name)
+                        % (self.config.image_name)
                     keystone = keystoneclient.Client(**creds)
                     glance_endpoint = keystone.service_catalog.url_for(
                         service_type='image', endpoint_type='publicURL')
                     glance_client = glanceclient.Client(
                         glance_endpoint, token=keystone.auth_token)
                     self.comp.upload_image_via_url(
-                        creds, glance_client, config.image_name, config.vm_image_url)
-                    self.image_instance = self.comp.find_image(config.image_name)
+                        creds, glance_client,
+                        self.config.image_name,
+                        self.config.vm_image_url)
+                    self.image_instance = self.comp.find_image(self.config.image_name)
                 else:
                     # Exit the pogram
                     print '%s: image to launch VM not found. ABORTING.' \
-                        % (config.image_name)
+                        % (self.config.image_name)
                     sys.exit(1)
 
             self.assert_true(self.image_instance)
-            print 'Found image %s to launch VM, will continue' % (config.image_name)
-            self.flavor_type = self.comp.find_flavor(config.flavor_type)
-            self.net = network.Network(neutron, config)
+            print 'Found image %s to launch VM, will continue' % (self.config.image_name)
+            self.flavor_type = self.comp.find_flavor(self.config.flavor_type)
+            self.net = network.Network(neutron, self.config)
 
-            rescol.add_property('l2agent_type', self.net.l2agent_type)
+            self.rescol.add_property('l2agent_type', self.net.l2agent_type)
             print "OpenStack agent: " + self.net.l2agent_type
             try:
                 network_type = self.net.vm_int_net[0]['provider:network_type']
                 print "OpenStack network type: " + network_type
-                rescol.add_property('encapsulation', network_type)
+                self.rescol.add_property('encapsulation', network_type)
             except KeyError as exp:
                 network_type = 'Unknown'
                 print "Provider network type not found: ", str(exp)
@@ -243,25 +244,25 @@ class VmtpTest(object):
         self.sec_group = self.comp.security_group_create()
         if not self.sec_group:
             raise VmtpException("Security group creation failed")
-        if config.reuse_existing_vm:
-            self.server.internal_ip = config.vm_server_internal_ip
-            self.client.internal_ip = config.vm_client_internal_ip
-            if config.vm_server_external_ip:
-                self.server.ssh_access.host = config.vm_server_external_ip
+        if self.config.reuse_existing_vm:
+            self.server.internal_ip = self.config.vm_server_internal_ip
+            self.client.internal_ip = self.config.vm_client_internal_ip
+            if self.config.vm_server_external_ip:
+                self.server.ssh_access.host = self.config.vm_server_external_ip
             else:
-                self.server.ssh_access.host = config.vm_server_internal_ip
-            if config.vm_client_external_ip:
-                self.client.ssh_access.host = config.vm_client_external_ip
+                self.server.ssh_access.host = self.config.vm_server_internal_ip
+            if self.config.vm_client_external_ip:
+                self.client.ssh_access.host = self.config.vm_client_external_ip
             else:
-                self.client.ssh_access.host = config.vm_client_internal_ip
+                self.client.ssh_access.host = self.config.vm_client_internal_ip
             return
 
         # this is the standard way of running the test
         # NICs to be used for the VM
-        if config.reuse_network_name:
+        if self.config.reuse_network_name:
             # VM needs to connect to existing management and new data network
             # Reset the management network name
-            config.internal_network_name[0] = config.reuse_network_name
+            self.config.internal_network_name[0] = self.config.reuse_network_name
         else:
             # Make sure we have an external network and an external router
             self.assert_true(self.net.ext_net)
@@ -279,14 +280,14 @@ class VmtpTest(object):
         server_az = avail_list[0]
         if len(avail_list) > 1:
             # 2 hosts are known
-            if config.inter_node_only:
+            if self.config.inter_node_only:
                 # in this case we do not want the client to run on the same host
                 # as the server
                 avail_list.pop(0)
         self.client_az_list = avail_list
 
-        self.server = PerfInstance(config.vm_name_server,
-                                   config,
+        self.server = PerfInstance(self.config.vm_name_server,
+                                   self.config,
                                    self.comp,
                                    self.net,
                                    server=True)
@@ -296,20 +297,20 @@ class VmtpTest(object):
 
     # Test throughput for the case of the external host
     def ext_host_tp_test(self):
-        client = PerfInstance('Host-' + config.ext_host.host + '-Client', config)
-        if not client.setup_ssh(config.ext_host):
+        client = PerfInstance('Host-' + self.config.ext_host.host + '-Client', self.config)
+        if not client.setup_ssh(self.config.ext_host):
             client.display('SSH to ext host failed, check IP or make sure public key is configured')
         else:
             client.buginf('SSH connected')
             client.create()
-            fpr.print_desc('External-VM (upload/download)')
+            FlowPrinter.print_desc('External-VM (upload/download)')
             res = client.run_client('External-VM',
                                     self.server.ssh_access.host,
                                     self.server,
-                                    bandwidth=config.vm_bandwidth,
+                                    bandwidth=self.config.vm_bandwidth,
                                     bidirectional=True)
             if res:
-                rescol.add_flow_result(res)
+                self.rescol.add_flow_result(res)
             client.dispose()
 
     def add_location(self, label):
@@ -324,7 +325,8 @@ class VmtpTest(object):
         return label
 
     def create_flow_client(self, client_az, int_net):
-        self.client = PerfInstance(config.vm_name_client, config,
+        self.client = PerfInstance(self.config.vm_name_client,
+                                   self.config,
                                    self.comp,
                                    self.net)
         self.client.display('Creating client VM...')
@@ -332,23 +334,23 @@ class VmtpTest(object):
 
     def measure_flow(self, label, target_ip):
         label = self.add_location(label)
-        fpr.print_desc(label)
+        FlowPrinter.print_desc(label)
 
         # results for this flow as a dict
         perf_output = self.client.run_client(label, target_ip,
                                              self.server,
-                                             bandwidth=config.vm_bandwidth,
+                                             bandwidth=self.config.vm_bandwidth,
                                              az_to=self.server.az)
-        if opts.stop_on_error:
+        if self.config.stop_on_error:
             # check if there is any error in the results
             results_list = perf_output['results']
             for res_dict in results_list:
                 if 'error' in res_dict:
                     print('Stopping execution on error, cleanup all VMs/networks manually')
-                    rescol.pprint(perf_output)
+                    self.rescol.pprint(perf_output)
                     sys.exit(2)
 
-        rescol.add_flow_result(perf_output)
+        self.rescol.add_flow_result(perf_output)
 
     def measure_vm_flows(self):
         # scenarios need to be tested for both inter and intra node
@@ -363,13 +365,13 @@ class VmtpTest(object):
                               self.server.internal_ip)
             self.client.dispose()
             self.client = None
-            if not config.reuse_network_name:
+            if not self.config.reuse_network_name:
                 # Different network
                 self.create_flow_client(client_az, self.net.vm_int_net[1])
 
                 self.measure_flow("VM to VM different network fixed IP",
                                   self.server.internal_ip)
-                if not config.ipv6_mode:
+                if not self.config.ipv6_mode:
                     self.measure_flow("VM to VM different network floating IP",
                                       self.server.ssh_access.host)
 
@@ -377,7 +379,7 @@ class VmtpTest(object):
                 self.client = None
 
         # If external network is specified run that case
-        if config.ext_host:
+        if self.config.ext_host:
             self.ext_host_tp_test()
 
     def teardown(self):
@@ -389,11 +391,11 @@ class VmtpTest(object):
             self.server.dispose()
         if self.client:
             self.client.dispose()
-        if not config.reuse_existing_vm and self.net:
+        if not self.config.reuse_existing_vm and self.net:
             self.net.dispose()
         # Remove the public key
         if self.comp:
-            self.comp.remove_public_key(config.public_key_name)
+            self.comp.remove_public_key(self.config.public_key_name)
         # Finally remove the security group
         try:
             if self.comp:
@@ -415,14 +417,15 @@ class VmtpTest(object):
             traceback.print_exc()
             error_flag = True
 
-        if opts.stop_on_error and error_flag:
+        if self.config.stop_on_error and error_flag:
             print('Stopping execution on error, cleanup all VMs/networks manually')
             sys.exit(2)
         else:
             self.teardown()
 
-def test_native_tp(nhosts, ifname):
-    fpr.print_desc('Native Host to Host throughput')
+def test_native_tp(nhosts, ifname, config):
+    FlowPrinter.print_desc('Native Host to Host throughput')
+    result_list = None
     server_host = nhosts[0]
     server = PerfInstance('Host-' + server_host.host + '-Server', config, server=True)
 
@@ -464,57 +467,17 @@ def test_native_tp(nhosts, ifname):
                                             server_ip,
                                             server,
                                             bandwidth=config.vm_bandwidth)
-                    rescol.add_flow_result(res)
+                    result_list.append(res)
                 client.dispose()
     server.dispose()
 
-def _get_ssh_access(opt_name, opt_value):
-    '''Allocate a HostSshAccess instance to the option value
-    Check that a password is provided or the key pair in the config file
-    is valid.
-    If invalid exit with proper error message
-    '''
-    if not opt_value:
-        return None
+    return result_list
 
-    host_access = sshutils.SSHAccess(opt_value)
-    host_access.private_key_file = config.private_key_file
-    host_access.public_key_file = config.public_key_file
-    if host_access.error:
-        print'Error for --' + (opt_name + ':' + host_access.error)
-        sys.exit(2)
-    return host_access
-
-def _merge_config(cfg_file, source_config, required=False):
-    '''
-    returns the merged config or exits if the file does not exist and is required
-    '''
-    dest_config = source_config
-
-    fullname = os.path.expanduser(cfg_file)
-    if os.path.isfile(fullname):
-        print('Loading ' + fullname + '...')
-        try:
-            alt_config = configure.Configuration.from_file(fullname).configure()
-            dest_config = source_config.merge(alt_config)
-
-        except configure.ConfigurationError:
-            # this is in most cases when the config file passed is empty
-            # configure.ConfigurationError: unconfigured
-            # in case of syntax error, another exception is thrown:
-            # TypeError: string indices must be integers, not str
-            pass
-    elif required:
-        print('Error: configration file %s does not exist' % (fullname))
-        sys.exit(1)
-    return dest_config
-
-def get_controller_info(ssh_access, net, res_col):
+def get_controller_info(ssh_access, net, res_col, retry_count):
     if not ssh_access:
         return
     print 'Fetching OpenStack deployment details...'
-    sshcon = sshutils.SSH(ssh_access,
-                          connect_retry_count=config.ssh_retry_count)
+    sshcon = sshutils.SSH(ssh_access, connect_retry_count=retry_count)
     if sshcon is None:
         print 'ERROR: Cannot connect to the controller node'
         return
@@ -648,13 +611,62 @@ def print_report(results):
     print "Skipped Scenarios: %d" % (cnt_skipped)
     print ptable
 
+def normalize_paths(cfg):
+    '''
+    Normalize the various paths to config files, tools, ssh priv and pub key
+    files.
+    If a relative path is entered:
+    - the key pair file names are relative to the current directory
+    - the perftool path is relative to vmtp itself
+    '''
+    if cfg.public_key_file:
+        cfg.public_key_file = os.path.abspath(os.path.expanduser(cfg.public_key_file))
+    if cfg.private_key_file:
+        cfg.private_key_file = os.path.expanduser(os.path.expanduser(cfg.private_key_file))
 
-if __name__ == '__main__':
+def main():
+    def _get_ssh_access(opt_name, opt_value):
+        '''Allocate a HostSshAccess instance to the option value
+        Check that a password is provided or the key pair in the config file
+        is valid.
+        If invalid exit with proper error message
+        '''
+        if not opt_value:
+            return None
 
-    fpr = FlowPrinter()
-    rescol = ResultsCollector()
+        host_access = sshutils.SSHAccess(opt_value)
+        host_access.private_key_file = config.private_key_file
+        host_access.public_key_file = config.public_key_file
+        if host_access.error:
+            print'Error for --' + (opt_name + ':' + host_access.error)
+            sys.exit(2)
+        return host_access
+
+    def _merge_config(cfg_file, source_config, required=False):
+        '''
+        returns the merged config or exits if the file does not exist and is required
+        '''
+        dest_config = source_config
+
+        fullname = os.path.expanduser(cfg_file)
+        if os.path.isfile(fullname):
+            print('Loading ' + fullname + '...')
+            try:
+                alt_config = configure.Configuration.from_file(fullname).configure()
+                dest_config = source_config.merge(alt_config)
+
+            except configure.ConfigurationError:
+                # this is in most cases when the config file passed is empty
+                # configure.ConfigurationError: unconfigured
+                # in case of syntax error, another exception is thrown:
+                # TypeError: string indices must be integers, not str
+                pass
+        elif required:
+            print('Error: configration file %s does not exist' % (fullname))
+            sys.exit(1)
+        return dest_config
+
     logging.basicConfig()
-
     parser = argparse.ArgumentParser(description='OpenStack VM Throughput V' + __version__)
 
     parser.add_argument('-c', '--config', dest='config',
@@ -791,14 +803,14 @@ if __name__ == '__main__':
 
     (opts, args) = parser.parse_known_args()
 
-    default_cfg_file = get_vmtp_absolute_path_for_file("cfg.default.yaml")
+    default_cfg_file = resource_string(__name__, "cfg.default.yaml")
 
     # read the default configuration file and possibly an override config file
     # the precedence order is as follows:
     # $HOME/.vmtp.yaml if exists
     # -c <file> from command line if provided
     # cfg.default.yaml
-    config = configure.Configuration.from_file(default_cfg_file).configure()
+    config = configure.Configuration.from_string(default_cfg_file).configure()
     config = _merge_config('~/.vmtp.yaml', config)
 
     if opts.config:
@@ -808,8 +820,8 @@ if __name__ == '__main__':
         print('Version ' + __version__)
         sys.exit(0)
 
-    # debug flag
     config.debug = opts.debug
+    config.stop_on_error = opts.stop_on_error
     config.inter_node_only = opts.inter_node_only
 
     if config.public_key_file and not os.path.isfile(config.public_key_file):
@@ -824,7 +836,6 @@ if __name__ == '__main__':
         print('Invalid vnic-type: ' + opts.vnic_type)
         sys.exit(1)
     config.vnic_type = opts.vnic_type
-
     config.hypervisors = opts.hypervisors
 
     # time to run each perf test in seconds
@@ -841,45 +852,11 @@ if __name__ == '__main__':
     # Initialize the external host access
     config.ext_host = _get_ssh_access('external-host', opts.ext_host)
 
-    # This is a template host access that will be used for all instances
-    # (the only specific field specific to each instance is the host IP)
-    # For test VM access, we never use password and always need a key pair
-    instance_access = sshutils.SSHAccess()
-    instance_access.username = config.ssh_vm_username
-    # if the configuration does not have a
-    # key pair specified, we check if the user has a personal key pair
-    # if no key pair is configured or usable, a temporary key pair will be created
-    if config.public_key_file and config.private_key_file:
-        instance_access.public_key_file = config.public_key_file
-        instance_access.private_key_file = config.private_key_file
-    else:
-        pub_key = os.path.expanduser('~/.ssh/id_rsa.pub')
-        priv_key = os.path.expanduser('~/.ssh/id_rsa')
-        if os.path.isfile(pub_key) and os.path.isfile(priv_key):
-            instance_access.public_key_file = pub_key
-            instance_access.private_key_file = priv_key
-        else:
-            print('Error: Default keypair ~/.ssh/id_rsa[.pub] is not existed. Please '
-                  'either create one in your home directory, or specify your keypair '
-                  'information in the config file before running VMTP.')
-            sys.exit(1)
-
-    if opts.debug and instance_access.public_key_file:
-        print('VM public key:  ' + instance_access.public_key_file)
-        print('VM private key: ' + instance_access.private_key_file)
-
-
     ###################################################
     # VM Image URL
     ###################################################
     if opts.vm_image_url:
         config.vm_image_url = opts.vm_image_url
-
-    ###################################################
-    # Test Description
-    ###################################################
-    if opts.test_description:
-        rescol.add_property('test_description', opts.test_description)
 
     ###################################################
     # MongoDB Server connection info.
@@ -986,37 +963,51 @@ if __name__ == '__main__':
                     if_name = last_arg
                 host = host[:last_column_index]
             native_hosts.append(_get_ssh_access('host', host))
-        test_native_tp(native_hosts, if_name)
-
-    cred = credentials.Credentials(opts.rc, opts.pwd, opts.no_env)
+        native_tp_results = test_native_tp(native_hosts, if_name, config)
+    else:
+        native_tp_results = []
 
     # replace all command line arguments (after the prog name) with
     # those args that have not been parsed by this parser so that the
     # unit test parser is not bothered by local arguments
     sys.argv[1:] = args
     vmtp_net = None
+    vmtp_instance = None
+
+    cred = credentials.Credentials(opts.rc, opts.pwd, opts.no_env)
     if cred.rc_auth_url:
-        if opts.debug:
+        if config.debug:
             print 'Using ' + cred.rc_auth_url
-        rescol.add_property('auth_url', cred.rc_auth_url)
-        vmtp = VmtpTest()
-        vmtp.run()
-        vmtp_net = vmtp.net
+        vmtp_instance = VmtpTest(config, cred)
+        for item in native_tp_results:
+            vmtp_instance.rescol.add_flow_result(item)
+        vmtp_instance.run()
+        vmtp_net = vmtp_instance.net
 
     # Retrieve controller information if requested
     # controller node ssh access to collect metadata for the run.
     ctrl_host_access = _get_ssh_access('controller-node', opts.controller_node)
-    get_controller_info(ctrl_host_access, vmtp_net, rescol)
+    get_controller_info(ctrl_host_access,
+                        vmtp_net,
+                        vmtp_instance.rescol,
+                        config.ssh_retry_count)
 
-    print_report(rescol.results)
+    print_report(vmtp_instance.rescol.results)
 
     # If saving the results to JSON or MongoDB, get additional details:
     if config.json_file or config.vmtp_mongod_ip:
-        rescol.mask_credentials()
-        rescol.generate_runid()
+        vmtp_instance.rescol.mask_credentials()
+        vmtp_instance.rescol.generate_runid()
 
     if config.json_file:
-        rescol.save(config)
+        # Test Description
+        if opts.test_description:
+            vmtp_instance.rescol.add_property('test_description', opts.test_description)
+        vmtp_instance.rescol.add_property('auth_url', cred.rc_auth_url)
+        vmtp_instance.rescol.save(config)
 
     if config.vmtp_mongod_ip:
-        rescol.save_to_db(config)
+        vmtp_instance.rescol.save_to_db(config)
+
+if __name__ == '__main__':
+    main()

@@ -58,7 +58,7 @@ copyright = u"%d, OpenStack Foundation" % datetime.datetime.now().year
 # built documents.
 #
 # The short X.Y version.
-vmtp_file = open("../../vmtp.py")
+vmtp_file = open("../../vmtp/vmtp.py")
 raw_text = vmtp_file.read()
 version = re.search(r"__version__\s=\s'(\d+\.\d+\.\d+)'", raw_text).group(1)
 # The full version, including alpha/beta/rc tags.
