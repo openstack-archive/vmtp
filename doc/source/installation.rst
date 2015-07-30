@@ -2,7 +2,40 @@
 Installation
 ============
 
-There are two ways to install and run VMTP tool, Docker based, and GitHub/StackForge Repository based. Normally, a VMTP Docker image will satisfy most of use cases, and it is easy to start and use. Docker image is recommended if running under a production environment, or running through an automated or scheduled job. A git repository based installation gives more flexibility, and it is recommended for developing purposes.
+There are multiple ways to install and run VMTP tool. For users of VMTP, PyPI based or Docker based installation is recommended. For developers of VMTP, GitHub/StackForge Repository based installation should be used. Normally, PyPI based installation or VMTP Docker image will satisfy most of use cases, and they are both easy to start and use. They are recommended ways for running under production environments, or running through an automated or scheduled job. A git repository based installation gives more flexibility, and it is must for developing purposes.
+
+**Note:** Installation from PyPI or Docker will install the latest stable version.
+
+
+PyPI based Installation
+-----------------------
+
+PyPI (The Python Package Index) is the offical repository for software in Python. It holds lots of packages, and the installation is relatively easy via pip in only 2 steps.
+
+Step 1
+^^^^^^
+
+Install required development libraries. Run the command based on your distro.
+
+Ubuntu/Debian based::
+
+    $ sudo apt-get install python-dev python-virtualenv git git-review
+    $ sudo apt-get install libxml2-dev libxslt-dev libffi-dev libz-dev libyaml-dev libssl-dev
+
+RHEL/CentOS based::
+
+    $ sudo yum install python-devel python-virtualenv git
+    # sudo yum install libxml2-devel libxslt-devel libffi-devel libyaml-devel openssl-devel
+
+Step 2
+^^^^^^
+
+Create a virtual environment for Python, and install VMTP::
+
+    $ virtualenv ./vmtpenv
+    $ source ./vmtpenv/bin/activate
+    $ pip install vmtp
+    $ vmtp -h
 
 
 Docker based Installation
