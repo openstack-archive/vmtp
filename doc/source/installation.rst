@@ -2,73 +2,45 @@
 Installation
 ============
 
-There are two ways to install and run VMTP tool, Docker based, and GitHub/StackForge Repository based. Normally, a VMTP Docker image will satisfy most of use cases, and it is easy to start and use. Docker image is recommended if running under a production environment, or running through an automated or scheduled job. A git repository based installation gives more flexibility, and it is recommended for developing purposes.
+There are two ways to install and run VMTP tool. Users of VMTP should use regular PyPI based installation, while developers of VMTP should use GitHub/StackForge Repository based installation. Normally, PyPI based installation will satisfy most of use cases, and it is the recommended way for running VMTP under production environments, or through an automated or scheduled job. A git repository based installation gives more flexibility, and it is a must for developers of VMTP.
+
+**Note:** Installation from PyPI will only have the latest stable version.
 
 
-Docker based Installation
--------------------------
+PyPI based Installation
+-----------------------
 
-Docker provides an easy and convenient way to run VMTP on Linux. The docker image pre-builds all the dependencies needed to run VMTP, including all the OpenStack python client libraries needed to access any OpenStack cloud, all the dependent python libraries and all the dependent distribution packages needed by these python libraries.
+PyPI (The Python Package Index) is the offical repository for software in Python. It holds lots of packages, and the installation is relatively easy in only 2 steps.
 
-To run the container image all you need is docker.io installed on your Linux host. Refer `here <https://docs.docker.com/installation/#installation>`_ for details about how to install docker.
+Step 1
+^^^^^^
 
-**Note:** An official image from Docker Hub is coming soon and this is a temporary private image.
+Install required development libraries. Run the command based on your distro.
 
-Once the docker.io is installed, download the latest VMTP image from Docker Hub::
+Ubuntu/Debian based::
 
-    $ sudo docker pull ahothan/vmtp
+    $ sudo apt-get install python-dev python-virtualenv git git-review
+    $ sudo apt-get install libxml2-dev libxslt-dev libffi-dev libz-dev libyaml-dev libssl-dev
 
-The new image will be shown in the list::
+RHEL/CentOS based::
 
-    $ sudo docker images
-    REPOSITORY          TAG                 IMAGE ID            CREATED             VIRTUAL SIZE
-    ahothan/vmtp        2.0.0               9f08056496d7        27 hours ago        494.6 MB
-    ahothan/vmtp        latest              9f08056496d7        27 hours ago        494.6 MB
+    $ sudo yum install python-devel python-virtualenv git
+    # sudo yum install libxml2-devel libxslt-devel libffi-devel libyaml-devel openssl-devel
 
-Alternatively, for development or test purpose, a binary image could be loaded from a filesystem as well::
+MacOSX::
 
-    $ sudo docker load -i vmtp_image
+    $ sudo easy_install pip
+    $ sudo pip install virtualenv
 
-Note that the image loaded from archive doesn't have a TAG, so the exact image ID must be specified to all docker commands mentioned below.
+Step 2
+^^^^^^
 
-In its Docker image form, VMTP is located under the /vmtp directory in the container and can either take arguments from the host shell, or can be executed from inside the Docker image shell.
+Create a virtual environment for Python, and install VMTP::
 
-To run VMTP directly from the host shell::
-
-    $ sudo docker run <vmtp-docker-image-name> python /vmtp/vmtp.py <args>
-
-To run VMTP from the Docker image shell::
-
-    $ sudo docker run <vmtp-docker-image-name>
-    $ cd /vmtp.py
-    $ python vmtp.py <args>
-
-(then type exit to exit and terminate the container instance)
-
-
-Docker Shared Volume to Share Files with the Container
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-VMTP can accept files as input (e.g. configuration and openrc file) and can generate json results into a file. It is possible to use the VMTP Docker image with files persisted on the host by using Docker shared volumes.
-
-For example, to get a copy of the VMTP default configuration file from the container::
-
-    $ sudo docker run -v $PWD:/vmtp/shared:rw -t <docker-vmtp-image-name>  cp /vmtp/cfg.default.yaml /vmtp/shared/mycfg.yaml
-
-The local directory to share ($PWD) is to be mapped to /vmtp/shared in the container in read/write mode. That way, mycfg.yaml will be copied to the local directory on the host.
-
-Assume you have edited the configuration file "mycfg.yaml", retrieved an openrc file "admin-openrc.sh" from Horizon on the local directory, and would like to get results back in the "res.json" file. What you can do is to map the current directory ($PWD) to /vmtp/shared inside the container in read/write mode, then run the script inside the container and use use files from the shared directory.
-
-E.g. From the host shell, you could do that in one-shot::
-
-    $ sudo docker run -v $PWD:/vmtp/shared:rw -t <docker-vmtp-image-name> python /vmtp/vmtp.py -c shared/mycfg.yaml -r shared/admin-openrc.sh -p admin --json shared/res.json
-    $ cat res.json
-
-Or from the Docker image shell::
-
-    $ sudo docker run -v $PWD:/vmtp/shared:rw -t <docker-vmtp-image-name>
-    $ python /vmtp/vmtp.py -c shared/mycfg.yaml -r shared/admin-openrc.sh -p admin --json shared/res.json
-    $ cat shared/res.json
+    $ virtualenv ./vmtpenv
+    $ source ./vmtpenv/bin/activate
+    $ pip install vmtp
+    $ vmtp -h
 
 
 .. _git_installation:
