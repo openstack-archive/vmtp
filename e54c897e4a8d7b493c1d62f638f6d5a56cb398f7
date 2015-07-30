@@ -1,0 +1,8 @@
+Verified+2: Jenkins
+Code-Review+2: Yichen Wang <yicwang@cisco.com>
+Workflow+1: Yichen Wang <yicwang@cisco.com>
+Submitted-by: Jenkins
+Submitted-at: Thu, 30 Jul 2015 08:37:05 +0000
+Reviewed-on: https://review.openstack.org/207263
+Project: stackforge/vmtp
+Branch: refs/heads/master
