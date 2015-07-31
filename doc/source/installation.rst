@@ -10,7 +10,7 @@ There are two ways to install and run VMTP tool. Users of VMTP should use regula
 PyPI based Installation
 -----------------------
 
-PyPI (The Python Package Index) is the offical repository for software in Python. It holds lots of packages, and the installation is relatively easy in only 2 steps.
+PyPI (The Python Package Index) is the official repository for software in Python. It holds lots of packages, and the installation is relatively easy in only 2 steps.
 
 Step 1
 ^^^^^^
@@ -41,6 +41,12 @@ Create a virtual environment for Python, and install VMTP::
     $ source ./vmtpenv/bin/activate
     $ pip install vmtp
     $ vmtp -h
+
+**Note:** "A Virtual Environment is a tool to keep the dependencies required by different projects in separate places, by creating virtual Python environments for them." It is optional but recommended. We could use::
+
+    $ sudo pip install vmtp
+
+instead if isolation among multiple Python projects is not needed.
 
 
 .. _git_installation:

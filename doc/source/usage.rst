@@ -20,9 +20,7 @@ VMTP Usage
                    [--vnic-type <direct|macvtap|normal>] [-d] [-v]
                    [--stop-on-error] [--vm-image-url <url_to_image>]
                    [--test-description <test_description>]
-    
-    OpenStack VM Throughput V2.1.4
-    
+
     optional arguments:
       -h, --help            show this help message and exit
       -c <config_file>, --config <config_file>

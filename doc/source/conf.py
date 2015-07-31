@@ -14,7 +14,6 @@
 
 import datetime
 import os
-import re
 import sys
 
 from pbr import version as pbr_ver

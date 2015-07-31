@@ -666,7 +666,7 @@ def main():
         return dest_config
 
     logging.basicConfig()
-    parser = argparse.ArgumentParser(description='OpenStack VM Throughput ' + __version__)
+    parser = argparse.ArgumentParser()
 
     parser.add_argument('-c', '--config', dest='config',
                         action='store',
@@ -974,14 +974,17 @@ def main():
     vmtp_instance = None
 
     cred = credentials.Credentials(opts.rc, opts.pwd, opts.no_env)
-    if cred.rc_auth_url:
-        if config.debug:
-            print 'Using ' + cred.rc_auth_url
-        vmtp_instance = VmtpTest(config, cred)
-        for item in native_tp_results:
-            vmtp_instance.rescol.add_flow_result(item)
-        vmtp_instance.run()
-        vmtp_net = vmtp_instance.net
+    if not cred.rc_auth_url:
+        print 'Error: Cannot read the credentials of the cloud. '
+        sys.exit(1)
+
+    if config.debug:
+        print 'Using ' + cred.rc_auth_url
+    vmtp_instance = VmtpTest(config, cred)
+    for item in native_tp_results:
+        vmtp_instance.rescol.add_flow_result(item)
+    vmtp_instance.run()
+    vmtp_net = vmtp_instance.net
 
     # Retrieve controller information if requested
     # controller node ssh access to collect metadata for the run.
