@@ -623,51 +623,25 @@ def normalize_paths(cfg):
     if cfg.private_key_file:
         cfg.private_key_file = os.path.expanduser(os.path.expanduser(cfg.private_key_file))
 
-def main():
-    def _get_ssh_access(opt_name, opt_value):
-        '''Allocate a HostSshAccess instance to the option value
-        Check that a password is provided or the key pair in the config file
-        is valid.
-        If invalid exit with proper error message
-        '''
-        if not opt_value:
-            return None
+def get_ssh_access(opt_name, opt_value, config):
+    '''Allocate a HostSshAccess instance to the option value
+    Check that a password is provided or the key pair in the config file
+    is valid.
+    If invalid exit with proper error message
+    '''
+    if not opt_value:
+        return None
 
-        host_access = sshutils.SSHAccess(opt_value)
-        host_access.private_key_file = config.private_key_file
-        host_access.public_key_file = config.public_key_file
-        if host_access.error:
-            print'Error for --' + (opt_name + ':' + host_access.error)
-            sys.exit(2)
-        return host_access
+    host_access = sshutils.SSHAccess(opt_value)
+    host_access.private_key_file = config.private_key_file
+    host_access.public_key_file = config.public_key_file
+    if host_access.error:
+        print'Error for --' + (opt_name + ':' + host_access.error)
+        sys.exit(2)
+    return host_access
 
-    def _merge_config(cfg_file, source_config, required=False):
-        '''
-        returns the merged config or exits if the file does not exist and is required
-        '''
-        dest_config = source_config
-
-        fullname = os.path.expanduser(cfg_file)
-        if os.path.isfile(fullname):
-            print('Loading ' + fullname + '...')
-            try:
-                alt_config = configure.Configuration.from_file(fullname).configure()
-                dest_config = source_config.merge(alt_config)
-
-            except configure.ConfigurationError:
-                # this is in most cases when the config file passed is empty
-                # configure.ConfigurationError: unconfigured
-                # in case of syntax error, another exception is thrown:
-                # TypeError: string indices must be integers, not str
-                pass
-        elif required:
-            print('Error: configration file %s does not exist' % (fullname))
-            sys.exit(1)
-        return dest_config
-
-    logging.basicConfig()
+def parse_opts_from_cli():
     parser = argparse.ArgumentParser()
-
     parser.add_argument('-c', '--config', dest='config',
                         action='store',
                         help='override default values with a config file',
@@ -683,7 +657,7 @@ def main():
                         help='Enable CPU monitoring (requires Ganglia)',
                         metavar='<gmond_ip>[:<port>]')
 
-    parser.add_argument('-p', '--password', dest='pwd',
+    parser.add_argument('-p', '--password', dest='passwd',
                         action='store',
                         help='OpenStack password',
                         metavar='<password>')
@@ -799,11 +773,34 @@ def main():
                         help='The test description to be stored in JSON or MongoDB',
                         metavar='<test_description>')
 
+    return parser.parse_known_args()[0]
 
-    (opts, args) = parser.parse_known_args()
+def merge_opts_to_configs(opts):
+    def _merge_config(cfg_file, source_config, required=False):
+        '''
+        returns the merged config or exits if the file does not exist and is required
+        '''
+        dest_config = source_config
+
+        fullname = os.path.expanduser(cfg_file)
+        if os.path.isfile(fullname):
+            print('Loading ' + fullname + '...')
+            try:
+                alt_config = configure.Configuration.from_file(fullname).configure()
+                dest_config = source_config.merge(alt_config)
+
+            except configure.ConfigurationError:
+                # this is in most cases when the config file passed is empty
+                # configure.ConfigurationError: unconfigured
+                # in case of syntax error, another exception is thrown:
+                # TypeError: string indices must be integers, not str
+                pass
+        elif required:
+            print('Error: configration file %s does not exist' % (fullname))
+            sys.exit(1)
+        return dest_config
 
     default_cfg_file = resource_string(__name__, "cfg.default.yaml")
-
     # read the default configuration file and possibly an override config file
     # the precedence order is as follows:
     # $HOME/.vmtp.yaml if exists
@@ -849,7 +846,7 @@ def main():
         config.json_file = None
 
     # Initialize the external host access
-    config.ext_host = _get_ssh_access('external-host', opts.ext_host)
+    config.ext_host = get_ssh_access('external-host', opts.ext_host, config)
 
     ###################################################
     # VM Image URL
@@ -945,9 +942,29 @@ def main():
     else:
         config.tp_tool = None
 
-    # 3 forms
-    # A list of 0 to 2 HostSshAccess elements
+    return config
+
+def run_vmtp(opts):
+    '''Run VMTP
+    :param opts: Parameters that to be passed to VMTP in type argparse.Namespace(). See:
+                 http://vmtp.readthedocs.org/en/latest/usage.html#running-vmtp-as-a-library
+                 for examples of the usage on this API.
+    :return: A dictionary which contains the results in details.
+    '''
+
+    if (sys.argv == ['']):
+        # Running from a Python call
+        def_opts = parse_opts_from_cli()
+        for key, value in vars(def_opts).iteritems():
+            if key not in opts:
+                opts.__setattr__(key, value)
+
+    config = merge_opts_to_configs(opts)
+
+    # Run the natvie host tests if specified by user
     if opts.hosts:
+        # 3 forms
+        # A list of 0 to 2 HostSshAccess elements
         native_hosts = []
         if_name = None
         for host in opts.hosts:
@@ -961,23 +978,16 @@ def main():
                 if not if_name and last_arg:
                     if_name = last_arg
                 host = host[:last_column_index]
-            native_hosts.append(_get_ssh_access('host', host))
+            native_hosts.append(get_ssh_access('host', host, config))
         native_tp_results = test_native_tp(native_hosts, if_name, config)
     else:
         native_tp_results = []
 
-    # replace all command line arguments (after the prog name) with
-    # those args that have not been parsed by this parser so that the
-    # unit test parser is not bothered by local arguments
-    sys.argv[1:] = args
-    vmtp_net = None
-    vmtp_instance = None
-
-    cred = credentials.Credentials(opts.rc, opts.pwd, opts.no_env)
+    # Parse the credentials of the OpenStack cloud, and run the benchmarking
+    cred = credentials.Credentials(opts.rc, opts.passwd, opts.no_env)
     if not cred.rc_auth_url:
         print 'Error: Cannot read the credentials of the cloud. '
         sys.exit(1)
-
     if config.debug:
         print 'Using ' + cred.rc_auth_url
     vmtp_instance = VmtpTest(config, cred)
@@ -988,28 +998,36 @@ def main():
 
     # Retrieve controller information if requested
     # controller node ssh access to collect metadata for the run.
-    ctrl_host_access = _get_ssh_access('controller-node', opts.controller_node)
+    ctrl_host_access = get_ssh_access('controller-node', opts.controller_node, config)
     get_controller_info(ctrl_host_access,
                         vmtp_net,
                         vmtp_instance.rescol,
                         config.ssh_retry_count)
 
+    # Print the report
     print_report(vmtp_instance.rescol.results)
 
-    # If saving the results to JSON or MongoDB, get additional details:
-    if config.json_file or config.vmtp_mongod_ip:
-        vmtp_instance.rescol.mask_credentials()
-        vmtp_instance.rescol.generate_runid()
+    # Post-processing of the results, adding some metadata
+    vmtp_instance.rescol.add_property('auth_url', cred.rc_auth_url)
+    vmtp_instance.rescol.mask_credentials()
+    vmtp_instance.rescol.generate_runid()
+    if opts.test_description:
+        vmtp_instance.rescol.add_property('test_description', opts.test_description)
 
+    # Save results to a JSON file
     if config.json_file:
-        # Test Description
-        if opts.test_description:
-            vmtp_instance.rescol.add_property('test_description', opts.test_description)
-        vmtp_instance.rescol.add_property('auth_url', cred.rc_auth_url)
         vmtp_instance.rescol.save(config)
 
+    # Save results to MongoDB
     if config.vmtp_mongod_ip:
         vmtp_instance.rescol.save_to_db(config)
+
+    return vmtp_instance.rescol.results
+
+def main():
+    logging.basicConfig()
+    opts = parse_opts_from_cli()
+    run_vmtp(opts)
 
 if __name__ == '__main__':
     main()
