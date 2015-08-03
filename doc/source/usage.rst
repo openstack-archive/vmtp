@@ -277,6 +277,24 @@ It is possible to use VMTP to measure throughput for IPv6.
 Set ipv6_mode to slaac, dhcpv6-stateful or dhcpv6-stateless. If SLAAC or DHCPv6 stateless is enabled make sure to have radvd packaged in as part of openstack install. For DHCPv6 stateful you need dnsmasq version >= 2.68. The test creates 2 networks and creates 1 IPv4 and 1 IPv6 subnet inside each of these networks. The subnets are created based on the IPv6 mode that you set in the configuration file. The Floating IP result case is skipped for IPv6 since there is no concept of a floating ip with IPv6. 
 
 
+Running VMTP as a library
+-------------------------
+
+VMTP supports to be invoked from another Python program, just like an API call. Once the benchmarking is finished, the API will return a Python dictionary with all details.
+
+Example of code for running VMTP as an API call::
+
+    import argparse
+    opts = argparse.Namespace()
+    opts.rc = "<path_to_rc_file>"
+    opts.passwd = "<password_of_the_cloud>"
+    opts.inter_node_only = True
+    opts.json = "my.json"
+
+    import vmtp
+    vmtp.run_vmtp(opts)
+
+
 Generating charts from JSON results
 -----------------------------------
 
