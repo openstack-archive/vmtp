@@ -16,4 +16,4 @@ The default setting is to find the "optimal" throughput with packet loss rate wi
 
 In some cases, it is not possible to converge with a loss rate within that range and trying to do so may require too many iterations. The algorithm used is empiric and tries to achieve a result within a reasonable and bounded number of iterations. In most cases the optimal throughput is found in less than 30 seconds for any given flow.
 
-**Note:** UDP measurements are only available with nuttcp (not available with iperf).
+.. note:: UDP measurements are only available with nuttcp (not available with iperf).

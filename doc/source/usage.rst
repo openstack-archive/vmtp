@@ -89,7 +89,7 @@ The precedence order for configuration files is as follows:
 To override a default value set in cfg.default.yaml, simply redefine that value in the configuration file passed in -c or in the $HOME/.vmtp.yaml file.
 Check the content of cfg.default.yaml file as it contains the list of configuration variables and instructions on how to set them.
 
-**Note:** the configuration file is not needed if VMTP only runs the native host throughput option (*--host*)
+.. note:: The configuration file is not needed if VMTP only runs the native host throughput option (*--host*)
 
 
 OpenStack openrc File
@@ -99,7 +99,7 @@ VMTP requires downloading an "openrc" file from the OpenStack Dashboard (Project
 
 This file should then be passed to VMTP using the *-r* option or should be sourced prior to invoking VMTP.
 
-**Note:** the openrc file is not needed if VMTP only runs the native host throughput option (*--host*)
+.. note:: The openrc file is not needed if VMTP only runs the native host throughput option (*--host*)
 
 
 Access Info for Controller Node
@@ -148,7 +148,6 @@ VMTP requires a Linux image available in Glance to spawn VMs. It could be upload
 
 There is a candidate image defined in the default config already. It has been verified working, but of course it is OK to try other Linux distro as well.
 
-**Note:** Due to the limitation of the Python glanceclient API (v2.0), it is not able to create the image directly from a remote URL. So the implementation of this feature used a glance CLI command instead. Be sure to source the OpenStack rc file first before running VMTP with this feature.
 
 VNIC Type
 ^^^^^^^^^
@@ -156,6 +155,7 @@ VNIC Type
 By default test VMs will be created with ports that have a "normal" VNIC type.
 To create test VMs with ports that use PCI passthrough SRIOV, specify "--vnic_type direct". This will assume that the host where the VM are instantiated have SRIOV capable NIC.
 An exception will be thrown if a test VM is lauched on a host that does not have SRIOV capable NIC or has not been configured to use such feature.
+
 
 Quick guide to run VMTP on an OpenStack Cloud
 ----------------------------------------------
@@ -183,7 +183,7 @@ Upload the Linux image to the OpenStack controller node, so that OpenStack is ab
 
     python vmtp.py -r admin-openrc.sh -p admin --vm_image_url http://<url_to_the_image>
 
-**Note:** Currently, VMTP only supports the qcow2 format.
+.. note:: Currently, VMTP only supports to load the image in qcow2 format.
 
 
 Examples of running VMTP on an OpenStack Cloud
@@ -282,7 +282,9 @@ Running VMTP as a library
 
 VMTP supports to be invoked from another Python program, just like an API call. Once the benchmarking is finished, the API will return a Python dictionary with all details.
 
-Example of code for running VMTP as an API call::
+Example of code for running VMTP as an API call:
+
+.. code-block:: python
 
     import argparse
     opts = argparse.Namespace()

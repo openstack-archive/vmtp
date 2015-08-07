@@ -29,7 +29,7 @@ There are some criteria that are enforced to commit to VMTP. Below commands will
 
     $ tox -epep8
 
-**Note:** The first run usually takes longer, as tox will create a new virtual environment and download all dependencies. Once that is the done, further run will be very fast.
+.. note:: The first run usually takes longer, as tox will create a new virtual environment and download all dependencies. Once that is the done, further run will be very fast.
 
 4. Run the test suite::
 
@@ -50,7 +50,7 @@ Submit Review
 
     $ git commit -a
 
-**Note:** For a feature commit, please supply a clear commit message indicating what the feature is; for a bugfix commit, please also containing a launchpad link to the bug you are working on.
+.. note:: For a feature commit, please supply a clear commit message indicating what the feature is; for a bugfix commit, please also containing a launchpad link to the bug you are working on.
 
 7. Submit the review::
 

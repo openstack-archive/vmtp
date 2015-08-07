@@ -4,7 +4,7 @@ Installation
 
 There are two ways to install and run VMTP tool. Users of VMTP should use regular PyPI based installation, while developers of VMTP should use GitHub/StackForge Repository based installation. Normally, PyPI based installation will satisfy most of use cases, and it is the recommended way for running VMTP under production environments, or through an automated or scheduled job. A git repository based installation gives more flexibility, and it is a must for developers of VMTP.
 
-**Note:** Installation from PyPI will only have the latest stable version.
+.. note:: Installation from PyPI will only have the latest stable version.
 
 
 PyPI based Installation
@@ -17,17 +17,23 @@ Step 1
 
 Install required development libraries. Run the command based on your distro.
 
-Ubuntu/Debian based::
+Ubuntu/Debian based:
+
+.. code-block:: bash
 
     $ sudo apt-get install python-dev python-virtualenv git git-review
     $ sudo apt-get install libxml2-dev libxslt-dev libffi-dev libz-dev libyaml-dev libssl-dev
 
-RHEL/CentOS based::
+RHEL/CentOS based:
+
+.. code-block:: bash
 
     $ sudo yum install python-devel python-virtualenv git
     # sudo yum install libxml2-devel libxslt-devel libffi-devel libyaml-devel openssl-devel
 
-MacOSX::
+MacOSX:
+
+.. code-block:: bash
 
     $ sudo easy_install pip
     $ sudo pip install virtualenv
@@ -35,18 +41,21 @@ MacOSX::
 Step 2
 ^^^^^^
 
-Create a virtual environment for Python, and install VMTP::
+Create a virtual environment for Python, and install VMTP:
+
+.. code-block:: bash
 
     $ virtualenv ./vmtpenv
     $ source ./vmtpenv/bin/activate
     $ pip install vmtp
     $ vmtp -h
 
-**Note:** "A Virtual Environment is a tool to keep the dependencies required by different projects in separate places, by creating virtual Python environments for them." It is optional but recommended. We could use::
+.. note::
+    "A Virtual Environment is a tool to keep the dependencies required by different projects in separate places, by creating virtual Python environments for them." It is optional but recommended. We could use::
 
     $ sudo pip install vmtp
 
-instead if isolation among multiple Python projects is not needed.
+    instead if isolation among multiple Python projects is not needed.
 
 
 .. _git_installation:
@@ -60,7 +69,7 @@ It is recommended to run VMTP inside a virtual environment. However, it can be s
 Super quick installation on Ubuntu/Debian
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code::
+.. code-block:: bash
 
     $ sudo apt-get install python-dev python-virtualenv git git-review
     $ sudo apt-get install libxml2-dev libxslt-dev libffi-dev libz-dev libyaml-dev libssl-dev
@@ -75,7 +84,7 @@ Super quick installation on Ubuntu/Debian
 Super quick installation on RHEL/CentOS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code::
+.. code-block:: bash
 
     $ sudo yum install python-devel python-virtualenv git
     # sudo yum install libxml2-devel libxslt-devel libffi-devel libyaml-devel openssl-devel
@@ -95,7 +104,7 @@ VMTP can run natively on MacOSX. These instructions have been verified to work o
 
 First, download XCode from App Store, then execute below commands:
 
-.. code::
+.. code-block:: bash
 
     $ # Download the XCode command line tools
     $ code-select --install
