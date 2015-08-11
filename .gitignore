@@ -57,3 +57,4 @@ ChangeLog
 # vmtp
 *.local*
 *.json
+*.html

@@ -29,7 +29,7 @@ RHEL/CentOS based:
 .. code-block:: bash
 
     $ sudo yum install python-devel python-virtualenv git
-    # sudo yum install libxml2-devel libxslt-devel libffi-devel libyaml-devel openssl-devel
+    $ sudo yum install libxml2-devel libxslt-devel libffi-devel libyaml-devel openssl-devel
 
 MacOSX:
 
@@ -87,7 +87,7 @@ Super quick installation on RHEL/CentOS
 .. code-block:: bash
 
     $ sudo yum install python-devel python-virtualenv git
-    # sudo yum install libxml2-devel libxslt-devel libffi-devel libyaml-devel openssl-devel
+    $ sudo yum install libxml2-devel libxslt-devel libffi-devel libyaml-devel openssl-devel
     $ # create a virtual environment
     $ virtualenv ./vmtpenv
     $ source ./vmtpenv/bin/activate

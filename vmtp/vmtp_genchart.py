@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # Copyright 2014 Cisco Systems, Inc.  All rights reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -232,11 +233,10 @@ def gen_chart(files, chart_dest, browser, protocols=''):
     chart = GoogleChartsBarChart(results, protocols.lower())
     chart.plot(chart_dest)
     if browser:
-        url = 'file://' + os.path.abspath(opts.chart)
+        url = 'file://' + os.path.abspath(chart_dest)
         webbrowser.open(url, new=2)
 
-if __name__ == '__main__':
-
+def main():
     parser = argparse.ArgumentParser(description='VMTP Chart Generator V' + __version__)
 
     parser.add_argument('-c', '--chart', dest='chart',
@@ -271,3 +271,7 @@ if __name__ == '__main__':
         sys.exit(0)
 
     gen_chart(opts.files, opts.chart, opts.browser, opts.protocols)
+
+
+if __name__ == '__main__':
+    main()
