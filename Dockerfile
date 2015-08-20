@@ -17,7 +17,5 @@ RUN apt-get update && apt-get install -y \
        python-pip \
     && rm -rf /var/lib/apt/lists/*
 
-COPY . /vmtp/
-
-RUN pip install -r /vmtp/requirements.txt
+RUN pip install vmtp
 
