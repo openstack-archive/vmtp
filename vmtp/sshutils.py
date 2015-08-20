@@ -413,14 +413,28 @@ class SSH(object):
     def get_file_from_host(self, from_path, to_path):
         '''
         A wrapper api on top of paramiko scp module, to scp
-        a local file to the host.
+        a remote file to the local.
         '''
         sshcon = self._get_client()
         scpcon = scp.SCPClient(sshcon.get_transport())
         try:
             scpcon.get(from_path, to_path)
         except scp.SCPException as exp:
-            print ("Send failed: [%s]", exp)
+            print "Receive failed: [%s]" % exp
+            return 0
+        return 1
+
+    def put_file_to_host(self, from_path, to_path):
+        '''
+        A wrapper api on top of paramiko scp module, to scp
+        a local file to the remote.
+        '''
+        sshcon = self._get_client()
+        scpcon = scp.SCPClient(sshcon.get_transport())
+        try:
+            scpcon.put(from_path, remote_path=to_path)
+        except scp.SCPException as exp:
+            print "Send failed: [%s]" % exp
             return 0
         return 1
 

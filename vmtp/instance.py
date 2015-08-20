@@ -16,7 +16,6 @@
 import os
 import re
 import stat
-import subprocess
 
 import monitor
 from netaddr import IPAddress
@@ -243,28 +242,14 @@ class Instance(object):
             self.buginf('tool %s already present - skipping install',
                         tool_name)
             return True
-        # scp over the tool binary
         # first chmod the local copy since git does not keep the permission
         os.chmod(source, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
 
-        # scp to the target
-        scp_opts = '-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'
-        scp_cmd = 'scp -i %s %s %s %s@%s:%s' % (self.config.private_key_file,
-                                                scp_opts,
-                                                source,
-                                                self.ssh_access.username,
-                                                self.ssh_access.host,
-                                                dest)
+        # scp over the tool binary
         self.buginf('Copying %s to target...', tool_name)
-        self.buginf(scp_cmd)
-        devnull = open(os.devnull, 'wb')
-        rc = subprocess.call(scp_cmd, shell=True,
-                             stdout=devnull, stderr=devnull)
-        if rc:
-            self.display('Copy to target failed rc=%d', rc)
-            self.display(scp_cmd)
-            return False
-        return True
+        rc = self.ssh.put_file_to_host(source, dest)
+
+        return True if rc else False
 
     def get_cmd_duration(self):
         '''Get the duration of the client run
