@@ -7,10 +7,10 @@ VMTP Usage
 
 .. code::
 
-    usage: vmtp.py [-h] [-c <config_file>] [-r <openrc_file>]
+    usage: vmtp.py [-h] [-c <config_file>] [-sc] [-r <openrc_file>]
                    [-m <gmond_ip>[:<port>]] [-p <password>] [-t <time>]
                    [--host <user>@<host_ssh_ip>[:<password>:<server-listen-if-name>]]
-                   [--external-host <user>@<host_ssh_ip>[:password>]]
+                   [--external-host <user>@<host_ssh_ip>[:<password>]]
                    [--controller-node <user>@<host_ssh_ip>[:<password>]]
                    [--mongod-server <server ip>] [--json <file>]
                    [--tp-tool <nuttcp|iperf>] [--hypervisor [<az>:] <hostname>]
@@ -25,6 +25,7 @@ VMTP Usage
       -h, --help            show this help message and exit
       -c <config_file>, --config <config_file>
                             override default values with a config file
+      -sc, --show-cofig     print the default config
       -r <openrc_file>, --rc <openrc_file>
                             source OpenStack credentials from rc file
       -m <gmond_ip>[:<port>], --monitor <gmond_ip>[:<port>]

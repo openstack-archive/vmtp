@@ -79,6 +79,7 @@ Super quick installation on Ubuntu/Debian
     $ git clone git://git.openstack.org/stackforge/vmtp
     $ cd vmtp
     $ pip install -r requirements-dev.txt
+    $ cd vmtp
     $ python vmtp.py -h
 
 Super quick installation on RHEL/CentOS
@@ -94,6 +95,7 @@ Super quick installation on RHEL/CentOS
     $ git clone git://git.openstack.org/stackforge/vmtp
     $ cd vmtp
     $ pip install -r requirements-dev.txt
+    $ cd vmtp
     $ python vmtp.py -h
 
 
@@ -107,7 +109,7 @@ First, download XCode from App Store, then execute below commands:
 .. code-block:: bash
 
     $ # Download the XCode command line tools
-    $ code-select --install
+    $ xcode-select --install
     $ # Install pip
     $ sudo easy_install pip
     $ # Install python virtualenv
@@ -118,4 +120,5 @@ First, download XCode from App Store, then execute below commands:
     $ git clone git://git.openstack.org/stackforge/vmtp
     $ cd vmtp
     $ pip install -r requirements-dev.txt
+    $ cd vmtp
     $ python vmtp.py -h

@@ -647,6 +647,11 @@ def parse_opts_from_cli():
                         help='override default values with a config file',
                         metavar='<config_file>')
 
+    parser.add_argument('-sc', '--show-config', dest='show_cofig',
+                        default=False,
+                        action='store_true',
+                        help='print the default config')
+
     parser.add_argument('-r', '--rc', dest='rc',
                         action='store',
                         help='source OpenStack credentials from rc file',
@@ -811,6 +816,11 @@ def merge_opts_to_configs(opts):
 
     if opts.config:
         config = _merge_config(opts.config, config, required=True)
+
+    if opts.show_cofig:
+        print default_cfg_file
+        sys.exit(0)
+
 
     if opts.version:
         print(__version__)
