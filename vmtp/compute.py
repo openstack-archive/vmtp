@@ -374,8 +374,8 @@ class Compute(object):
             if not self.config.availability_zone:
                 print('Error: availability_zone must be configured')
             elif host_list:
-                print('Error: no host matching the selection for availability zone: '
-                      + self.config.availability_zone)
+                print('Error: no host matching the selection for availability zone: ' +
+                      self.config.availability_zone)
                 avail_list = []
             else:
                 avail_list = [self.config.availability_zone]

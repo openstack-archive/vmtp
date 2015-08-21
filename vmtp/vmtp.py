@@ -121,7 +121,7 @@ class VmtpException(Exception):
     pass
 
 class VmtpTest(object):
-    def __init__(self, config, cred):
+    def __init__(self, config, cred, rescol):
         '''
             1. Authenticate nova and neutron with keystone
             2. Create new client objects for neutron and nova
@@ -144,7 +144,7 @@ class VmtpTest(object):
         self.image_instance = None
         self.flavor_type = None
         self.instance_access = None
-        self.rescol = ResultsCollector()
+        self.rescol = rescol
         self.config = config
         self.cred = cred
 
@@ -424,7 +424,7 @@ class VmtpTest(object):
 
 def test_native_tp(nhosts, ifname, config):
     FlowPrinter.print_desc('Native Host to Host throughput')
-    result_list = None
+    result_list = []
     server_host = nhosts[0]
     server = PerfInstance('Host-' + server_host.host + '-Server', config, server=True)
 
@@ -462,7 +462,11 @@ def test_native_tp(nhosts, ifname, config):
                 else:
                     client.buginf('SSH connected')
                     client.create()
-                    res = client.run_client('Native host-host',
+                    if client_host == server_host:
+                        desc = 'Native intra-host'
+                    else:
+                        desc = 'Native inter-host'
+                    res = client.run_client(desc,
                                             server_ip,
                                             server,
                                             bandwidth=config.vm_bandwidth)
@@ -540,6 +544,7 @@ def print_report(results):
     # Intra-node = 0, Inter-node = 1
     SPASS = "\033[92mPASSED\033[0m"
     SFAIL = "\033[91mFAILED\033[0m"
+    print results
 
     # Initilize a run_status[3][2][2][3] array
     run_status = [([([(["SKIPPED"] * 3) for i in range(2)]) for i in range(2)]) for i in range(3)]
@@ -960,11 +965,13 @@ def run_vmtp(opts):
                 opts.__setattr__(key, value)
 
     config = merge_opts_to_configs(opts)
+    rescol = ResultsCollector()
 
-    # Run the natvie host tests if specified by user
+    # Run the native host tests if specified by user
     if opts.hosts:
-        # 3 forms
         # A list of 0 to 2 HostSshAccess elements
+        # remove any duplicate
+        opts.hosts = list(set(opts.hosts))
         native_hosts = []
         if_name = None
         for host in opts.hosts:
@@ -983,46 +990,46 @@ def run_vmtp(opts):
     else:
         native_tp_results = []
 
+    for item in native_tp_results:
+        rescol.add_flow_result(item)
+
     # Parse the credentials of the OpenStack cloud, and run the benchmarking
     cred = credentials.Credentials(opts.rc, opts.passwd, opts.no_env)
-    if not cred.rc_auth_url:
-        print 'Error: Cannot read the credentials of the cloud. '
-        sys.exit(1)
-    if config.debug:
-        print 'Using ' + cred.rc_auth_url
-    vmtp_instance = VmtpTest(config, cred)
-    for item in native_tp_results:
-        vmtp_instance.rescol.add_flow_result(item)
-    vmtp_instance.run()
-    vmtp_net = vmtp_instance.net
+    if cred.rc_auth_url:
+        if config.debug:
+            print 'Using ' + cred.rc_auth_url
+        vmtp_instance = VmtpTest(config, cred, rescol)
+        vmtp_instance.run()
+        vmtp_net = vmtp_instance.net
 
-    # Retrieve controller information if requested
-    # controller node ssh access to collect metadata for the run.
-    ctrl_host_access = get_ssh_access('controller-node', opts.controller_node, config)
-    get_controller_info(ctrl_host_access,
-                        vmtp_net,
-                        vmtp_instance.rescol,
-                        config.ssh_retry_count)
+        # Retrieve controller information if requested
+        # controller node ssh access to collect metadata for the run.
+        ctrl_host_access = get_ssh_access('controller-node', opts.controller_node, config)
+        get_controller_info(ctrl_host_access,
+                            vmtp_net,
+                            rescol,
+                            config.ssh_retry_count)
 
     # Print the report
-    print_report(vmtp_instance.rescol.results)
+    print_report(rescol.results)
 
     # Post-processing of the results, adding some metadata
-    vmtp_instance.rescol.add_property('auth_url', cred.rc_auth_url)
-    vmtp_instance.rescol.mask_credentials()
-    vmtp_instance.rescol.generate_runid()
+    if cred.rc_auth_url:
+        rescol.add_property('auth_url', cred.rc_auth_url)
+        rescol.mask_credentials()
+    rescol.generate_runid()
     if opts.test_description:
-        vmtp_instance.rescol.add_property('test_description', opts.test_description)
+        rescol.add_property('test_description', opts.test_description)
 
     # Save results to a JSON file
     if config.json_file:
-        vmtp_instance.rescol.save(config)
+        rescol.save(config)
 
     # Save results to MongoDB
     if config.vmtp_mongod_ip:
-        vmtp_instance.rescol.save_to_db(config)
+        rescol.save_to_db(config)
 
-    return vmtp_instance.rescol.results
+    return rescol.results
 
 def main():
     logging.basicConfig()
