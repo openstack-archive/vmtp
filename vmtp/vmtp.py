@@ -544,11 +544,10 @@ def print_report(results):
     # Intra-node = 0, Inter-node = 1
     SPASS = "\033[92mPASSED\033[0m"
     SFAIL = "\033[91mFAILED\033[0m"
-    print results
 
-    # Initilize a run_status[3][2][2][3] array
-    run_status = [([([(["SKIPPED"] * 3) for i in range(2)]) for i in range(2)]) for i in range(3)]
-    run_data = [([([([{}] * 3) for i in range(2)]) for i in range(2)]) for i in range(3)]
+    # Initilize a run_status[4][2][2][3] array
+    run_status = [([([(["SKIPPED"] * 3) for i in range(2)]) for i in range(2)]) for i in range(4)]
+    run_data = [([([([{}] * 3) for i in range(2)]) for i in range(2)]) for i in range(4)]
     flows = results['flows']
     for flow in flows:
         res = flow['results']
@@ -567,6 +566,9 @@ def print_report(results):
         idx0 = 0 if flow['desc'].find('same network') != -1 else 1
         idx1 = 0 if flow['desc'].find('fixed IP') != -1 else 1
         idx2 = 0 if flow['desc'].find('intra-node') != -1 else 1
+        if flow['desc'].find('Native') != -1:
+            idx0 = 3
+            idx1 = idx2 = 0
         for item in res:
             for idx3, proto in enumerate(['TCP', 'UDP', 'ICMP']):
                 if (item['protocol'] == proto) and (run_status[idx0][idx1][idx2][idx3] != SFAIL):
@@ -590,8 +592,14 @@ def print_report(results):
                            run_data[idx0][idx1][idx2][idx3]]
                     table.append(row)
                     scenario = scenario + 1
-    table.append(['7.1', 'VM to Host Uploading', run_status[2][0][0][0], run_data[2][0][0][0]])
-    table.append(['7.2', 'VM to Host Downloading', run_status[2][0][0][1], run_data[2][0][0][1]])
+    for idx3, proto in enumerate(['TCP', 'UDP', 'ICMP']):
+        row = [str(scenario / 3 + 1) + "." + str(idx3 + 1),
+               "Native Throughput, %s" % (proto),
+               run_status[3][0][0][idx3], run_data[3][0][0][idx3]]
+        table.append(row)
+        scenario = scenario + 1
+    table.append(['8.1', 'VM to Host Uploading', run_status[2][0][0][0], run_data[2][0][0][0]])
+    table.append(['8.2', 'VM to Host Downloading', run_status[2][0][0][1], run_data[2][0][0][1]])
 
     ptable = zip(*table[1:])[2]
     cnt_passed = ptable.count(SPASS)
