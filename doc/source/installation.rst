@@ -21,20 +21,22 @@ Ubuntu/Debian based:
 
 .. code-block:: bash
 
-    $ sudo apt-get install python-dev python-virtualenv git git-review
+    $ sudo apt-get install python-dev python-pip python-virtualenv git git-review
     $ sudo apt-get install libxml2-dev libxslt-dev libffi-dev libz-dev libyaml-dev libssl-dev
 
 RHEL/CentOS based:
 
 .. code-block:: bash
 
-    $ sudo yum install python-devel python-virtualenv git
+    $ sudo yum install python-devel python-pip python-virtualenv git
     $ sudo yum install libxml2-devel libxslt-devel libffi-devel libyaml-devel openssl-devel
 
 MacOSX:
 
 .. code-block:: bash
 
+    $ # Download the XCode command line tools from Apple App Store
+    $ xcode-select --install
     $ sudo easy_install pip
     $ sudo pip install virtualenv
 
@@ -51,6 +53,7 @@ Create a virtual environment for Python, and install VMTP:
     $ vmtp -h
 
 .. note::
+
     "A Virtual Environment is a tool to keep the dependencies required by different projects in separate places, by creating virtual Python environments for them." It is optional but recommended. We could use::
 
     $ sudo pip install vmtp
