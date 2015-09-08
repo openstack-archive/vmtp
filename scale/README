@@ -1,8 +1,0 @@
-This is for VMTP scale testing
-This is work in progress for now
-The idea is to be able to 
-1. Create tenant and users to load the cloud
-2. Create routers within a User in a tenant
-3. Create N networks per router
-4. Create N VMs per network
-5. Clean up all resources by default (Provide ability to avoid cleanup)
