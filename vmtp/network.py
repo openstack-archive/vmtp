@@ -203,11 +203,13 @@ class Network(object):
         # Assumed that both management networks are created together so checking for one of them
         ports = self.neutron_client.list_ports()['ports']
         for port in ports:
-            port_ip = port['fixed_ips'][0]
-            if (port['device_id'] == self.ext_router['id']) and \
-               (port_ip['subnet_id'] == self.vm_int_net[0]['subnets'][0]):
-                print 'Ext router already associated to the internal network'
-                return
+            # Skip the check on stale ports
+            if port['fixed_ips']:
+                port_ip = port['fixed_ips'][0]
+                if (port['device_id'] == self.ext_router['id']) and \
+                   (port_ip['subnet_id'] == self.vm_int_net[0]['subnets'][0]):
+                    print 'Ext router already associated to the internal network'
+                    return
 
         for int_net in self.vm_int_net:
             body = {
