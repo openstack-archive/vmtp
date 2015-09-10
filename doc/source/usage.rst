@@ -217,12 +217,12 @@ Example 2: Cloud upload/download performance measurement
 
 Run VMTP on an OpenStack cloud with a specified configuration file (mycfg.yaml), and saved the result to a JSON file::
 
-    python vmtp.py -c mycfg.yaml -r admin-openrc.sh -p admin --external_host localadmin@172.29.87.29 --json res.json
+    python vmtp.py -c mycfg.yaml -r admin-openrc.sh -p admin --external-host localadmin@172.29.87.29 --json res.json
 
 This run will generate 8 sets of performance data, the standard 6 sets mentioned above, plus two sets of upload/download performance data for both TCP and UDP.
 If you do not have ssh password-less access to the external host (public key) you must specify a password::
 
-    python vmtp.py -c mycfg.yaml -r admin-openrc.sh -p admin --external_host localadmin@172.29.87.29:secret --json res.json
+    python vmtp.py -c mycfg.yaml -r admin-openrc.sh -p admin --external-host localadmin@172.29.87.29:secret --json res.json
 
 Example 3: Store the OpenStack deployment details
 """""""""""""""""""""""""""""""""""""""""""""""""
@@ -233,7 +233,7 @@ Run VMTP on an OpenStack cloud, fetch the defails of the deployment and store it
 
 In addition, VMTP also supports to store the results to a MongoDB server::
     
-    python vmtp.py -r admin-openrc.sh -p admin --json res.json --mongod_server 172.29.87.29 --controller-node root@192.168.12.34:admin
+    python vmtp.py -r admin-openrc.sh -p admin --json res.json --mongod-server 172.29.87.29 --controller-node root@192.168.12.34:admin
 
 Before storing info into MongoDB, some configurations are needed to change to fit in your environment. By default, VMTP will store to database "client_db" with collection name "pns_web_entry", and of course these can be changed in the configuration file. Below are the fields which are related to accessing MongoDB::
 
