@@ -27,7 +27,8 @@ import traceback
 
 from __init__ import __version__
 import compute
-import configure
+from config import config_load
+from config import config_loads
 import credentials
 from glanceclient.v2 import client as glanceclient
 import iperf_tool
@@ -660,7 +661,7 @@ def parse_opts_from_cli():
                         help='override default values with a config file',
                         metavar='<config_file>')
 
-    parser.add_argument('-sc', '--show-config', dest='show_cofig',
+    parser.add_argument('-sc', '--show-config', dest='show_config',
                         default=False,
                         action='store_true',
                         help='print the default config')
@@ -794,29 +795,6 @@ def parse_opts_from_cli():
     return parser.parse_known_args()[0]
 
 def merge_opts_to_configs(opts):
-    def _merge_config(cfg_file, source_config, required=False):
-        '''
-        returns the merged config or exits if the file does not exist and is required
-        '''
-        dest_config = source_config
-
-        fullname = os.path.expanduser(cfg_file)
-        if os.path.isfile(fullname):
-            print('Loading ' + fullname + '...')
-            try:
-                alt_config = configure.Configuration.from_file(fullname).configure()
-                dest_config = source_config.merge(alt_config)
-
-            except configure.ConfigurationError:
-                # this is in most cases when the config file passed is empty
-                # configure.ConfigurationError: unconfigured
-                # in case of syntax error, another exception is thrown:
-                # TypeError: string indices must be integers, not str
-                pass
-        elif required:
-            print('Error: configration file %s does not exist' % (fullname))
-            sys.exit(1)
-        return dest_config
 
     default_cfg_file = resource_string(__name__, "cfg.default.yaml")
     # read the default configuration file and possibly an override config file
@@ -824,16 +802,17 @@ def merge_opts_to_configs(opts):
     # $HOME/.vmtp.yaml if exists
     # -c <file> from command line if provided
     # cfg.default.yaml
-    config = configure.Configuration.from_string(default_cfg_file).configure()
-    config = _merge_config('~/.vmtp.yaml', config)
+    config = config_loads(default_cfg_file)
+    local_cfg = os.path.expanduser('~/.vmtp.yaml')
+    if os.path.isfile(local_cfg):
+        config = config_load(local_cfg, config)
 
     if opts.config:
-        config = _merge_config(opts.config, config, required=True)
+        config = config_load(opts.config, config)
 
-    if opts.show_cofig:
+    if opts.show_config:
         print default_cfg_file
         sys.exit(0)
-
 
     if opts.version:
         print(__version__)
