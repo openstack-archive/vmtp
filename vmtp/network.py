@@ -62,9 +62,9 @@ class Network(object):
                         break
                     if not self.ext_net:
                         self.ext_net = network
-                except KeyError:
+                except AttributeError:
                     ###############################################
-                    # A key error indicates, no user defined
+                    # A attribute error indicates, no user defined
                     # external network defined, so use the first one
                     ###############################################
                     self.ext_net = network
