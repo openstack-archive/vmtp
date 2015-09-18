@@ -365,7 +365,7 @@ class VmtpTest(object):
                               self.server.internal_ip)
             self.client.dispose()
             self.client = None
-            if not self.config.reuse_network_name:
+            if not self.config.reuse_network_name and len(self.net.vm_int_net) > 1:
                 # Different network
                 self.create_flow_client(client_az, self.net.vm_int_net[1])
 
@@ -392,7 +392,11 @@ class VmtpTest(object):
         if self.client:
             self.client.dispose()
         if not self.config.reuse_existing_vm and self.net:
-            self.net.dispose()
+            for net in self.net.vm_int_net:
+                if net['name'].find('pns-internal-net') == -1:
+                    break
+            else:
+                self.net.dispose()
         # Remove the public key
         if self.comp:
             self.comp.remove_public_key(self.config.public_key_name)

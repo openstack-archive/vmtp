@@ -55,14 +55,14 @@ vm_image_url: ''
 # first external network it can find (the cloud must have at least 1
 # external network defined and available for use)
 # When set, ignore floating ip creation and reuse existing management network for tests
-reuse_network_name :
+reuse_network_name:
 
 # Use of the script for special deployments
 floating_ip: True
 
 # Set this to an existing VM name if the script should not create new VM
 # and reuse existing VM
-reuse_existing_vm :
+reuse_existing_vm:
 
 # Set config drive to true to bypass metadata service and use config drive
 # An option of config_drive to True is provided to nova boot to enable this
@@ -81,13 +81,14 @@ ipv6_mode:
 # reused, otherwise a new router will be created
 router_name: 'pns-router'
 
-# Defaul names for the internal networks used by the
+# Defaul names for the internal networks and subnets used by the
 # script. If an existing network with this name exists it will be reused.
 # Otherwise a new internal network will be created with that name.
-# 2 networks are needed to test the case of network to network communication
+#
+# 2 networks are needed to test the case of network to network
+# communication (L3). For doing the intra-network communication
+# only (L2), provide only one network and subnet in the list.
 internal_network_name: ['pns-internal-net', 'pns-internal-net2']
-
-# Name of the subnets associated to the internal mgmt network
 internal_subnet_name: ['pns-internal-subnet', 'pns-internal-subnet2']
 
 # Name of the subnets for ipv6
