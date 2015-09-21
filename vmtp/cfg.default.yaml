@@ -54,15 +54,18 @@ vm_image_url: ''
 # a specific existing external network. If empty, the script will reuse the
 # first external network it can find (the cloud must have at least 1
 # external network defined and available for use)
-# When set, ignore floating ip creation and reuse existing management network for tests
-reuse_network_name :
+#
+# NOTE: When set, router and floating ip creation will be ignored, and the
+# existing management network will be used for tests. This is used for runnig
+# VMTP on a provider network.
+reuse_network_name:
 
 # Use of the script for special deployments
 floating_ip: True
 
 # Set this to an existing VM name if the script should not create new VM
 # and reuse existing VM
-reuse_existing_vm :
+reuse_existing_vm:
 
 # Set config drive to true to bypass metadata service and use config drive
 # An option of config_drive to True is provided to nova boot to enable this

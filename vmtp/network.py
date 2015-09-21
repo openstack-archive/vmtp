@@ -15,6 +15,8 @@
 
 import time
 
+from vmtp import VmtpException
+
 # Module containing a helper class for operating on OpenStack networks
 from neutronclient.common.exceptions import NetworkInUseClient
 from neutronclient.common.exceptions import NeutronException
@@ -45,84 +47,88 @@ class Network(object):
 
         # If reusing existing management network just find this network
         if self.config.reuse_network_name:
-            # An existing management network must be reused
-            int_net = self.lookup_network(self.config.reuse_network_name)
-            self.vm_int_net.append(int_net)
-            return
-
-        ##############################################
-        # If a user provided ext_net_name is not available,
-        # then find the first network that is external
-        ##############################################
-        for network in self.networks:
-            if network['router:external']:
-                try:
-                    if network['name'] == config.ext_net_name:
+            try:
+                # An existing management network must be reused
+                int_net = self.lookup_network(self.config.reuse_network_name)
+                self.vm_int_net.append(int_net)
+            except IndexError:
+                raise VmtpException("Unable to find the network to be reused.")
+                return
+        else:
+            ##############################################
+            # If a user provided ext_net_name is not available,
+            # then find the first network that is external
+            ##############################################
+            for network in self.networks:
+                if network['router:external']:
+                    try:
+                        if network['name'] == config.ext_net_name:
+                            self.ext_net = network
+                            break
+                        if not self.ext_net:
+                            self.ext_net = network
+                    except AttributeError:
+                        ###############################################
+                        # A attribute error indicates, no user defined
+                        # external network defined, so use the first one
+                        ###############################################
                         self.ext_net = network
                         break
-                    if not self.ext_net:
-                        self.ext_net = network
-                except AttributeError:
-                    ###############################################
-                    # A attribute error indicates, no user defined
-                    # external network defined, so use the first one
-                    ###############################################
-                    self.ext_net = network
-                    break
 
-        if not self.ext_net:
-            print "No external network found."
-            return
+            if not self.ext_net:
+                print "No external network found."
+                return
 
-        print "Using external network: " + self.ext_net['name']
+            print "Using external network: " + self.ext_net['name']
 
-        # Find or create the router to the external network
-        ext_net_id = self.ext_net['id']
-        routers = neutron_client.list_routers()['routers']
-        for router in routers:
-            external_gw_info = router['external_gateway_info']
-            if external_gw_info:
-                if external_gw_info['network_id'] == ext_net_id:
-                    self.ext_router = router
-                    print 'Found external router: %s' % \
-                          (self.ext_router['name'])
-                    break
+            # Find or create the router to the external network
+            ext_net_id = self.ext_net['id']
+            routers = neutron_client.list_routers()['routers']
+            for router in routers:
+                external_gw_info = router['external_gateway_info']
+                if external_gw_info:
+                    if external_gw_info['network_id'] == ext_net_id:
+                        self.ext_router = router
+                        print 'Found external router: %s' % \
+                              (self.ext_router['name'])
+                        break
 
-        # create a new external router if none found and a name was given
-        self.ext_router_name = config.router_name
-        if (not self.ext_router) and self.ext_router_name:
-            self.ext_router = self.create_router(self.ext_router_name,
-                                                 self.ext_net['id'])
-            print '[%s] Created ext router' % (self.ext_router_name)
-            self.ext_router_created = True
+            # create a new external router if none found and a name was given
+            self.ext_router_name = config.router_name
+            if (not self.ext_router) and self.ext_router_name:
+                self.ext_router = self.create_router(self.ext_router_name,
+                                                     self.ext_net['id'])
+                print '[%s] Created ext router' % (self.ext_router_name)
+                self.ext_router_created = True
 
-        if config.ipv6_mode:
-            self.ipv6_enabled = True
+            if config.ipv6_mode:
+                self.ipv6_enabled = True
 
-        # Create the networks and subnets depending on v4 or v6
-        if config.ipv6_mode:
-            for (net, subnet, cidr, subnet_ipv6, cidr_ipv6) in zip(config.internal_network_name,
+            # Create the networks and subnets depending on v4 or v6
+            if config.ipv6_mode:
+                for (net, subnet, cidr, subnet_v6, cidr_v6) in zip(config.internal_network_name,
                                                                    config.internal_subnet_name,
                                                                    config.internal_cidr,
-                                                                   config.internal_subnet_name_ipv6,
+                                                                   config.internal_subnet_name_v6,
                                                                    config.internal_cidr_v6):
-                int_net = self.create_net(net, subnet, cidr,
-                                          config.dns_nameservers,
-                                          subnet_ipv6, cidr_ipv6, config.ipv6_mode)
-                self.vm_int_net.append(int_net)
-        else:
-            for (net, subnet, cidr) in zip(config.internal_network_name,
-                                           config.internal_subnet_name,
-                                           config.internal_cidr):
-                int_net = self.create_net(net, subnet, cidr,
-                                          config.dns_nameservers)
-                self.vm_int_net.append(int_net)
+                    int_net = self.create_net(net, subnet, cidr,
+                                              config.dns_nameservers,
+                                              subnet_v6, cidr_v6, config.ipv6_mode)
+                    self.vm_int_net.append(int_net)
+            else:
+                for (net, subnet, cidr) in zip(config.internal_network_name,
+                                               config.internal_subnet_name,
+                                               config.internal_cidr):
+                    int_net = self.create_net(net, subnet, cidr,
+                                              config.dns_nameservers)
+                    self.vm_int_net.append(int_net)
+
+            # Add both internal networks to router interface to enable
+            # network to network connectivity
+            self.__add_router_interface()
 
         self.l2agent_type = self._get_l2agent_type()
         self.internal_iface_dict = self._get_internal_iface_dict()
-
-        # Add both internal networks to router interface to enable network to network connectivity
-        self.__add_router_interface()
 
     # Create a network with associated subnet
     # Check first if a network with the same name exists, if it exists

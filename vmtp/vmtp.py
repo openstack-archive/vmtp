@@ -262,7 +262,9 @@ class VmtpTest(object):
         if self.config.reuse_network_name:
             # VM needs to connect to existing management and new data network
             # Reset the management network name
-            self.config.internal_network_name[0] = self.config.reuse_network_name
+            int_net_name = list(self.config.internal_network_name)
+            int_net_name[0] = self.config.reuse_network_name
+            self.config.internal_network_name = int_net_name
         else:
             # Make sure we have an external network and an external router
             self.assert_true(self.net.ext_net)
@@ -756,6 +758,11 @@ def parse_opts_from_cli():
                              'e.g. --udpbuf 128,2048. (default=128,1024,8192)',
                         metavar='<udp_pkt_size1,...>')
 
+    parser.add_argument('--reuse_network_name', dest='reuse_network_name',
+                        action='store',
+                        default=None,
+                        help='the network to be reused for performing tests')
+
     parser.add_argument('--no-env', dest='no_env',
                         default=False,
                         action='store_true',
@@ -902,6 +909,9 @@ def merge_opts_to_configs(opts):
             print 'Invalid --udpbuf parameter. A valid input must be '\
                   'integers seperated by comma.'
             sys.exit(1)
+
+    if opts.reuse_network_name:
+        config.reuse_network_name = opts.reuse_network_name
 
     #####################################################
     # Set Ganglia server ip and port if the monitoring (-m)
