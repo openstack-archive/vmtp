@@ -21,14 +21,14 @@ Ubuntu/Debian based:
 
 .. code-block:: bash
 
-    $ sudo apt-get install python-dev python-pip python-virtualenv git git-review
+    $ sudo apt-get install build-essential python-dev python-pip python-virtualenv git git-review
     $ sudo apt-get install libxml2-dev libxslt-dev libffi-dev libz-dev libyaml-dev libssl-dev
 
 RHEL/CentOS based:
 
 .. code-block:: bash
 
-    $ sudo yum install python-devel python-pip python-virtualenv git
+    $ sudo yum install gcc python-devel python-pip python-virtualenv git
     $ sudo yum install libxml2-devel libxslt-devel libffi-devel libyaml-devel openssl-devel
 
 MacOSX:
