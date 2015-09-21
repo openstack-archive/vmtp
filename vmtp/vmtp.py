@@ -761,7 +761,8 @@ def parse_opts_from_cli():
     parser.add_argument('--reuse_network_name', dest='reuse_network_name',
                         action='store',
                         default=None,
-                        help='the network to be reused for performing tests')
+                        help='the network to be reused for performing tests',
+                        metavar='<network_name>')
 
     parser.add_argument('--no-env', dest='no_env',
                         default=False,
