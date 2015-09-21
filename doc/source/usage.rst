@@ -10,13 +10,14 @@ VMTP Usage
     usage: vmtp.py [-h] [-c <config_file>] [-sc] [-r <openrc_file>]
                    [-m <gmond_ip>[:<port>]] [-p <password>] [-t <time>]
                    [--host <user>@<host_ssh_ip>[:<password>:<server-listen-if-name>]]
-                   [--external-host <user>@<host_ssh_ip>[:<password>]]
+                   [--external-host <user>@<host_ssh_ip>[:password>]]
                    [--controller-node <user>@<host_ssh_ip>[:<password>]]
                    [--mongod-server <server ip>] [--json <file>]
                    [--tp-tool <nuttcp|iperf>] [--hypervisor [<az>:] <hostname>]
                    [--inter-node-only] [--protocols <T|U|I>]
                    [--bandwidth <bandwidth>] [--tcpbuf <tcp_pkt_size1,...>]
-                   [--udpbuf <udp_pkt_size1,...>] [--no-env]
+                   [--udpbuf <udp_pkt_size1,...>]
+                   [--reuse_network_name <network_name>] [--no-env]
                    [--vnic-type <direct|macvtap|normal>] [-d] [-v]
                    [--stop-on-error] [--vm-image-url <url_to_image>]
                    [--test-description <test_description>]
@@ -25,7 +26,7 @@ VMTP Usage
       -h, --help            show this help message and exit
       -c <config_file>, --config <config_file>
                             override default values with a config file
-      -sc, --show-cofig     print the default config
+      -sc, --show-config    print the default config
       -r <openrc_file>, --rc <openrc_file>
                             source OpenStack credentials from rc file
       -m <gmond_ip>[:<port>], --monitor <gmond_ip>[:<port>]
@@ -60,6 +61,8 @@ VMTP Usage
       --udpbuf <udp_pkt_size1,...>
                             list of buffer length when transmitting over UDP in
                             Bytes, e.g. --udpbuf 128,2048. (default=128,1024,8192)
+      --reuse_network_name <network_name>
+                            the network to be reused for performing tests
       --no-env              do not read env variables
       --vnic-type <direct|macvtap|normal>
                             binding vnic type for test VMs
@@ -108,9 +111,8 @@ Access Info for Controller Node
 
 By default, VMTP is not able to get the Linux distro nor the OpenStack version of the cloud deployment under test.
 However, by providing the credentials of the controller node under test, VMTP will try to fetch these information, and output them along in the JSON file or to the MongoDB server.
-For example to retrieve the OpenStack distribution information on a given controller node:
+For example to retrieve the OpenStack distribution information on a given controller node::
 
-.. code:
     python vmtp.py --json tb172.json --test-description 'Testbed 172' --controller-node root@172.22.191.172
 
 Bandwidth Limit for TCP/UDP Flow Measurements
@@ -153,9 +155,19 @@ There is a candidate image defined in the default config already. It has been ve
 VNIC Type
 ^^^^^^^^^
 
-By default test VMs will be created with ports that have a "normal" VNIC type.
-To create test VMs with ports that use PCI passthrough SRIOV, specify "--vnic_type direct". This will assume that the host where the VM are instantiated have SRIOV capable NIC.
+By default test VMs will be created with ports that have a "normal" VNIC type. To create test VMs with ports that use PCI passthrough SRIOV, specify **--vnic_type direct**. This will assume that the host where the VM are instantiated have SRIOV capable NIC.
+
 An exception will be thrown if a test VM is lauched on a host that does not have SRIOV capable NIC or has not been configured to use such feature.
+
+
+Provider Network
+^^^^^^^^^^^^^^^^
+
+Provider networks are created by network administrators, which specifies the details of how network is physically realized, and usually match some existing networks in the data center. In general, provider networks only handle layer-2 connectivity for instances, and lack the concept of fixed and floating IP addresses. Running VMTP on provider network, means that VMTP is directly running on the infrastructure VLAN and no L3 in OpenStack is involved (L3 will be handled in the legacy L3 Router).
+
+VMTP supports to run on a provider network by supplying the provider network name via either CLI or config file with **--reuse_network_name <network_name>**. Just happens that this mode allows to run on real provider network, but also the regular neutron network settings (e.g. VxLAN) where the user would like VMTP to reuse an already created network. VMTP will perform the L2-only throughput tests on the network provided when this parameter is set.
+
+Note that the fixed IP addresses assigned to the test VM on the provider network must be reachable from the host which VMTP application is running on.
 
 
 Quick guide to run VMTP on an OpenStack Cloud

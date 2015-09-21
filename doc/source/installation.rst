@@ -74,7 +74,7 @@ Super quick installation on Ubuntu/Debian
 
 .. code-block:: bash
 
-    $ sudo apt-get install python-dev python-virtualenv git git-review
+    $ sudo apt-get install build-essential python-dev python-pip python-virtualenv git git-review
     $ sudo apt-get install libxml2-dev libxslt-dev libffi-dev libz-dev libyaml-dev libssl-dev
     $ # create a virtual environment
     $ virtualenv ./vmtpenv
@@ -90,7 +90,7 @@ Super quick installation on RHEL/CentOS
 
 .. code-block:: bash
 
-    $ sudo yum install python-devel python-virtualenv git
+    $ sudo yum install gcc python-devel python-pip python-virtualenv git
     $ sudo yum install libxml2-devel libxslt-devel libffi-devel libyaml-devel openssl-devel
     $ # create a virtual environment
     $ virtualenv ./vmtpenv

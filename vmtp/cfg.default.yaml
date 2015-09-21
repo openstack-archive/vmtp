@@ -78,7 +78,6 @@ config_drive:
 # If left blank use ipv4
 ipv6_mode:
 
-
 # Default name for the router to use to connect the internal mgmt network
 # with the external network. If a router exists with this name it will be
 # reused, otherwise a new router will be created
@@ -156,7 +155,6 @@ udp_pkt_sizes: [128, 1024, 8192]
 # The final throughput measurement may return a loss rate out of this range
 # as that measurement is taken on a longer time than when iterating to find
 # the optimal throughput
-#
 udp_loss_rate_range: [2, 5]
 
 # The default bandwidth limit (in Kbps) for TCP/UDP flow measurement
