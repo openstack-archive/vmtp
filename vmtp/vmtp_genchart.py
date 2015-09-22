@@ -98,7 +98,7 @@ prop_match = {
 subtitle_match = ['test_description', 'openstack_version', 'distro',
                   'encapsulation', 'l2agent_type']
 
-class GoogleChartsBarChart:
+class GoogleChartsBarChart(object):
     def __init__(self, results, protocols):
         self.results = results
         if protocols not in ['udp', 'tcp']:
