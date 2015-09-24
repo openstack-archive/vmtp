@@ -15,11 +15,10 @@
 
 import time
 
-from vmtp import VmtpException
-
 # Module containing a helper class for operating on OpenStack networks
 from neutronclient.common.exceptions import NetworkInUseClient
 from neutronclient.common.exceptions import NeutronException
+import vmtp
 
 class Network(object):
 
@@ -52,7 +51,7 @@ class Network(object):
                 int_net = self.lookup_network(self.config.reuse_network_name)
                 self.vm_int_net.append(int_net)
             except IndexError:
-                raise VmtpException("Unable to find the network to be reused.")
+                raise vmtp.VmtpException("Unable to find the network to be reused.")
                 return
         else:
             ##############################################
