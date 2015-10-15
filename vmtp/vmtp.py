@@ -30,7 +30,7 @@ import compute
 from config import config_load
 from config import config_loads
 import credentials
-from glanceclient.v2 import client as glanceclient
+from glanceclient.v1 import client as glanceclient
 import iperf_tool
 from keystoneclient.v2_0 import client as keystoneclient
 import network
@@ -207,7 +207,7 @@ class VmtpTest(object):
             self.image_instance = self.comp.find_image(self.config.image_name)
             if self.image_instance is None:
                 if self.config.vm_image_url != "":
-                    print '%s: image for VM not found, uploading it ...' \
+                    print '%s: image for VM not found, trying to upload it ...' \
                         % (self.config.image_name)
                     keystone = keystoneclient.Client(**creds)
                     glance_endpoint = keystone.service_catalog.url_for(
@@ -215,7 +215,7 @@ class VmtpTest(object):
                     glance_client = glanceclient.Client(
                         glance_endpoint, token=keystone.auth_token)
                     self.comp.upload_image_via_url(
-                        creds, glance_client,
+                        glance_client,
                         self.config.image_name,
                         self.config.vm_image_url)
                     self.image_instance = self.comp.find_image(self.config.image_name)

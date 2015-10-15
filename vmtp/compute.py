@@ -16,9 +16,9 @@
 '''Module for Openstack compute operations'''
 
 import os
-import subprocess
 import time
 
+import glanceclient.exc as glance_exception
 import novaclient
 import novaclient.exceptions as exceptions
 
@@ -35,75 +35,38 @@ class Compute(object):
         except novaclient.exceptions.NotFound:
             return None
 
-    def upload_image_via_url(self, creds, glance_client,
-                             final_image_name, image_url, retry_count=60):
+    def upload_image_via_url(self, glance_client, final_image_name,
+                             image_url, retry_count=60):
         '''
         Directly uploads image to Nova via URL if image is not present
         '''
+        retry = 0
+        try:
+            # Upload the image
+            img = glance_client.images.create(
+                name=str(final_image_name), disk_format="qcow2", container_format="bare",
+                is_public=True, copy_from=image_url)
 
-        # Here is the deal:
-        # Idealy, we should better to use the python library glanceclient to perform the
-        # image uploades. However, due to a limitation of the v2.0 API right now, it is
-        # impossible to tell Glance to download the image from a URL directly.
-        #
-        # There are two steps to create the image:
-        # (1) Store the binary image data into Glance;
-        # (2) Store the metadata about the image into Glance;
-        # PS: The order does not matter.
-        #
-        # The REST API allows to do two steps in one if a Location header is provided with
-        # the POST request. (REF: http://developer.openstack.org/api-ref-image-v2.html)
-        #
-        # However the python API doesn't support a customized header in POST request.
-        # So we have to do two steps in two calls.
-        #
-        # The good thing is: the API does support (2) perfectly, but for (1) it is only
-        # accepting the data from local, not remote URL. So... Ur... Let's keep the CLI
-        # version as the workaround for now.
+            # Check for the image in glance
+            while img.status in ['queued', 'saving'] and retry < retry_count:
+                img = glance_client.images.find(name=img.name)
+                retry = retry + 1
+                if self.config.debug:
+                    print "Image not yet active, retrying %s of %s..." \
+                        % (retry, retry_count)
+                time.sleep(2)
+            if img.status != 'active':
+                raise Exception
+        except glance_exception.HTTPForbidden:
+            print "Cannot upload image without admin access. Please make sure the "\
+                  "image is uploaded and is either public or owned by you."
+            return False
+        except Exception:
+            print "Failed while uploading the image, please make sure the cloud "\
+                  "under test has the access to URL: %s." % image_url
+            return False
 
-        # # upload in glance
-        # image = glance_client.images.create(
-        #     name=str(final_image_name), disk_format="qcow2", container_format="bare",
-        #     Location=image_url)
-        # glance_client.images.add_location(image.id, image_url, image)
-
-        # sys.exit(0)
-        # for retry_attempt in range(retry_count):
-        #     if image.status == "active":
-        #         print 'Image: %s successfully uploaded to Nova' % (final_image_name)
-        #         return 1
-        #     # Sleep between retries
-        #     if self.config.debug:
-        #         print "Image is not yet active, retrying %s of %s... [%s]" \
-        #             % ((retry_attempt + 1), retry_count, image.status)
-        #     time.sleep(5)
-
-        # upload in glance
-        cred = "--os-username %s --os-password %s --os-tenant-name %s --os-auth-url %s" %\
-            (creds['username'], creds['password'], creds['tenant_name'], creds['auth_url'])
-        glance_cmd = "glance %s image-create --name=\"%s\" --disk-format=qcow2 "\
-            "--container-format=bare --is-public True --copy-from %s" %\
-            (cred, str(final_image_name), image_url)
-        if self.config.debug:
-            print "Will update image to glance via CLI: %s" % (glance_cmd)
-        subprocess.check_output(glance_cmd, shell=True)
-
-        # check for the image in glance
-        glance_check_cmd = "glance %s image-list --name \"%s\"" %\
-            (cred, str(final_image_name))
-        for retry_attempt in range(retry_count):
-            result = subprocess.check_output(glance_check_cmd, shell=True)
-            if "active" in result:
-                print 'Image: %s successfully uploaded to Nova' % (final_image_name)
-                return 1
-            # Sleep between retries
-            if self.config.debug:
-                print "Image not yet active, retrying %s of %s..." \
-                    % ((retry_attempt + 1), retry_count)
-            time.sleep(2)
-
-        print 'ERROR: Cannot upload image %s from URL: %s' % (final_image_name, image_url)
-        return 0
+        return True
 
     # Remove keypair name from openstack if exists
     def remove_public_key(self, name):
