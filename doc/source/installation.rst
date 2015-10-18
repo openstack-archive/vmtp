@@ -63,8 +63,8 @@ Create a virtual environment for Python, and install VMTP:
 
 .. _git_installation:
 
-GitHub/StackForge Repository based Installation
------------------------------------------------
+GitHub/OpenStack Repository based Installation
+----------------------------------------------
 
 It is recommended to run VMTP inside a virtual environment. However, it can be skipped if installed in a dedicated VM.
 
@@ -79,7 +79,7 @@ Super quick installation on Ubuntu/Debian
     $ # create a virtual environment
     $ virtualenv ./vmtpenv
     $ source ./vmtpenv/bin/activate
-    $ git clone git://git.openstack.org/stackforge/vmtp
+    $ git clone git://git.openstack.org/openstack/vmtp
     $ cd vmtp
     $ pip install -r requirements-dev.txt
     $ cd vmtp
@@ -95,7 +95,7 @@ Super quick installation on RHEL/CentOS
     $ # create a virtual environment
     $ virtualenv ./vmtpenv
     $ source ./vmtpenv/bin/activate
-    $ git clone git://git.openstack.org/stackforge/vmtp
+    $ git clone git://git.openstack.org/openstack/vmtp
     $ cd vmtp
     $ pip install -r requirements-dev.txt
     $ cd vmtp
@@ -120,7 +120,7 @@ First, download XCode from App Store, then execute below commands:
     $ # create a virtual environment
     $ virtualenv ./vmtpenv
     $ source ./vmtpenv/bin/activate
-    $ git clone git://git.openstack.org/stackforge/vmtp
+    $ git clone git://git.openstack.org/openstack/vmtp
     $ cd vmtp
     $ pip install -r requirements-dev.txt
     $ cd vmtp

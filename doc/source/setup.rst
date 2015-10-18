@@ -27,7 +27,3 @@ To summarize:
 
 In any case make sure you specify the correct username.
 If there is a problem, you should see an error message and stack trace after the SSH library times out.
-
-
-
-
