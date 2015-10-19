@@ -92,6 +92,7 @@ Super quick installation on RHEL/CentOS
 
     $ sudo yum install gcc python-devel python-pip python-virtualenv git
     $ sudo yum install libxml2-devel libxslt-devel libffi-devel libyaml-devel openssl-devel
+    $ sudo pip install git-review
     $ # create a virtual environment
     $ virtualenv ./vmtpenv
     $ source ./vmtpenv/bin/activate
