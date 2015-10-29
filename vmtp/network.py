@@ -14,6 +14,7 @@
 #
 
 import time
+import uuid
 
 # Module containing a helper class for operating on OpenStack networks
 from neutronclient.common.exceptions import NetworkInUseClient
@@ -80,25 +81,14 @@ class Network(object):
 
             print "Using external network: " + self.ext_net['name']
 
-            # Find or create the router to the external network
-            ext_net_id = self.ext_net['id']
-            routers = neutron_client.list_routers()['routers']
-            for router in routers:
-                external_gw_info = router['external_gateway_info']
-                if external_gw_info:
-                    if external_gw_info['network_id'] == ext_net_id:
-                        self.ext_router = router
-                        print 'Found external router: %s' % \
-                              (self.ext_router['name'])
-                        break
-
-            # create a new external router if none found and a name was given
+            # create a new external router if a name was not given
             self.ext_router_name = config.router_name
-            if (not self.ext_router) and self.ext_router_name:
-                self.ext_router = self.create_router(self.ext_router_name,
-                                                     self.ext_net['id'])
-                print '[%s] Created ext router' % (self.ext_router_name)
-                self.ext_router_created = True
+            if not self.ext_router_name:
+                self.ext_router_name = "vmtp-" + str(uuid.uuid4())[:5]
+            self.ext_router = self.create_router(self.ext_router_name,
+                                                 self.ext_net['id'])
+            print '[%s] Created ext router' % (self.ext_router_name)
+            self.ext_router_created = True
 
             if config.ipv6_mode:
                 self.ipv6_enabled = True
