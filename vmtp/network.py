@@ -92,7 +92,7 @@ class Network(object):
                               (self.ext_router['name'])
                         break
 
-            # create a new external router if none found and a name was given
+            # create a new external router if none found or a name was given
             self.ext_router_name = config.router_name
             if (not self.ext_router) or self.ext_router_name:
                 self.ext_router = self.create_router(self.ext_router_name,
