@@ -65,27 +65,51 @@ VMTP will display the results to stdout with the following data:
 
 .. code::
 
-    - Session general information (date, auth_url, OpenStack encaps, VMTP version, OpenStack release, Agent type, CPU...)
-    - List of results per flow, for each flow:
-    |   flow name
-    |   to and from IP addresses
-    |   to and from availability zones (if VM)
-    |   - results:
-    |   |   -TCP
-    |   |   |  packet size
-    |   |   |  throughput value
-    |   |   |  number of retransmissions
-    |   |   |  round trip time in ms
-    |   |   |  - CPU usage (if enabled), for each host in the openstack cluster
-    |   |   |  | baseline (before test starts)
-    |   |   |  | 1 or more readings during test
-    |   |   -UDP
-    |   |   |  - for each packet size
-    |   |   |  | throughput value
-    |   |   |  | loss rate
-    |   |   |  | CPU usage (if enabled)
-    |   |   - ICMP
-    |   |   |  average, min, max and stddev round trip time in ms
+    Summary of results
+    ==================
+    Total Scenarios:   22
+    Passed Scenarios:  17 [100.00%]
+    Failed Scenarios:  0 [0.00%]
+    Skipped Scenarios: 5
+    +----------+--------------------------------------------------+-------------------+----------------------------------------------------------------------------------+
+    | Scenario | Scenario Name                                    | Functional Status | Data                                                                             |
+    +----------+--------------------------------------------------+-------------------+----------------------------------------------------------------------------------+
+    | 1.1      | Same Network, Fixed IP, Intra-node, TCP          | PASSED            | {'tp_kbps': '19262752', 'rtt_ms': '0.38'}                                        |
+    | 1.2      | Same Network, Fixed IP, Intra-node, UDP          | PASSED            | {128: {'tp_kbps': 243360, 'loss_rate': 0.0}, 1024: {'tp_kbps': 1790414,          |
+    |          |                                                  |                   | 'loss_rate': 0.0}, 8192: {'tp_kbps': 9599648, 'loss_rate': 0.0}}                 |
+    | 1.3      | Same Network, Fixed IP, Intra-node, ICMP         | PASSED            | {'rtt_avg_ms': '0.385', 'rtt_min_ms': '0.237', 'rtt_max_ms': '0.688',            |
+    |          |                                                  |                   | 'rtt_stddev': '0.156'}                                                           |
+    | 2.1      | Same Network, Fixed IP, Inter-node, TCP          | PASSED            | {'tp_kbps': '5987943', 'rtt_ms': '0.49'}                                         |
+    | 2.2      | Same Network, Fixed IP, Inter-node, UDP          | PASSED            | {128: {'tp_kbps': 240518, 'loss_rate': 0.0}, 1024: {'tp_kbps': 1804851,          |
+    |          |                                                  |                   | 'loss_rate': 0.0}, 8192: {'tp_kbps': 3074557, 'loss_rate': 0.04}}                |
+    | 2.3      | Same Network, Fixed IP, Inter-node, ICMP         | PASSED            | {'rtt_avg_ms': '0.601', 'rtt_min_ms': '0.507', 'rtt_max_ms': '0.846',            |
+    |          |                                                  |                   | 'rtt_stddev': '0.126'}                                                           |
+    | 3.1      | Different Network, Fixed IP, Intra-node, TCP     | PASSED            | {'tp_kbps': '7308597', 'rtt_ms': '0.68'}                                         |
+    | 3.2      | Different Network, Fixed IP, Intra-node, UDP     | PASSED            | {128: {'tp_kbps': 194764, 'loss_rate': 4.88}, 1024: {'tp_kbps': 1587951,         |
+    |          |                                                  |                   | 'loss_rate': 3.39}, 8192: {'tp_kbps': 2666969, 'loss_rate': 0.0}}                |
+    | 3.3      | Different Network, Fixed IP, Intra-node, ICMP    | PASSED            | {'rtt_avg_ms': '0.689', 'rtt_min_ms': '0.638', 'rtt_max_ms': '0.761',            |
+    |          |                                                  |                   | 'rtt_stddev': '0.053'}                                                           |
+    | 4.1      | Different Network, Fixed IP, Inter-node, TCP     | PASSED            | {'tp_kbps': '8487326', 'rtt_ms': '0.713333'}                                     |
+    | 4.2      | Different Network, Fixed IP, Inter-node, UDP     | PASSED            | {128: {'tp_kbps': 200641, 'loss_rate': 0.0}, 1024: {'tp_kbps': 1198920,          |
+    |          |                                                  |                   | 'loss_rate': 30.54}, 8192: {'tp_kbps': 2657355, 'loss_rate': 0.0}}               |
+    | 4.3      | Different Network, Fixed IP, Inter-node, ICMP    | PASSED            | {'rtt_avg_ms': '0.710', 'rtt_min_ms': '0.674', 'rtt_max_ms': '0.729',            |
+    |          |                                                  |                   | 'rtt_stddev': '0.025'}                                                           |
+    | 5.1      | Different Network, Floating IP, Intra-node, TCP  | PASSED            | {'tp_kbps': '7462958', 'rtt_ms': '0.676667'}                                     |
+    | 5.2      | Different Network, Floating IP, Intra-node, UDP  | PASSED            | {128: {'tp_kbps': 188808, 'loss_rate': 2.34}, 1024: {'tp_kbps': 1513660,         |
+    |          |                                                  |                   | 'loss_rate': 0.0}, 8192: {'tp_kbps': 2586232, 'loss_rate': 0.0}}                 |
+    | 5.3      | Different Network, Floating IP, Intra-node, ICMP | PASSED            | {'rtt_avg_ms': '0.592', 'rtt_min_ms': '0.477', 'rtt_max_ms': '0.663',            |
+    |          |                                                  |                   | 'rtt_stddev': '0.065'}                                                           |
+    | 6.1      | Different Network, Floating IP, Inter-node, TCP  | PASSED            | {'tp_kbps': '8486828', 'rtt_ms': '0.663333'}                                     |
+    | 6.2      | Different Network, Floating IP, Inter-node, UDP  | PASSED            | {128: {'tp_kbps': 190434, 'loss_rate': 0.12}, 1024: {'tp_kbps': 1518300,         |
+    |          |                                                  |                   | 'loss_rate': 0.0}, 8192: {'tp_kbps': 2569370, 'loss_rate': 0.0}}                 |
+    | 6.3      | Different Network, Floating IP, Inter-node, ICMP | PASSED            | {'rtt_avg_ms': '0.674', 'rtt_min_ms': '0.657', 'rtt_max_ms': '0.702',            |
+    |          |                                                  |                   | 'rtt_stddev': '0.015'}                                                           |
+    | 7.1      | Native Throughput, TCP                           | SKIPPED           | {}                                                                               |
+    | 7.2      | Native Throughput, UDP                           | SKIPPED           | {}                                                                               |
+    | 7.3      | Native Throughput, ICMP                          | SKIPPED           | {}                                                                               |
+    | 8.1      | VM to Host Uploading                             | SKIPPED           | {}                                                                               |
+    | 8.2      | VM to Host Downloading                           | SKIPPED           | {}                                                                               |
+    +----------+--------------------------------------------------+-------------------+----------------------------------------------------------------------------------+
 
 Detailed results can also be stored in a file in JSON format using the *--json* command line argument and/or stored directly into a MongoDB server. See `example.json <https://github.com/stackforge/vmtp/blob/master/doc/source/_static/example.json>`_ for an example JSON file that is generated by VMTP.
 
