@@ -142,7 +142,7 @@ Links
 -----
 
 * Documentation: http://vmtp.readthedocs.org/en/latest
-* Source: http://git.openstack.org/cgit/stackforge/vmtp
+* Source: http://git.openstack.org/cgit/openstack/vmtp
 * Supports/Bugs: https://launchpad.net/vmtp
 * Mailing List: vmtp-core@lists.launchpad.net
 
