@@ -378,21 +378,22 @@ class Network(object):
         '''
 
         agents = self.neutron_client.list_agents()['agents']
+        dp_net = self.config.os_dataplane_network
         internal_iface_dict = {}
         for agent in agents:
             agent_type = agent['agent_type']
             hostname = agent['host']
             if 'Linux bridge' in agent_type:
                 agent_detail = self.neutron_client.show_agent(agent['id'])['agent']
-                if 'physnet1' in agent_detail['configurations']['interface_mappings']:
-                    ifname = agent_detail['configurations']['interface_mappings']['physnet1']
+                if dp_net in agent_detail['configurations']['interface_mappings']:
+                    ifname = agent_detail['configurations']['interface_mappings'][dp_net]
                     internal_iface_dict[hostname] = ifname
             elif 'Open vSwitch' in agent_type:
                 network_type = self.vm_int_net[0]['provider:network_type']
                 agent_detail = self.neutron_client.show_agent(agent['id'])['agent']
                 if network_type == "vlan":
-                    if 'physnet1' in agent_detail['configurations']['bridge_mappings']:
-                        brname = agent_detail['configurations']['bridge_mappings']['physnet1']
+                    if dp_net in agent_detail['configurations']['bridge_mappings']:
+                        brname = agent_detail['configurations']['bridge_mappings'][dp_net]
                         internal_iface_dict[hostname] = brname
                 elif network_type == "vxlan" or network_type == 'gre':
                     ipaddr = agent_detail['configurations']['tunneling_ip']

@@ -17,7 +17,8 @@ VMTP Usage
                    [--inter-node-only] [--protocols <T|U|I>]
                    [--bandwidth <bandwidth>] [--tcpbuf <tcp_pkt_size1,...>]
                    [--udpbuf <udp_pkt_size1,...>]
-                   [--reuse_network_name <network_name>] [--no-env]
+                   [--reuse_network_name <network_name>]
+                   [--os-dataplane-network <network_name>] [--no-env]
                    [--vnic-type <direct|macvtap|normal>] [-d] [-v]
                    [--stop-on-error] [--vm-image-url <url_to_image>]
                    [--test-description <test_description>]
@@ -63,6 +64,9 @@ VMTP Usage
                             Bytes, e.g. --udpbuf 128,2048. (default=128,1024,8192)
       --reuse_network_name <network_name>
                             the network to be reused for performing tests
+      --os-dataplane-network <network_name>
+                            Internal network name for OpenStack to hold data plane
+                            traffic
       --no-env              do not read env variables
       --vnic-type <direct|macvtap|normal>
                             binding vnic type for test VMs

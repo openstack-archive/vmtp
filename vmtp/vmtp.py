@@ -764,6 +764,12 @@ def parse_opts_from_cli():
                         help='the network to be reused for performing tests',
                         metavar='<network_name>')
 
+    parser.add_argument('--os-dataplane-network', dest='os_dataplane_network',
+                        action='store',
+                        default=None,
+                        help='Internal network name for OpenStack to hold data plane traffic',
+                        metavar='<network_name>')
+
     parser.add_argument('--no-env', dest='no_env',
                         default=False,
                         action='store_true',
@@ -913,6 +919,9 @@ def merge_opts_to_configs(opts):
 
     if opts.reuse_network_name:
         config.reuse_network_name = opts.reuse_network_name
+
+    if opts.os_dataplane_network:
+        config.os_dataplane_network = opts.os_dataplane_network
 
     #####################################################
     # Set Ganglia server ip and port if the monitoring (-m)
