@@ -105,7 +105,7 @@ internal_cidr_v6: ['2001:45::/64','2001:46::/64']
 # By default the SSH library will try several methods to authenticate:
 # - password if provided on the command line
 # - user's own key pair (under the home directory $HOME) if already setup
-# - the below key pair if not empty 
+# - the below key pair if not empty
 # If you want to use a specific key pair, specify the key pair files here.
 # This can be a pathname that is absolute or relative to the current directory
 public_key_file:
@@ -128,10 +128,10 @@ ping_count: 2
 ping_pass_threshold: 80
 
 # Max retry count for ssh to a VM (5 seconds between retries)
-ssh_retry_count: 50 
+ssh_retry_count: 50
 
 # General retry count
-generic_retry_count: 50 
+generic_retry_count: 50
 
 # Times to run when measuring TCP Throughput
 tcp_tp_loop_count: 3
@@ -160,6 +160,9 @@ udp_loss_rate_range: [2, 5]
 # The default bandwidth limit (in Kbps) for TCP/UDP flow measurement
 # 0 means unlimited, which can be overridden at the command line using --bandwidth
 vm_bandwidth: 0
+
+# Internal network name for OpenStack to hold data plane traffic
+os_dataplane_network: 'physnet1'
 
 #######################################
 # VMTP MongoDB Connection information
