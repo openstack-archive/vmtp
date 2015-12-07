@@ -145,6 +145,8 @@ class VmtpTest(object):
         self.image_instance = None
         self.flavor_type = None
         self.instance_access = None
+        self.glance_client = None
+        self.image_uploaded = False
         self.rescol = rescol
         self.config = config
         self.cred = cred
@@ -212,13 +214,14 @@ class VmtpTest(object):
                     keystone = keystoneclient.Client(**creds)
                     glance_endpoint = keystone.service_catalog.url_for(
                         service_type='image', endpoint_type='publicURL')
-                    glance_client = glanceclient.Client(
+                    self.glance_client = glanceclient.Client(
                         glance_endpoint, token=keystone.auth_token)
                     self.comp.upload_image_via_url(
-                        glance_client,
+                        self.glance_client,
                         self.config.image_name,
                         self.config.vm_image_url)
                     self.image_instance = self.comp.find_image(self.config.image_name)
+                    self.image_uploaded = True
                 else:
                     # Exit the pogram
                     print '%s: image to launch VM not found. ABORTING.' \
@@ -405,6 +408,8 @@ class VmtpTest(object):
         except ClientException:
             # May throw novaclient.exceptions.BadRequest if in use
             print('Security group in use: not deleted')
+        if self.image_uploaded and self.config.delete_image_after_run:
+            self.comp.delete_image(self.glance_client, self.config.image_name)
 
     def run(self):
         error_flag = False
@@ -719,6 +724,11 @@ def parse_opts_from_cli():
                         help='transport perf tool to use (default=nuttcp)',
                         metavar='<nuttcp|iperf>')
 
+    parser.add_argument('--availability_zone', dest='availability_zone',
+                        action='store',
+                        help='availability zone for running VMTP',
+                        metavar='<availability_zone>')
+
     # note there is a bug in argparse that causes an AssertionError
     # when the metavar is set to '[<az>:]<hostname>', hence had to insert a space
     parser.add_argument('--hypervisor', dest='hypervisors',
@@ -769,6 +779,11 @@ def parse_opts_from_cli():
                         default=None,
                         help='Internal network name for OpenStack to hold data plane traffic',
                         metavar='<network_name>')
+
+    parser.add_argument('--delete-image-after-run', dest='delete_image_after_run',
+                        default=False,
+                        action='store_true',
+                        help='delete image that are uploaded by VMTP when tests are finished')
 
     parser.add_argument('--no-env', dest='no_env',
                         default=False,
@@ -850,6 +865,9 @@ def merge_opts_to_configs(opts):
     config.vnic_type = opts.vnic_type
     config.hypervisors = opts.hypervisors
 
+    if opts.availability_zone:
+        config.availability_zone = opts.availability_zone
+
     # time to run each perf test in seconds
     if opts.time:
         config.time = int(opts.time)
@@ -922,6 +940,8 @@ def merge_opts_to_configs(opts):
 
     if opts.os_dataplane_network:
         config.os_dataplane_network = opts.os_dataplane_network
+
+    config.delete_image_after_run = opts.delete_image_after_run
 
     #####################################################
     # Set Ganglia server ip and port if the monitoring (-m)

@@ -68,6 +68,17 @@ class Compute(object):
 
         return True
 
+    def delete_image(self, glance_client, img_name):
+        try:
+            print "Deleting image %s..." % img_name
+            img = glance_client.images.find(name=img_name)
+            glance_client.images.delete(img.id)
+        except Exception:
+            print "Failed to delete the image %s." % img_name
+            return False
+
+        return True
+
     # Remove keypair name from openstack if exists
     def remove_public_key(self, name):
         keypair_list = self.novaclient.keypairs.list()

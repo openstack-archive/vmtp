@@ -13,12 +13,14 @@ VMTP Usage
                    [--external-host <user>@<host_ssh_ip>[:password>]]
                    [--controller-node <user>@<host_ssh_ip>[:<password>]]
                    [--mongod-server <server ip>] [--json <file>]
-                   [--tp-tool <nuttcp|iperf>] [--hypervisor [<az>:] <hostname>]
-                   [--inter-node-only] [--protocols <T|U|I>]
+                   [--tp-tool <nuttcp|iperf>]
+                   [--availability_zone <availability_zone>] [--hypervisor [<az>:]
+                   <hostname>] [--inter-node-only] [--protocols <T|U|I>]
                    [--bandwidth <bandwidth>] [--tcpbuf <tcp_pkt_size1,...>]
                    [--udpbuf <udp_pkt_size1,...>]
                    [--reuse_network_name <network_name>]
-                   [--os-dataplane-network <network_name>] [--no-env]
+                   [--os-dataplane-network <network_name>]
+                   [--delete-image-after-run] [--no-env]
                    [--vnic-type <direct|macvtap|normal>] [-d] [-v]
                    [--stop-on-error] [--vm-image-url <url_to_image>]
                    [--test-description <test_description>]
@@ -49,6 +51,8 @@ VMTP Usage
       --json <file>         store results in json format file
       --tp-tool <nuttcp|iperf>
                             transport perf tool to use (default=nuttcp)
+      --availability_zone <availability_zone>
+                            availability zone for running VMTP
       --hypervisor [<az>:] <hostname>
                             hypervisor to use (1 per arg, up to 2 args)
       --inter-node-only     only measure inter-node
@@ -67,6 +71,9 @@ VMTP Usage
       --os-dataplane-network <network_name>
                             Internal network name for OpenStack to hold data plane
                             traffic
+      --delete-image-after-run
+                            delete image that are uploaded by VMTP when tests are
+                            finished
       --no-env              do not read env variables
       --vnic-type <direct|macvtap|normal>
                             binding vnic type for test VMs
