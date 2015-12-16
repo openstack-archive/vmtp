@@ -309,8 +309,11 @@ class VmtpTest(object):
             client.buginf('SSH connected')
             client.create()
             FlowPrinter.print_desc('External-VM (upload/download)')
+            target_ip = self.server.ssh_access.host
+            if self.config.same_network_only:
+                target_ip = self.server.internal_ip
             res = client.run_client('External-VM',
-                                    self.server.ssh_access.host,
+                                    target_ip,
                                     self.server,
                                     bandwidth=self.config.vm_bandwidth,
                                     bidirectional=True)
@@ -370,7 +373,7 @@ class VmtpTest(object):
                               self.server.internal_ip)
             self.client.dispose()
             self.client = None
-            if not self.config.reuse_network_name:
+            if not self.config.reuse_network_name and not self.config.same_network_only:
                 # Different network
                 self.create_flow_client(client_az, self.net.vm_int_net[1])
 
@@ -741,6 +744,11 @@ def parse_opts_from_cli():
                         action='store_true',
                         help='only measure inter-node')
 
+    parser.add_argument('--same-network-only', dest='same_network_only',
+                        default=False,
+                        action='store_true',
+                        help='only measure same network')
+
     parser.add_argument('--protocols', dest='protocols',
                         action='store',
                         default='TUI',
@@ -850,6 +858,7 @@ def merge_opts_to_configs(opts):
     config.debug = opts.debug
     config.stop_on_error = opts.stop_on_error
     config.inter_node_only = opts.inter_node_only
+    config.same_network_only = opts.same_network_only
 
     if config.public_key_file and not os.path.isfile(config.public_key_file):
         print('Warning: invalid public_key_file:' + config.public_key_file)

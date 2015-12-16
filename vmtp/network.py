@@ -114,6 +114,8 @@ class Network(object):
                                               config.dns_nameservers,
                                               subnet_v6, cidr_v6, config.ipv6_mode)
                     self.vm_int_net.append(int_net)
+                    if config.same_network_only:
+                        break
             else:
                 for (net, subnet, cidr) in zip(config.internal_network_name,
                                                config.internal_subnet_name,
@@ -121,6 +123,8 @@ class Network(object):
                     int_net = self.create_net(net, subnet, cidr,
                                               config.dns_nameservers)
                     self.vm_int_net.append(int_net)
+                    if config.same_network_only:
+                        break
 
             # Add both internal networks to router interface to enable
             # network to network connectivity

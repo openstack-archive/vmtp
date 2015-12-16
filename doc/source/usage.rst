@@ -15,9 +15,9 @@ VMTP Usage
                    [--mongod-server <server ip>] [--json <file>]
                    [--tp-tool <nuttcp|iperf>]
                    [--availability_zone <availability_zone>] [--hypervisor [<az>:]
-                   <hostname>] [--inter-node-only] [--protocols <T|U|I>]
-                   [--bandwidth <bandwidth>] [--tcpbuf <tcp_pkt_size1,...>]
-                   [--udpbuf <udp_pkt_size1,...>]
+                   <hostname>] [--inter-node-only] [--same-network-only]
+                   [--protocols <T|U|I>] [--bandwidth <bandwidth>]
+                   [--tcpbuf <tcp_pkt_size1,...>] [--udpbuf <udp_pkt_size1,...>]
                    [--reuse_network_name <network_name>]
                    [--os-dataplane-network <network_name>]
                    [--delete-image-after-run] [--no-env]
@@ -56,6 +56,7 @@ VMTP Usage
       --hypervisor [<az>:] <hostname>
                             hypervisor to use (1 per arg, up to 2 args)
       --inter-node-only     only measure inter-node
+      --same-network-only   only measure same network
       --protocols <T|U|I>   protocols T(TCP), U(UDP), I(ICMP) - default=TUI (all)
       --bandwidth <bandwidth>
                             the bandwidth limit for TCP/UDP flows in K/M/Gbps,
