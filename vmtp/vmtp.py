@@ -215,7 +215,8 @@ class VmtpTest(object):
                     glance_endpoint = keystone.service_catalog.url_for(
                         service_type='image', endpoint_type='publicURL')
                     self.glance_client = glanceclient.Client(
-                        glance_endpoint, token=keystone.auth_token)
+                        glance_endpoint, token=keystone.auth_token,
+                        cacert=creds['cacert'])
                     self.comp.upload_image_via_url(
                         self.glance_client,
                         self.config.image_name,
