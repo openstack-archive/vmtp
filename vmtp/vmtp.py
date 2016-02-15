@@ -184,7 +184,7 @@ class VmtpTest(object):
                 self.instance_access.public_key_file = pub_key
                 self.instance_access.private_key_file = priv_key
             else:
-                print('Error: Default keypair ~/.ssh/id_rsa[.pub] is not existed. Please '
+                print('Error: Default keypair ~/.ssh/id_rsa[.pub] does not exist. Please '
                       'either create one in your home directory, or specify your keypair '
                       'information in the config file before running VMTP.')
                 sys.exit(1)
