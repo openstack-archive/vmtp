@@ -45,6 +45,9 @@ dns_nameservers: [ '8.8.8.8' ]
 #
 # A link to a Ubuntu Server 14.04 qcow2 image can be used here:
 # https://cloud-images.ubuntu.com/trusty/current/trusty-server-cloudimg-amd64-disk1.img
+#
+# To upload the image as a file, prepend it with file:// like below
+# file://<location of the image>
 vm_image_url: ''
 
 # -----------------------------------------------------------------------------

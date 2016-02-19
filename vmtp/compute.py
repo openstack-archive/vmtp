@@ -42,10 +42,20 @@ class Compute(object):
         '''
         retry = 0
         try:
-            # Upload the image
-            img = glance_client.images.create(
-                name=str(final_image_name), disk_format="qcow2", container_format="bare",
-                is_public=True, copy_from=image_url)
+            # check image is file/url based.
+            file_prefix = "file://"
+            if image_url.startswith(file_prefix):
+                image_location = image_url.split(file_prefix)[1]
+                with open(image_location) as f_image:
+                    img = glance_client.images.create(
+                        name=str(final_image_name), disk_format="qcow2",
+                        container_format="bare", is_public=True, data=f_image)
+            else:
+                # Upload the image
+                img = glance_client.images.create(
+                    name=str(final_image_name), disk_format="qcow2",
+                    container_format="bare", is_public=True,
+                    copy_from=image_url)
 
             # Check for the image in glance
             while img.status in ['queued', 'saving'] and retry < retry_count:
@@ -61,11 +71,15 @@ class Compute(object):
             print "Cannot upload image without admin access. Please make sure the "\
                   "image is uploaded and is either public or owned by you."
             return False
+        except IOError:
+            # catch the exception for file based errors.
+            print "Failed while uploading the image. Please make sure the " \
+                  "image at the specified location %s is correct." % image_url
+            return False
         except Exception:
             print "Failed while uploading the image, please make sure the cloud "\
                   "under test has the access to URL: %s." % image_url
             return False
-
         return True
 
     def delete_image(self, glance_client, img_name):

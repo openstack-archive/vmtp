@@ -822,7 +822,8 @@ def parse_opts_from_cli():
 
     parser.add_argument('--vm-image-url', dest='vm_image_url',
                         action='store',
-                        help='URL to a Linux image in qcow2 format that can be downloaded from',
+                        help='URL to a Linux image in qcow2 format that can be downloaded from'
+                             'or location of the image file with prefix file://',
                         metavar='<url_to_image>')
 
     parser.add_argument('--test-description', dest='test_description',
