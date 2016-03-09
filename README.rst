@@ -127,16 +127,87 @@ VMTP only measures performance for single-flows at the socket/TCP/UDP level (in 
 
 It is not designed to measure driver level data path performance from inside a VM (such as bypassing the kernel TCP stack and write directly to virtio), there are better tools that can address this type of mesurement.
 
+VMTP ships with pre-built binaries that will run on most x86_64 Linux VMs (which is the vast majority of copute nodes) - see Licensing. Running VMTP on compute nodes that have a different CPU architecture will require rebuilding these binaries for the proper target.
 
 Licensing
 ---------
 
-VMTP is licensed under Apache License 2.0 and comes packaged with the following tools for convenience:
+VMTP is licensed under Apache License 2.0 and comes packaged with the following Linux x86_64 binaries for convenience:
 
-* iperf: BSD License (https://iperf.fr/license.html, source code: https://iperf.fr)
-* nuttcp: GPL v2 License (http://nuttcp.net/nuttcp/beta/LICENSE, source code: http://nuttcp.net/nuttcp/beta/nuttcp-7.3.2.c)
+* iperf 2.0.5: BSD License (https://iperf.fr/license.html, built from source code: https://sourceforge.net/projects/iperf/files/iperf-2.0.5.tar.gz/download)
+* nuttcp: GPL v2 License (http://nuttcp.net/nuttcp/beta/LICENSE, built from source code: http://nuttcp.net/nuttcp/beta/nuttcp-7.3.2.c)
 
 Redistribution of nuttcp and iperf is governed by their respective licenses. Please make sure you read and understand each one before further redistributing VMTP downstream.
+
+Required legal attachment for iperf binary distribution 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+iperf 2.0.5: built from source code: https://sourceforge.net/projects/iperf/files/iperf-2.0.5.tar.gz/download
+
+(extract from the COPYING file as required by the iperf license, the full copy of the LICENSE is provided under legal/iperf)
+Copyright (c) 1999-2007, The Board of Trustees of the University of Illinois
+All Rights Reserved.
+
+Iperf performance test
+Mark Gates
+Ajay Tirumala
+Jim Ferguson
+Jon Dugan
+Feng Qin
+Kevin Gibbs
+John Estabrook
+National Laboratory for Applied Network Research
+National Center for Supercomputing Applications
+University of Illinois at Urbana-Champaign
+http://www.ncsa.uiuc.edu
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software (Iperf) and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimers.
+
+Redistributions in binary form must reproduce the above copyright notice, this
+list of conditions and the following disclaimers in the documentation and/or
+other materials provided with the distribution.
+
+Neither the names of the University of Illinois, NCSA, nor the names of its
+contributors may be used to endorse or promote products derived from this
+Software without specific prior written permission.  THE SOFTWARE IS PROVIDED
+"AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
+AND NONINFRINGEMENT. IN NO EVENT SHALL THE CONTIBUTORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Required legal attachment for nuttcp binary distribution 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+nuttcp 7.3.2c: GPL v2 License (http://nuttcp.net/nuttcp/beta/LICENSE, built from unmodified source code: http://nuttcp.net/nuttcp/beta/nuttcp-7.3.2.c)
+A copy of the LICENSE file and source code (unmodifed) is provided in this repository (under legal/nuttcp), as required by the nuttcp license.
+
+Extract of interest related to the binary attachment:
+
+1. You may copy and distribute verbatim copies of the Program's
+source code as you receive it, in any medium, provided that you
+conspicuously and appropriately publish on each copy an appropriate
+copyright notice and disclaimer of warranty; keep intact all the
+notices that refer to this License and to the absence of any warranty;
+and give any other recipients of the Program a copy of this License
+along with the Program.
+  
+2. (Provision does not apply since the code is unmodified)
+
+3. You may copy and distribute the Program (or a work based on it,
+under Section 2) in object code or executable form under the terms of
+Sections 1 and 2 above provided that you also do one of the following:
+
+    a) Accompany it with the complete corresponding machine-readable
+    source code, which must be distributed under the terms of Sections
+    1 and 2 above on a medium customarily used for software interchange; or,
 
 Links
 -----
