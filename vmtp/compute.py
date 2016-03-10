@@ -279,7 +279,7 @@ class Compute(object):
             zone = az_host_list[0]
             host = az_host_list[1]
             for hyp in host_list:
-                if hyp.host_name == host:
+                if hyp.host == host:
                     if hyp.zone == zone:
                         # matches
                         return az_host
@@ -338,7 +338,7 @@ class Compute(object):
                 # pick first 2 matches at most
                 if len(avail_list) == 2:
                     break
-            print 'Using hypervisors:' + ', '.join(avail_list)
+            print 'Using hypervisors ' + ', '.join(avail_list)
         else:
             for host in host_list:
                 # this host must be a compute node
