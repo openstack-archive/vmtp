@@ -20,12 +20,12 @@ import time
 
 import glanceclient.exc as glance_exception
 import novaclient
-import novaclient.exceptions as exceptions
 
 class Compute(object):
 
-    def __init__(self, nova_client, config):
+    def __init__(self, nova_client, neutron_client, config):
         self.novaclient = nova_client
+        self.neutronclient = neutron_client
         self.config = config
 
     def find_image(self, image_name):
@@ -153,7 +153,7 @@ class Compute(object):
                       retry_count=10):
 
         if sec_group:
-            security_groups = [sec_group.id]
+            security_groups = [sec_group['id']]
         else:
             security_groups = None
         # Also attach the created security group for the test
@@ -384,72 +384,60 @@ class Compute(object):
     # Create a new security group with appropriate rules
     def security_group_create(self):
         # check first the security group exists
-        # May throw exceptions.NoUniqueMatch or NotFound
-        try:
-            group = self.novaclient.security_groups.find(name=self.config.security_group_name)
-            return group
-        except exceptions.NotFound:
-            group = self.novaclient.security_groups.create(name=self.config.security_group_name,
-                                                           description="PNS Security group")
-            # Once security group try to find it iteratively
-            # (this check may no longer be necessary)
-            for _ in range(self.config.generic_retry_count):
-                group = self.novaclient.security_groups.get(group)
-                if group:
-                    self.security_group_add_rules(group)
-                    return group
-                else:
-                    time.sleep(1)
-            return None
-        # except exceptions.NoUniqueMatch as exc:
-        #    raise exc
+        sec_groups = self.neutronclient.list_security_groups()['security_groups']
+        group = [x for x in sec_groups if x['name'] == self.config.security_group_name]
+        if len(group) > 0:
+            return group[0]
+
+        body = {
+            'security_group': {
+                'name': self.config.security_group_name,
+                'description': 'PNS Security Group'
+            }
+        }
+        group = self.neutronclient.create_security_group(body)['security_group']
+        self.security_group_add_rules(group)
+        return group
 
     # Delete a security group
     def security_group_delete(self, group):
         if group:
             print "Deleting security group"
-            self.novaclient.security_groups.delete(group)
+            self.neutronclient.delete_security_group(group['id'])
 
     # Add rules to the security group
     def security_group_add_rules(self, group):
-        # Allow ping traffic
-        self.novaclient.security_group_rules.create(group.id,
-                                                    ip_protocol="icmp",
-                                                    from_port=-1,
-                                                    to_port=-1)
+        body = {
+            'security_group_rule': {
+                'direction': 'ingress', 'security_group_id': group['id'], 'remote_group_id': None
+            }
+        }
         if self.config.ipv6_mode:
-            self.novaclient.security_group_rules.create(group.id,
-                                                        ip_protocol="icmp",
-                                                        from_port=-1,
-                                                        to_port=-1,
-                                                        cidr="::/0")
+            body['security_group_rule']['ethertype'] = 'IPv6'
+            body['security_group_rule']['remote_ip_prefix'] = '::/0'
+        else:
+            body['security_group_rule']['ethertype'] = 'IPv4'
+            body['security_group_rule']['remote_ip_prefix'] = '0.0.0.0/0'
+
+        # Allow ping traffic
+        body['security_group_rule']['protocol'] = 'icmp'
+        body['security_group_rule']['port_range_min'] = None
+        body['security_group_rule']['port_range_max'] = None
+        self.neutronclient.create_security_group_rule(body)
+
         # Allow SSH traffic
-        self.novaclient.security_group_rules.create(group.id,
-                                                    ip_protocol="tcp",
-                                                    from_port=22,
-                                                    to_port=22)
+        body['security_group_rule']['protocol'] = 'tcp'
+        body['security_group_rule']['port_range_min'] = 22
+        body['security_group_rule']['port_range_max'] = 22
+        self.neutronclient.create_security_group_rule(body)
+
         # Allow TCP/UDP traffic for perf tools like iperf/nuttcp
         # 5001: Data traffic (standard iperf data port)
         # 5002: Control traffic (non standard)
         # note that 5000/tcp is already picked by openstack keystone
-        if not self.config.ipv6_mode:
-            self.novaclient.security_group_rules.create(group.id,
-                                                        ip_protocol="tcp",
-                                                        from_port=5001,
-                                                        to_port=5002)
-            self.novaclient.security_group_rules.create(group.id,
-                                                        ip_protocol="udp",
-                                                        from_port=5001,
-                                                        to_port=5001)
-        else:
-            # IPV6 rules addition
-            self.novaclient.security_group_rules.create(group.id,
-                                                        ip_protocol="tcp",
-                                                        from_port=5001,
-                                                        to_port=5002,
-                                                        cidr="::/0")
-            self.novaclient.security_group_rules.create(group.id,
-                                                        ip_protocol="udp",
-                                                        from_port=5001,
-                                                        to_port=5001,
-                                                        cidr="::/0")
+        body['security_group_rule']['protocol'] = 'tcp'
+        body['security_group_rule']['port_range_min'] = 5001
+        body['security_group_rule']['port_range_max'] = 5002
+        self.neutronclient.create_security_group_rule(body)
+        body['security_group_rule']['protocol'] = 'udp'
+        self.neutronclient.create_security_group_rule(body)
