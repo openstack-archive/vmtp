@@ -92,7 +92,7 @@ class Instance(object):
         if self.config.vnic_type:
             # create the VM by passing a port ID instead of a net ID
             self.port = self.net.create_port(int_net['id'],
-                                             [sec_group.id],
+                                             [sec_group['id']],
                                              self.config.vnic_type)
             nics = [{'port-id': self.port['id']}]
             # no need to create server with a security group since
