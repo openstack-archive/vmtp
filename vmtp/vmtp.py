@@ -201,7 +201,7 @@ class VmtpTest(object):
             nova_client = Client(**creds_nova)
             neutron = neutronclient.Client(**creds)
 
-            self.comp = compute.Compute(nova_client, neutron, self.config)
+            self.comp = compute.Compute(nova_client, self.config)
 
             # Add the appropriate public key to openstack
             self.comp.init_key_pair(self.config.public_key_name, self.instance_access)

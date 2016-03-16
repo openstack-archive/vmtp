@@ -13,9 +13,7 @@
 #    under the License.
 #
 
-import os
 import re
-import stat
 
 import monitor
 from netaddr import IPAddress
@@ -92,7 +90,7 @@ class Instance(object):
         if self.config.vnic_type:
             # create the VM by passing a port ID instead of a net ID
             self.port = self.net.create_port(int_net['id'],
-                                             [sec_group['id']],
+                                             [sec_group.id],
                                              self.config.vnic_type)
             nics = [{'port-id': self.port['id']}]
             # no need to create server with a security group since
@@ -242,8 +240,6 @@ class Instance(object):
             self.buginf('tool %s already present - skipping install',
                         tool_name)
             return True
-        # first chmod the local copy since git does not keep the permission
-        os.chmod(source, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
 
         # scp over the tool binary
         self.buginf('Copying %s to target...', tool_name)
