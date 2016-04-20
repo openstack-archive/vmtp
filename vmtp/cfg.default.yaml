@@ -74,6 +74,10 @@ reuse_existing_vm:
 # An option of config_drive to True is provided to nova boot to enable this
 config_drive:
 
+# The location of the user_data file, which will be passed to every instance
+# when booting.
+user_data_file:
+
 # ipv6 mode. Set this to one of the following 3 modes
 # slaac : VM obtains IPV6 address from Openstack radvd using SLAAC
 # dhcpv6-stateful : VM obtains ipv6 address from dnsmasq using DHCPv6 stateful

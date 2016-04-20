@@ -153,13 +153,16 @@ class VmtpTest(object):
 
     # Create an instance on a particular availability zone
     def create_instance(self, inst, az, int_net):
+        fn = self.config.user_data_file
+        user_data_file = fn if fn and os.path.isfile(fn) else None
         self.assert_true(inst.create(self.image_instance,
                                      self.flavor_type,
                                      self.instance_access,
                                      int_net,
                                      az,
                                      int_net['name'],
-                                     self.sec_group))
+                                     self.sec_group,
+                                     init_file_name=user_data_file))
 
     def assert_true(self, cond):
         if not cond:
