@@ -48,7 +48,7 @@ dns_nameservers: [ '8.8.8.8' ]
 #
 # To upload the image as a file, prepend it with file:// like below
 # file://<location of the image>
-vm_image_url: ''
+vm_image_url: 'https://cloud-images.ubuntu.com/trusty/current/trusty-server-cloudimg-amd64-disk1.img'
 
 # -----------------------------------------------------------------------------
 # These variables are not likely to be changed
@@ -73,6 +73,10 @@ reuse_existing_vm:
 # Set config drive to true to bypass metadata service and use config drive
 # An option of config_drive to True is provided to nova boot to enable this
 config_drive:
+
+# The location of the user_data file, which will be passed to every instance
+# when booting.
+user_data_file:
 
 # ipv6 mode. Set this to one of the following 3 modes
 # slaac : VM obtains IPV6 address from Openstack radvd using SLAAC
