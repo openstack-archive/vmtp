@@ -540,6 +540,10 @@ def gen_report_data(proto, result):
             elif proto == 'UDP':
                 retval[item['pkt_size']]['tp_kbps'] = item['throughput_kbps']
                 retval[item['pkt_size']]['loss_rate'] = item['loss_rate']
+                if 'jitter' in item:
+                    retval[item['pkt_size']]['jitter'] = item['jitter']
+                if 'latency' in item:
+                    retval[item['pkt_size']]['latency'] = item['latency']
             elif proto == 'ICMP':
                 for key in ['rtt_avg_ms', 'rtt_max_ms', 'rtt_min_ms', 'rtt_stddev']:
                     retval[key] = item[key]
@@ -759,6 +763,13 @@ def parse_opts_from_cli():
                         help='protocols T(TCP), U(UDP), I(ICMP) - default=TUI (all)',
                         metavar='<T|U|I>')
 
+    parser.add_argument('--multicast', dest='multicast',
+                        action='store',
+                        help='bind to multicast address for tests '
+                             '(implies --protocols U, --tp-tool nuttcp )',
+                        metavar='<multicast_address>')
+
+
     parser.add_argument('--bandwidth', dest='vm_bandwidth',
                         action='store',
                         default=0,
@@ -927,6 +938,12 @@ def merge_opts_to_configs(opts):
                   'specify only one unit (K|M|G).'
             sys.exit(1)
         config.vm_bandwidth = int(val * (10 ** (ex_unit * 3)))
+
+    # UDP and nuttcp are required for multicast testing.
+    if opts.multicast:
+        opts.protocols = 'U'
+        opts.tp_tool = 'nuttcp'
+        config.multicast = opts.multicast
 
     # the pkt size for TCP and UDP
     if opts.tcp_pkt_sizes:

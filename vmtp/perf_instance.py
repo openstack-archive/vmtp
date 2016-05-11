@@ -96,7 +96,8 @@ class PerfInstance(Instance):
             res['az_to'] = az_to
         res['distro_id'] = self.ssh.distro_id
         res['distro_version'] = self.ssh.distro_version
-
+        if 'multicast' in self.config:
+            res['multicast_address'] = self.config.multicast
         # consolidate results for all tools
         if ping_res:
             tp_tool_res.append(ping_res)
