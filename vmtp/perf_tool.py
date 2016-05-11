@@ -81,7 +81,7 @@ class PerfTool(object):
     def parse_results(self, protocol, throughput, lossrate=None, retrans=None,
                       rtt_ms=None, reverse_dir=False,
                       msg_size=None,
-                      cpu_load=None):
+                      cpu_load=None, jitter=None, latency=None):
         res = {'throughput_kbps': throughput,
                'protocol': protocol,
                'tool': self.name}
@@ -99,6 +99,10 @@ class PerfTool(object):
             res['pkt_size'] = msg_size
         if cpu_load:
             res['cpu_load'] = cpu_load
+        if jitter:
+            res['jitter'] = jitter;
+        if latency:
+            res['latency'] = latency
         return res
 
     @abc.abstractmethod

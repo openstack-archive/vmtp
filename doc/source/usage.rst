@@ -16,7 +16,8 @@ VMTP Usage
                    [--tp-tool <nuttcp|iperf>]
                    [--availability_zone <availability_zone>] [--hypervisor [<az>:]
                    <hostname>] [--inter-node-only] [--same-network-only]
-                   [--protocols <T|U|I>] [--bandwidth <bandwidth>]
+                   [--protocols <T|U|I>] [--multicast <multicast_address>]
+				   [--bandwidth <bandwidth>]
                    [--tcpbuf <tcp_pkt_size1,...>] [--udpbuf <udp_pkt_size1,...>]
                    [--reuse_network_name <network_name>]
                    [--os-dataplane-network <network_name>]
@@ -58,7 +59,10 @@ VMTP Usage
       --inter-node-only     only measure inter-node
       --same-network-only   only measure same network
       --protocols <T|U|I>   protocols T(TCP), U(UDP), I(ICMP) - default=TUI (all)
-      --bandwidth <bandwidth>
+      --multicast <multicast_address>
+                            bind to multicast address. (implies
+                            --protocols U, --tp-tool nuttcp)      
+	  --bandwidth <bandwidth>
                             the bandwidth limit for TCP/UDP flows in K/M/Gbps,
                             e.g. 128K/32M/5G. (default=no limit)
       --tcpbuf <tcp_pkt_size1,...>
