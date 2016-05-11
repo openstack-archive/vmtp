@@ -115,6 +115,7 @@ class NuttcpTool(PerfTool):
         # size is not going to help achieve better results)
         opts = ''
         protocol = 'UDP' if udp else 'TCP'
+        multicast = False
 
         if mss:
             opts += "-M" + str(mss)
@@ -124,6 +125,10 @@ class NuttcpTool(PerfTool):
             opts += " -l" + str(length)
         if self.instance.config.ipv6_mode:
             opts += " -6 "
+        if 'multicast' in self.instance.config:
+            opts += " -m32 -o -j -g" + self.instance.config.multicast
+            multicast = True
+
         if udp:
             opts += " -u"
             # for UDP if the bandwidth is not provided we need to calculate
@@ -165,15 +170,24 @@ class NuttcpTool(PerfTool):
             return [self.parse_error(protocol, str(exc))]
 
         if udp:
-            # UDP output (unicast and multicast):
+            # UDP output:
             # megabytes=1.1924 real_seconds=10.01 rate_Mbps=0.9997 tx_cpu=99 rx_cpu=0
             #      drop=0 pkt=1221 data_loss=0.00000
             re_udp = r'rate_Mbps=([\d\.]*) tx_cpu=\d* rx_cpu=\d* drop=(\-*\d*) pkt=(\d*)'
+            if multicast:
+                re_udp += r' data_loss=[\d\.]* msmaxjitter=([\d\.]*) msavgOWD=([\-\d\.]*)'
             match = re.search(re_udp, cmd_out)
             if match:
                 rate_mbps = float(match.group(1))
                 drop = float(match.group(2))
                 pkt = int(match.group(3))
+                jitter = None
+                latency = None
+
+                if multicast:
+                    jitter = float(match.group(4))
+                    latency = float(match.group(5))
+
                 # Workaround for a bug of nuttcp that sometimes it will return a
                 # negative number for drop.
                 if drop < 0:
@@ -184,7 +198,9 @@ class NuttcpTool(PerfTool):
                                            lossrate=round(drop * 100 / pkt, 2),
                                            reverse_dir=reverse_dir,
                                            msg_size=length,
-                                           cpu_load=cpu_load)]
+                                           cpu_load=cpu_load,
+                                           jitter=jitter,
+                                           latency=latency)]
         else:
             # TCP output:
             # megabytes=1083.4252 real_seconds=10.04 rate_Mbps=905.5953 tx_cpu=3 rx_cpu=19
