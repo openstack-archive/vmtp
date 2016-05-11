@@ -44,6 +44,7 @@ class Instance(object):
         self.instance = None
         self.ssh = None
         self.port = None
+        self.created_multicast_route = False
         if config.gmond_svr_ip:
             self.gmond_svr = config.gmond_svr_ip
         else:
@@ -195,6 +196,29 @@ class Instance(object):
         else:
             return True
 
+    def add_multicast_route(self, ifname=None):
+        if not ifname:
+            cmd = "route -n | grep 'UG[ \t]' | awk '{print $8}'"  # name of the default interface
+            (status, ifname, err) = self.ssh.execute(cmd, timeout=10)
+            if status == 127 or ifname[0:5] == "usage":
+                cmd = "netstat -nr | grep default  | awk '{print $6}'"
+                (status, ifname, err) = self.ssh.execute(cmd, timeout=10)
+
+        cmd = "ip route add 224.0.0.0/4 dev " + ifname
+        (status, _, _) = self.ssh.execute(cmd, timeout=10)
+        if status == 127:
+            cmd = "route add -net 224.0.0.0/4 dev " + ifname
+            (status, _, _) = self.ssh.execute(cmd, timeout=10)
+        self.created_multicast_route = status == 0
+        return status
+
+    def del_multicast_route(self):
+        (status, _, _) = self.ssh.execute("ip route delete 224.0.0.0/4", timeout=10)
+        if status == 127:
+            status = self.ssh.execute("route delete -net 224.0.0.0/4", timeout=10)
+        return status
+
+
     # Set the interface IP address and mask
     def set_interface_ip(self, if_name, ip, mask):
         self.buginf('Setting interface %s to %s mask %s', if_name, ip, mask)
@@ -284,6 +308,8 @@ class Instance(object):
     # Delete the server instance
     # Dispose the ssh session
     def dispose(self):
+        if self.created_multicast_route:
+            self.del_multicast_route()
         if self.ssh_ip_id:
             self.net.delete_floating_ip(self.ssh_ip_id)
             self.buginf('Floating IP %s deleted', self.ssh_access.host)

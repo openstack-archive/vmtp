@@ -517,7 +517,7 @@ def get_controller_info(ssh_access, net, res_col, retry_count):
 
 def gen_report_data(proto, result):
     try:
-        if proto in ['TCP', 'UDP', 'ICMP']:
+        if proto in ['TCP', 'UDP', 'Multicast', 'ICMP']:
             result = [x for x in result if x['protocol'] == proto]
         elif proto == 'Upload':
             result = [x for x in result if ('direction' not in x) and (x['protocol'] == 'TCP')]
@@ -528,7 +528,7 @@ def gen_report_data(proto, result):
         if proto in ['TCP', 'Upload', 'Download']:
             tcp_test_count = 0
             retval = {'tp_kbps': 0, 'rtt_ms': 0}
-        elif proto == 'UDP':
+        elif proto == 'UDP' or proto == 'Multicast':
             pkt_size_list = [x['pkt_size'] for x in result]
             retval = dict(zip(pkt_size_list, [{}, {}, {}]))
 
@@ -537,9 +537,11 @@ def gen_report_data(proto, result):
                 tcp_test_count = tcp_test_count + 1
                 retval['tp_kbps'] += item['throughput_kbps']
                 retval['rtt_ms'] += item['rtt_ms']
-            elif proto == 'UDP':
+            elif proto == 'UDP' or proto == 'Multicast':
                 retval[item['pkt_size']]['tp_kbps'] = item['throughput_kbps']
                 retval[item['pkt_size']]['loss_rate'] = item['loss_rate']
+                if 'jitter' in item:
+                    retval[item['pkt_size']]['jitter'] = item['jitter']
             elif proto == 'ICMP':
                 for key in ['rtt_avg_ms', 'rtt_max_ms', 'rtt_min_ms', 'rtt_stddev']:
                     retval[key] = item[key]
@@ -560,9 +562,9 @@ def print_report(results):
     SPASS = "\033[92mPASSED\033[0m"
     SFAIL = "\033[91mFAILED\033[0m"
 
-    # Initilize a run_status[4][2][2][3] array
-    run_status = [([([(["SKIPPED"] * 3) for i in range(2)]) for i in range(2)]) for i in range(4)]
-    run_data = [([([([{}] * 3) for i in range(2)]) for i in range(2)]) for i in range(4)]
+    # Initilize a run_status[4][2][2][4] array
+    run_status = [([([(["SKIPPED"] * 4) for i in range(2)]) for i in range(2)]) for i in range(4)]
+    run_data = [([([([{}] * 4) for i in range(2)]) for i in range(2)]) for i in range(4)]
     flows = results['flows']
     for flow in flows:
         res = flow['results']
@@ -585,7 +587,7 @@ def print_report(results):
             idx0 = 3
             idx1 = idx2 = 0
         for item in res:
-            for idx3, proto in enumerate(['TCP', 'UDP', 'ICMP']):
+            for idx3, proto in enumerate(['TCP', 'UDP', 'ICMP', 'Multicast']):
                 if (item['protocol'] == proto) and (run_status[idx0][idx1][idx2][idx3] != SFAIL):
                     if 'error' in item:
                         run_status[idx0][idx1][idx2][idx3] = SFAIL
@@ -600,15 +602,15 @@ def print_report(results):
             if net == 'Same Network' and ip == 'Floating IP':
                 continue
             for idx2, node in enumerate(['Intra-node', 'Inter-node']):
-                for idx3, proto in enumerate(['TCP', 'UDP', 'ICMP']):
-                    row = [str(scenario / 3 + 1) + "." + str(idx3 + 1),
+                for idx3, proto in enumerate(['TCP', 'UDP', 'ICMP', 'Multicast']):
+                    row = [str(scenario / 4 + 1) + "." + str(idx3 + 1),
                            "%s, %s, %s, %s" % (net, ip, node, proto),
                            run_status[idx0][idx1][idx2][idx3],
                            run_data[idx0][idx1][idx2][idx3]]
                     table.append(row)
                     scenario = scenario + 1
-    for idx3, proto in enumerate(['TCP', 'UDP', 'ICMP']):
-        row = [str(scenario / 3 + 1) + "." + str(idx3 + 1),
+    for idx3, proto in enumerate(['TCP', 'UDP', 'ICMP', 'Multicast']):
+        row = [str(scenario / 4 + 1) + "." + str(idx3 + 1),
                "Native Throughput, %s" % (proto),
                run_status[3][0][0][idx3], run_data[3][0][0][idx3]]
         table.append(row)
@@ -756,8 +758,16 @@ def parse_opts_from_cli():
     parser.add_argument('--protocols', dest='protocols',
                         action='store',
                         default='TUI',
-                        help='protocols T(TCP), U(UDP), I(ICMP) - default=TUI (all)',
-                        metavar='<T|U|I>')
+                        help='protocols T(TCP), U(UDP), I(ICMP), M(Multicast)'
+                             ' - default=TUI (TUIM if --multicast_addr is passed)',
+                        metavar='<T|U|I|M>')
+
+    parser.add_argument('--multicast_addr', dest='multicast_addr',
+                        action='store',
+                        help='bind to multicast address for tests '
+                             '(implies --protocols M[...], --tp-tool nuttcp )',
+                        metavar='<multicast_address>')
+
 
     parser.add_argument('--bandwidth', dest='vm_bandwidth',
                         action='store',
@@ -928,6 +938,7 @@ def merge_opts_to_configs(opts):
             sys.exit(1)
         config.vm_bandwidth = int(val * (10 ** (ex_unit * 3)))
 
+
     # the pkt size for TCP and UDP
     if opts.tcp_pkt_sizes:
         try:
@@ -987,7 +998,16 @@ def merge_opts_to_configs(opts):
 
     # Check the tp-tool name
     config.protocols = opts.protocols.upper()
-    if 'T' in config.protocols or 'U' in config.protocols:
+    if 'M' in config.protocols or opts.multicast_addr:
+        # nuttcp required for multicast
+        opts.tp_tool = 'nuttcp'
+        config.tp_tool = nuttcp_tool.NuttcpTool
+        # If M provided, but not multicast_addr, use default (231.1.1.1)
+        config.multicast_addr = opts.multicast_addr if opts.multicast_addr else "231.1.1.1"
+        # If --multicast_addr provided, ensure 'M' is in protocols.
+        if 'M' not in config.protocols:
+            config.protocols += 'M'
+    elif 'T' in config.protocols or 'U' in config.protocols:
         if opts.tp_tool.lower() == 'nuttcp':
             config.tp_tool = nuttcp_tool.NuttcpTool
         elif opts.tp_tool.lower() == 'iperf':

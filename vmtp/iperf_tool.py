@@ -52,12 +52,12 @@ class IperfTool(PerfTool):
         # Get list of protocols and packet sizes to measure
         (proto_list, proto_pkt_sizes) = self.get_proto_profile()
 
-        for udp, pkt_size_list in zip(proto_list, proto_pkt_sizes):
+        for proto, pkt_size_list in zip(proto_list, proto_pkt_sizes):
             # bidirectional is not supported for udp
             # (need to find the right iperf options to make it work as there are
             # issues for the server to send back results to the client in reverse
             # direction
-            if udp:
+            if proto == 'UDP':
                 bidir = False
                 loop_count = 1
             else:
@@ -69,7 +69,7 @@ class IperfTool(PerfTool):
                     res = self.run_client_dir(target_ip, mss,
                                               bandwidth_kbps=bandwidth,
                                               bidirectional=bidir,
-                                              udp=udp,
+                                              protocol=proto,
                                               length=pkt_size)
                     # for bidirectional the function returns a list of 2 results
                     res_list.extend(res)
@@ -79,7 +79,7 @@ class IperfTool(PerfTool):
                        mss,
                        bidirectional=False,
                        bandwidth_kbps=0,
-                       udp=False,
+                       protocol='TCP',
                        length=0,
                        no_cpu_timed=0):
         '''Run client for given protocol and packet size
@@ -97,8 +97,7 @@ class IperfTool(PerfTool):
         # scaling is normally enabled by default so setting explicit window
         # size is not going to help achieve better results)
         opts = ''
-        protocol = 'UDP' if udp else 'TCP'
-
+        udp = protocol == "UDP"
         # run iperf client using the default TCP window size (tcp window
         # scaling is normally enabled by default so setting explicit window
         # size is not going to help achieve better results)
@@ -116,7 +115,7 @@ class IperfTool(PerfTool):
             # for UDP if the bandwidth is not provided we need to calculate
             # the optimal bandwidth
             if not bandwidth_kbps:
-                udp_res = self.find_udp_bdw(length, target_ip)
+                udp_res = self.find_bdw(length, target_ip, protocol)
                 if 'error' in udp_res:
                     return [udp_res]
                 if not self.instance.gmond_svr:

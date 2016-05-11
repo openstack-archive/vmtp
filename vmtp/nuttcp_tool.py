@@ -43,16 +43,15 @@ class NuttcpTool(PerfTool):
 
         # Get list of protocols and packet sizes to measure
         (proto_list, proto_pkt_sizes) = self.get_proto_profile()
-
-        for udp, pkt_size_list in zip(proto_list, proto_pkt_sizes):
+        for proto, pkt_size_list in zip(proto_list, proto_pkt_sizes):
             for pkt_size in pkt_size_list:
                 for reverse_dir in reverse_dir_list:
                     # nuttcp does not support reverse dir for UDP...
-                    if reverse_dir and udp:
+                    if reverse_dir and proto != "TCP":
                         continue
-                    if udp:
-                        self.instance.display('Measuring UDP Throughput (packet size=%d)...',
-                                              pkt_size)
+                    if proto != "TCP":
+                        self.instance.display('Measuring %s Throughput (packet size=%d)...',
+                                              proto, pkt_size)
                         loop_count = 1
                     else:
                         # For accuracy purpose, TCP throughput will be measured 3 times
@@ -63,45 +62,48 @@ class NuttcpTool(PerfTool):
                         res = self.run_client_dir(target_ip, mss,
                                                   reverse_dir=reverse_dir,
                                                   bandwidth_kbps=bandwidth,
-                                                  udp=udp,
+                                                  protocol=proto,
                                                   length=pkt_size)
                         res_list.extend(res)
 
         # For UDP reverse direction we need to start the server on self.instance
         # and run the client on target_instance
-        if bidirectional and 'U' in self.instance.config.protocols:
-            # Start the server on the client (this tool instance)
-            self.instance.display('Start UDP server for reverse dir')
-            if self.start_server():
-                # Start the client on the target instance
-                target_instance.display('Starting UDP client for reverse dir')
+        if bidirectional:
+            for proto in proto_list:
+                if proto == 'TCP':
+                    continue
+                # Start the server on the client (this tool instance)
+                self.instance.display('Start ' + proto + ' server for reverse dir')
+                if self.start_server():
+                    # Start the client on the target instance
+                    target_instance.display('Starting ' + proto + ' client for reverse dir')
 
-                for pkt_size in self.instance.config.udp_pkt_sizes:
-                    self.instance.display('Measuring UDP Throughput packet size=%d'
-                                          ' (reverse direction)...',
-                                          pkt_size)
-                    res = target_instance.tp_tool.run_client_dir(self.instance.internal_ip,
-                                                                 mss,
-                                                                 bandwidth_kbps=bandwidth,
-                                                                 udp=True,
-                                                                 length=pkt_size)
-                    res[0]['direction'] = 'reverse'
-                    res_list.extend(res)
-            else:
-                self.instance.display('Failed to start UDP server for reverse dir')
+                    for pkt_size in self.instance.config.udp_pkt_sizes:
+                        self.instance.display('Measuring %s Throughput packet size=%d'
+                                              ' (reverse direction)...',
+                                              proto, pkt_size)
+                        res = target_instance.tp_tool.run_client_dir(self.instance.internal_ip,
+                                                                     mss,
+                                                                     bandwidth_kbps=bandwidth,
+                                                                     protocol=proto,
+                                                                     length=pkt_size)
+                        res[0]['direction'] = 'reverse'
+                        res_list.extend(res)
+                else:
+                    self.instance.display('Failed to start ' + proto + ' server for reverse dir')
         return res_list
 
     def run_client_dir(self, target_ip,
                        mss,
                        reverse_dir=False,
                        bandwidth_kbps=0,
-                       udp=False,
+                       protocol='TCP',
                        length=0,
                        no_cpu_timed=0):
         '''Run client in one direction
         :param reverse_dir: True if reverse the direction (tcp only for now)
         :param bandwidth_kbps: transmit rate limit in Kbps
-        :param udp: if true get UDP throughput, else get TCP throughput
+        :param protocol: (TCP|UDP|Multicast)
         :param length: length of network write|read buf (default 1K|8K/udp, 64K/tcp)
                        for udp is the packet size
         :param no_cpu_timed: if non zero will disable cpu collection and override
@@ -114,8 +116,9 @@ class NuttcpTool(PerfTool):
         # scaling is normally enabled by default so setting explicit window
         # size is not going to help achieve better results)
         opts = ''
-        protocol = 'UDP' if udp else 'TCP'
-
+        multicast = protocol == 'Multicast'
+        tcp = protocol == 'TCP'
+        udp = protocol == 'UDP'
         if mss:
             opts += "-M" + str(mss)
         if reverse_dir:
@@ -124,12 +127,14 @@ class NuttcpTool(PerfTool):
             opts += " -l" + str(length)
         if self.instance.config.ipv6_mode:
             opts += " -6 "
-        if udp:
+        if multicast:
+            opts += " -m32 -o -j -g" + self.instance.config.multicast_addr
+        if not tcp:
             opts += " -u"
             # for UDP if the bandwidth is not provided we need to calculate
             # the optimal bandwidth
             if not bandwidth_kbps:
-                udp_res = self.find_udp_bdw(length, target_ip)
+                udp_res = self.find_bdw(length, target_ip, protocol)
                 if 'error' in udp_res:
                     return [udp_res]
                 if not self.instance.gmond_svr:
@@ -164,27 +169,35 @@ class NuttcpTool(PerfTool):
             self.instance.display('SSH Error:' + str(exc))
             return [self.parse_error(protocol, str(exc))]
 
-        if udp:
-            # UDP output (unicast and multicast):
+        if udp or multicast:
+            # UDP output:
             # megabytes=1.1924 real_seconds=10.01 rate_Mbps=0.9997 tx_cpu=99 rx_cpu=0
             #      drop=0 pkt=1221 data_loss=0.00000
             re_udp = r'rate_Mbps=([\d\.]*) tx_cpu=\d* rx_cpu=\d* drop=(\-*\d*) pkt=(\d*)'
+            if multicast:
+                re_udp += r' data_loss=[\d\.]* msmaxjitter=([\d\.]*) msavgOWD=([\-\d\.]*)'
             match = re.search(re_udp, cmd_out)
             if match:
                 rate_mbps = float(match.group(1))
                 drop = float(match.group(2))
                 pkt = int(match.group(3))
+                jitter = None
+
+                if multicast:
+                    jitter = float(match.group(4))
+
                 # Workaround for a bug of nuttcp that sometimes it will return a
                 # negative number for drop.
                 if drop < 0:
                     drop = 0
 
-                return [self.parse_results('UDP',
+                return [self.parse_results(protocol,
                                            int(rate_mbps * 1024),
                                            lossrate=round(drop * 100 / pkt, 2),
                                            reverse_dir=reverse_dir,
                                            msg_size=length,
-                                           cpu_load=cpu_load)]
+                                           cpu_load=cpu_load,
+                                           jitter=jitter)]
         else:
             # TCP output:
             # megabytes=1083.4252 real_seconds=10.04 rate_Mbps=905.5953 tx_cpu=3 rx_cpu=19
@@ -195,7 +208,7 @@ class NuttcpTool(PerfTool):
                 rate_mbps = float(match.group(1))
                 retrans = int(match.group(2))
                 rtt_ms = float(match.group(3))
-                return [self.parse_results('TCP',
+                return [self.parse_results(protocol,
                                            int(rate_mbps * 1024),
                                            retrans=retrans,
                                            rtt_ms=rtt_ms,

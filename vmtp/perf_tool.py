@@ -81,7 +81,7 @@ class PerfTool(object):
     def parse_results(self, protocol, throughput, lossrate=None, retrans=None,
                       rtt_ms=None, reverse_dir=False,
                       msg_size=None,
-                      cpu_load=None):
+                      cpu_load=None, jitter=None):
         res = {'throughput_kbps': throughput,
                'protocol': protocol,
                'tool': self.name}
@@ -99,6 +99,8 @@ class PerfTool(object):
             res['pkt_size'] = msg_size
         if cpu_load:
             res['cpu_load'] = cpu_load
+        if jitter:
+            res['jitter'] = jitter
         return res
 
     @abc.abstractmethod
@@ -106,13 +108,13 @@ class PerfTool(object):
                        mss,
                        reverse_dir=False,
                        bandwidth_kbps=0,
-                       udp=False,
+                       protocol="TCP",
                        length=0,
                        no_cpu_timed=0):
         # must be implemented by sub classes
         return None
 
-    def find_udp_bdw(self, pkt_size, target_ip):
+    def find_bdw(self, pkt_size, target_ip, protocol="UDP"):
         '''Find highest UDP bandwidth within max loss rate for given packet size
         :return: a dictionary describing the optimal bandwidth (see parse_results())
         '''
@@ -154,7 +156,7 @@ class PerfTool(object):
         # stop if the remaining range to cover is less than 5%
         while (min_kbps * 100 / max_kbps) < 95:
             res_list = self.run_client_dir(target_ip, 0, bandwidth_kbps=kbps,
-                                           udp=True, length=pkt_size,
+                                           protocol=protocol, length=pkt_size,
                                            no_cpu_timed=1)
             # always pick the first element in the returned list of dict(s)
             # should normally only have 1 element
@@ -204,14 +206,17 @@ class PerfTool(object):
         '''Return a tuple containing the list of protocols (tcp/udp) and
         list of packet sizes (udp only)
         '''
-        # start with TCP (udp=False) then UDP
+        # start with TCP (protocol="TCP") then UDP
         proto_list = []
         proto_pkt_sizes = []
         if 'T' in self.instance.config.protocols:
-            proto_list.append(False)
+            proto_list.append('TCP')
             proto_pkt_sizes.append(self.instance.config.tcp_pkt_sizes)
         if 'U' in self.instance.config.protocols:
-            proto_list.append(True)
+            proto_list.append('UDP')
+            proto_pkt_sizes.append(self.instance.config.udp_pkt_sizes)
+        if 'M' in self.instance.config.protocols:
+            proto_list.append('Multicast')
             proto_pkt_sizes.append(self.instance.config.udp_pkt_sizes)
         return (proto_list, proto_pkt_sizes)
 
@@ -282,7 +287,7 @@ class PingTool(PerfTool):
                        mss,
                        reverse_dir=False,
                        bandwidth_kbps=0,
-                       udp=False,
+                       protocol="TCP",
                        length=0,
                        no_cpu_timed=0):
         # not applicable
