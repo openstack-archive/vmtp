@@ -15,9 +15,14 @@
 
 import re
 
+import log
 import monitor
 from netaddr import IPAddress
 import sshutils
+
+CONLOG = log.getLogger('vmtp', 'console')
+LSLOG = log.getLogger('vmtp', 'logstash')
+LOG = log.getLogger('vmtp', 'all')
 
 # a dictionary of sequence number indexed by a name prefix
 prefix_seq = {}
@@ -63,7 +68,7 @@ class Instance(object):
         if not self.internal_ip:
             self.internal_ip = host_access.host
         self.ssh_access = host_access
-        self.buginf('Setup SSH for %s@%s' % (host_access.username, host_access.host))
+        self.display('Setup SSH for %s@%s' % (host_access.username, host_access.host))
         self.ssh = sshutils.SSH(self.ssh_access,
                                 connect_retry_count=self.config.ssh_retry_count)
         return True
@@ -144,13 +149,12 @@ class Instance(object):
                 return False
             self.ssh_access.host = fip['floatingip']['floating_ip_address']
             self.ssh_ip_id = fip['floatingip']['id']
-            self.buginf('Floating IP %s created', self.ssh_access.host)
-            self.buginf('Started - associating floating IP %s', self.ssh_access.host)
+            self.display('Associating floating IP %s', self.ssh_access.host)
             self.instance.add_floating_ip(self.ssh_access.host, ipv4_fixed_address)
 
         # extract the IP for the data network
-        self.buginf('Internal network IP: %s', self.internal_ip)
-        self.buginf('SSH IP: %s', self.ssh_access.host)
+        self.display('Internal network IP: %s', self.internal_ip)
+        self.display('SSH IP: %s', self.ssh_access.host)
 
         # create ssh session
         if not self.setup_ssh(self.ssh_access):
@@ -174,12 +178,11 @@ class Instance(object):
     # Display a status message with the standard header that has the instance
     # name (e.g. [foo] some text)
     def display(self, fmt, *args):
-        print ('[%s] ' + fmt) % ((self.name,) + args)
+        CONLOG.info(('[%s] ' + fmt) % ((self.name,) + args))
 
     # Debugging message, to be printed only in debug mode
     def buginf(self, fmt, *args):
-        if self.config.debug:
-            self.display(fmt, *args)
+        CONLOG.debug(('[%s] ' + fmt) % ((self.name,) + args))
 
     # Ping an IP from this instance
     def ping_check(self, target_ip, ping_count, pass_threshold):

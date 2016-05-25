@@ -15,12 +15,17 @@
 
 '''Module for Openstack compute operations'''
 
+import log
 import os
 import time
 
 import glanceclient.exc as glance_exception
 import novaclient
 import novaclient.exceptions as exceptions
+
+CONLOG = log.getLogger('vmtp', 'console')
+LSLOG = log.getLogger('vmtp', 'logstash')
+LOG = log.getLogger('vmtp', 'all')
 
 class Compute(object):
 
@@ -61,34 +66,32 @@ class Compute(object):
             while img.status in ['queued', 'saving'] and retry < retry_count:
                 img = glance_client.images.find(name=img.name)
                 retry = retry + 1
-                if self.config.debug:
-                    print "Image not yet active, retrying %s of %s..." \
-                        % (retry, retry_count)
+                CONLOG.debug("Image not yet active, retrying %s of %s..." % (retry, retry_count))
                 time.sleep(2)
             if img.status != 'active':
                 raise Exception
         except glance_exception.HTTPForbidden:
-            print "Cannot upload image without admin access. Please make sure the "\
-                  "image is uploaded and is either public or owned by you."
+            CONLOG.error("Cannot upload image without admin access. Please make "
+                         "sure the image is uploaded and is either public or owned by you.")
             return False
         except IOError:
             # catch the exception for file based errors.
-            print "Failed while uploading the image. Please make sure the " \
-                  "image at the specified location %s is correct." % image_url
+            CONLOG.error("Failed while uploading the image. Please make sure the "
+                         "image at the specified location %s is correct." % image_url)
             return False
         except Exception:
-            print "Failed while uploading the image, please make sure the cloud "\
-                  "under test has the access to URL: %s." % image_url
+            CONLOG.error("Failed while uploading the image, please make sure the "
+                         "cloud under test has the access to URL: %s." % image_url)
             return False
         return True
 
     def delete_image(self, glance_client, img_name):
         try:
-            print "Deleting image %s..." % img_name
+            CONLOG.log("Deleting image %s..." % img_name)
             img = glance_client.images.find(name=img_name)
             glance_client.images.delete(img.id)
         except Exception:
-            print "Failed to delete the image %s." % img_name
+            CONLOG.error("Failed to delete the image %s." % img_name)
             return False
 
         return True
@@ -99,7 +102,7 @@ class Compute(object):
         for key in keypair_list:
             if key.name == name:
                 self.novaclient.keypairs.delete(name)
-                print 'Removed public key %s' % (name)
+                CONLOG.info('Removed public key %s' % (name))
                 break
 
     # Test if keypair file is present if not create it
@@ -123,8 +126,7 @@ class Compute(object):
             with open(os.path.expanduser(public_key_file)) as pkf:
                 public_key = pkf.read()
         except IOError as exc:
-            print 'ERROR: Cannot open public key file %s: %s' % \
-                  (public_key_file, exc)
+            CONLOG.error('Cannot open public key file %s: %s' % (public_key_file, exc))
             return None
         keypair = self.novaclient.keypairs.create(name, public_key)
         return keypair
@@ -174,15 +176,14 @@ class Compute(object):
             if instance.status == 'ACTIVE':
                 return instance
             if instance.status == 'ERROR':
-                print 'Instance creation error:' + instance.fault['message']
+                CONLOG.error('Instance creation error:' + instance.fault['message'])
                 break
-            if self.config.debug:
-                print "[%s] VM status=%s, retrying %s of %s..." \
-                      % (vmname, instance.status, (retry_attempt + 1), retry_count)
+            CONLOG.debug("[%s] VM status=%s, retrying %s of %s..." %
+                         (vmname, instance.status, (retry_attempt + 1), retry_count))
             time.sleep(2)
 
         # instance not in ACTIVE state
-        print('Instance failed status=' + instance.status)
+        CONLOG.error('Instance failed status=' + instance.status)
         self.delete_server(instance)
         return None
 
@@ -212,11 +213,10 @@ class Compute(object):
                 if server.name == vmname and server.status == "ACTIVE":
                     return True
             # Sleep between retries
-            if self.config.debug:
-                print "[%s] VM not yet found, retrying %s of %s..." \
-                      % (vmname, (retry_attempt + 1), retry_count)
+            CONLOG.debug("[%s] VM not yet found, retrying %s of %s..." %
+                         (vmname, (retry_attempt + 1), retry_count))
             time.sleep(2)
-        print "[%s] VM not found, after %s attempts" % (vmname, retry_count)
+        CONLOG.error("[%s] VM not found, after %s attempts" % (vmname, retry_count))
         return False
 
     # Returns True if server is found and deleted/False if not,
@@ -225,7 +225,7 @@ class Compute(object):
         servers_list = self.get_server_list()
         for server in servers_list:
             if server.name == vmname:
-                print 'deleting server %s' % (server)
+                CONLOG.info('Deleting server %s' % (server))
                 self.novaclient.servers.delete(server)
                 return True
         return False
@@ -253,11 +253,11 @@ class Compute(object):
                 if hyp.host == host:
                     return self.normalize_az_host(hyp.zone, host)
             # no match on host
-            print('Error: passed host name does not exist: ' + host)
+            CONLOG.error('Passed host name does not exist: ' + host)
             return None
         if self.config.availability_zone:
             return self.normalize_az_host(None, host)
-        print('Error: --hypervisor passed without an az and no az configured')
+        CONLOG.error('--hypervisor passed without an az and no az configured')
         return None
 
     def sanitize_az_host(self, host_list, az_host):
@@ -285,7 +285,7 @@ class Compute(object):
                         return az_host
                     # else continue - another zone with same host name?
             # no match
-            print('Error: no match for availability zone and host ' + az_host)
+            CONLOG.error('No match for availability zone and host ' + az_host)
             return None
         else:
             return self.auto_fill_az(host_list, az_host)
@@ -318,8 +318,8 @@ class Compute(object):
         try:
             host_list = self.novaclient.services.list()
         except novaclient.exceptions.Forbidden:
-            print ('Warning: Operation Forbidden: could not retrieve list of hosts'
-                   ' (likely no permission)')
+            CONLOG.warning('Operation Forbidden: could not retrieve list of hosts'
+                           ' (likely no permission)')
 
         # the user has specified a list of 1 or 2 hypervisors to use
         if self.config.hypervisors:
@@ -338,7 +338,7 @@ class Compute(object):
                 # pick first 2 matches at most
                 if len(avail_list) == 2:
                     break
-            print 'Using hypervisors ' + ', '.join(avail_list)
+            CONLOG.info('Using hypervisors ' + ', '.join(avail_list))
         else:
             for host in host_list:
                 # this host must be a compute node
@@ -360,10 +360,10 @@ class Compute(object):
         if not avail_list:
 
             if not self.config.availability_zone:
-                print('Error: availability_zone must be configured')
+                CONLOG.error('Availability_zone must be configured')
             elif host_list:
-                print('Error: no host matching the selection for availability zone: ' +
-                      self.config.availability_zone)
+                CONLOG.error('No host matching the selection for availability zone: ' +
+                             self.config.availability_zone)
                 avail_list = []
             else:
                 avail_list = [self.config.availability_zone]
@@ -379,7 +379,7 @@ class Compute(object):
             else:
                 return False
         except novaclient.exceptions:
-            print "Exception in retrieving the hostId of servers"
+            CONLOG.warning("Exception in retrieving the hostId of servers")
 
     # Create a new security group with appropriate rules
     def security_group_create(self):
@@ -407,7 +407,7 @@ class Compute(object):
     # Delete a security group
     def security_group_delete(self, group):
         if group:
-            print "Deleting security group"
+            CONLOG.info("Deleting security group")
             self.novaclient.security_groups.delete(group)
 
     # Add rules to the security group

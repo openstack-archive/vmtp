@@ -15,6 +15,7 @@ python-neutronclient<3,>=2.3.6
 python-novaclient>=2.18.1
 python-openstackclient>=0.4.1
 python-keystoneclient>=1.0.0
+pytz>=2016.4
 scp>=0.8.0
 tabulate>=0.7.3
 

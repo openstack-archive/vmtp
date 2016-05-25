@@ -15,10 +15,15 @@
 
 import time
 
+import log
 # Module containing a helper class for operating on OpenStack networks
 from neutronclient.common.exceptions import NetworkInUseClient
 from neutronclient.common.exceptions import NeutronException
 import vmtp
+
+CONLOG = log.getLogger('vmtp', 'console')
+LSLOG = log.getLogger('vmtp', 'logstash')
+LOG = log.getLogger('vmtp', 'all')
 
 class Network(object):
 
@@ -75,10 +80,10 @@ class Network(object):
                         break
 
             if not self.ext_net:
-                print "No external network found."
+                CONLOG.error("No external network found.")
                 return
 
-            print "Using external network: " + self.ext_net['name']
+            CONLOG.info("Using external network: " + self.ext_net['name'])
 
             # Find or create the router to the external network
             ext_net_id = self.ext_net['id']
@@ -88,8 +93,7 @@ class Network(object):
                 if external_gw_info:
                     if external_gw_info['network_id'] == ext_net_id:
                         self.ext_router = router
-                        print 'Found external router: %s' % \
-                              (self.ext_router['name'])
+                        CONLOG.info('Found external router: %s' % (self.ext_router['name']))
                         break
 
             # create a new external router if none found and a name was given
@@ -97,7 +101,7 @@ class Network(object):
             if (not self.ext_router) and self.ext_router_name:
                 self.ext_router = self.create_router(self.ext_router_name,
                                                      self.ext_net['id'])
-                print '[%s] Created ext router' % (self.ext_router_name)
+                CONLOG.info('Created ext router %s.' % (self.ext_router_name))
                 self.ext_router_created = True
 
             if config.ipv6_mode:
@@ -142,8 +146,7 @@ class Network(object):
 
         for network in self.networks:
             if network['name'] == network_name:
-                print ('Found existing internal network: %s'
-                       % (network_name))
+                CONLOG.info('Found existing internal network: %s' % (network_name))
                 return network
 
         body = {
@@ -182,7 +185,7 @@ class Network(object):
             subnet = self.neutron_client.create_subnet(body)['subnet']
             # add the subnet id to the network dict
             network['subnets'].append(subnet['id'])
-        print 'Created internal network: %s' % (network_name)
+        CONLOG.info('Created internal network: %s.' % (network_name))
         return network
 
     # Delete a network and associated subnet
@@ -193,7 +196,7 @@ class Network(object):
             for _ in range(1, 5):
                 try:
                     self.neutron_client.delete_network(network['id'])
-                    print 'Network %s deleted' % (name)
+                    CONLOG.info('Network %s deleted.' % (name))
                     break
                 except NetworkInUseClient:
                     time.sleep(1)
@@ -217,7 +220,7 @@ class Network(object):
                 port_ip = port['fixed_ips'][0]
                 if (port['device_id'] == self.ext_router['id']) and \
                    (port_ip['subnet_id'] == self.vm_int_net[0]['subnets'][0]):
-                    print 'Ext router already associated to the internal network'
+                    CONLOG.info('Ext router already associated to the internal network.')
                     return
 
         for int_net in self.vm_int_net:
@@ -225,8 +228,7 @@ class Network(object):
                 'subnet_id': int_net['subnets'][0]
             }
             self.neutron_client.add_interface_router(self.ext_router['id'], body)
-            if self.config.debug:
-                print 'Ext router associated to ' + int_net['name']
+            CONLOG.debug('Ext router associated to ' + int_net['name'])
             # If ipv6 is enabled than add second subnet
             if self.ipv6_enabled:
                 body = {
@@ -254,7 +256,7 @@ class Network(object):
                 except NeutronException:
                     # May fail with neutronclient.common.exceptions.Conflict
                     # if there are floating IP in use - just ignore
-                    print('Router interface may have floating IP in use: not deleted')
+                    CONLOG.warning('Router interface may have floating IP in use: not deleted')
 
     # Lookup network given network name
     def lookup_network(self, network_name):
@@ -283,7 +285,6 @@ class Network(object):
 
     # Update a router given router and network id
     def update_router(self, router_id, net_id):
-        print net_id
         body = {
             "router": {
                 "name": "pns-router",
@@ -307,12 +308,11 @@ class Network(object):
             body['port']['binding:vnic_type'] = vnic_type
         port = self.neutron_client.create_port(body)
         if self.config.debug:
-            print 'Created port ' + port['port']['id']
+            CONLOG.info('Created port ' + port['port']['id'])
         return port['port']
 
     def delete_port(self, port):
-        if self.config.debug:
-            print 'Deleting port ' + port['id']
+        CONLOG.debug('Deleting port ' + port['id'])
         self.neutron_client.delete_port(port['id'])
 
     # Create a floating ip on the external network and return it
@@ -344,10 +344,9 @@ class Network(object):
                         self.neutron_client.remove_gateway_router(
                             self.ext_router['id'])
                         self.neutron_client.delete_router(self.ext_router['id'])
-                        print 'External router %s deleted' % \
-                              (self.ext_router['name'])
+                        CONLOG.info('External router %s deleted' % (self.ext_router['name']))
                 except TypeError:
-                    print "No external router set"
+                    CONLOG.info("No external router set")
 
     def _get_l2agent_type(self):
         '''
