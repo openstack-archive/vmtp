@@ -55,7 +55,7 @@ class FlowPrinter(object):
         global flow_num
         flow_num = flow_num + 1
         CONLOG.info("=" * 60)
-        CONLOG.info('Flow %d: %s' % (flow_num, desc))
+        LOG.info('Flow %d: %s' % (flow_num, desc))
 
 class ResultsCollector(object):
 
@@ -105,7 +105,7 @@ class ResultsCollector(object):
 
     def save_to_db(self, cfg):
         '''Save results to MongoDB database.'''
-        CONLOG.info("Saving results to MongoDB database...")
+        LOG.info("Saving results to MongoDB database...")
         post_id = pns_mongo.\
             pns_add_test_result_to_mongod(cfg.vmtp_mongod_ip,
                                           cfg.vmtp_mongod_port,
@@ -113,7 +113,7 @@ class ResultsCollector(object):
                                           cfg.vmtp_collection,
                                           self.results)
         if post_id is None:
-            CONLOG.error("Failed to add result to DB")
+            LOG.error("Failed to add result to DB")
 
 class VmtpException(Exception):
     pass
@@ -184,14 +184,14 @@ class VmtpTest(object):
                 self.instance_access.public_key_file = pub_key
                 self.instance_access.private_key_file = priv_key
             else:
-                CONLOG.error('Default keypair ~/.ssh/id_rsa[.pub] does not exist. Please '
+                LOG.error('Default keypair ~/.ssh/id_rsa[.pub] does not exist. Please '
                              'either create one in your home directory, or specify your '
                              'keypair information in the config file before running VMTP.')
                 sys.exit(1)
 
         if self.config.debug and self.instance_access.public_key_file:
-            CONLOG.info('VM public key:  ' + self.instance_access.public_key_file)
-            CONLOG.info('VM private key: ' + self.instance_access.private_key_file)
+            LOG.info('VM public key:  ' + self.instance_access.public_key_file)
+            LOG.info('VM private key: ' + self.instance_access.private_key_file)
 
         # If we need to reuse existing vms just return without setup
         if not self.config.reuse_existing_vm:
@@ -209,7 +209,7 @@ class VmtpTest(object):
             self.image_instance = self.comp.find_image(self.config.image_name)
             if self.image_instance is None:
                 if self.config.vm_image_url != "":
-                    CONLOG.info('%s: image for VM not found, trying to upload it ...' %
+                    LOG.info('%s: image for VM not found, trying to upload it ...' %
                                 (self.config.image_name))
                     keystone = keystoneclient.Client(**creds)
                     glance_endpoint = keystone.service_catalog.url_for(
@@ -225,24 +225,24 @@ class VmtpTest(object):
                     self.image_uploaded = True
                 else:
                     # Exit the pogram
-                    CONLOG.error('%s: image to launch VM not found. ABORTING.' %
+                    LOG.error('%s: image to launch VM not found. ABORTING.' %
                                  (self.config.image_name))
                     sys.exit(1)
 
             self.assert_true(self.image_instance)
-            CONLOG.info('Found image %s to launch VM, will continue' % (self.config.image_name))
+            LOG.info('Found image %s to launch VM, will continue' % (self.config.image_name))
             self.flavor_type = self.comp.find_flavor(self.config.flavor_type)
             self.net = network.Network(neutron, self.config)
 
             self.rescol.add_property('l2agent_type', self.net.l2agent_type)
-            CONLOG.info("OpenStack agent: " + self.net.l2agent_type)
+            LOG.info("OpenStack agent: " + self.net.l2agent_type)
             try:
                 network_type = self.net.vm_int_net[0]['provider:network_type']
-                CONLOG.info("OpenStack network type: " + network_type)
+                LOG.info("OpenStack network type: " + network_type)
                 self.rescol.add_property('encapsulation', network_type)
             except KeyError as exp:
                 network_type = 'Unknown'
-                CONLOG.info("Provider network type not found: ", str(exp))
+                LOG.info("Provider network type not found: ", str(exp))
 
         # Create a new security group for the test
         self.sec_group = self.comp.security_group_create()
@@ -321,6 +321,7 @@ class VmtpTest(object):
             if res:
                 self.rescol.add_flow_result(res)
                 CONLOG.info(self.rescol.ppr.pformat(res))
+                LSLOG.info(json.dumps(res, sort_keys=True))
             client.dispose()
 
     def add_location(self, label):
@@ -356,12 +357,14 @@ class VmtpTest(object):
             results_list = perf_output['results']
             for res_dict in results_list:
                 if 'error' in res_dict:
-                    CONLOG.error('Stopping execution on error, cleanup all VMs/networks manually')
+                    LOG.error('Stopping execution on error, cleanup all VMs/networks manually')
                     CONLOG.info(self.rescol.ppr.pformat(perf_output))
+                    LSLOG.info(json.dumps(perf_output, sort_keys=True))
                     sys.exit(2)
 
         self.rescol.add_flow_result(perf_output)
         CONLOG.info(self.rescol.ppr.pformat(perf_output))
+        LSLOG.info(json.dumps(perf_output, sort_keys=True))
 
     def measure_vm_flows(self):
         # scenarios need to be tested for both inter and intra node
@@ -397,7 +400,7 @@ class VmtpTest(object):
         '''
             Clean up the floating ip and VMs
         '''
-        CONLOG.info('Cleaning up...')
+        LOG.info('Cleaning up...')
         if self.server:
             self.server.dispose()
         if self.client:
@@ -413,7 +416,7 @@ class VmtpTest(object):
                 self.comp.security_group_delete(self.sec_group)
         except ClientException:
             # May throw novaclient.exceptions.BadRequest if in use
-            CONLOG.warning('Security group in use: not deleted')
+            LOG.warning('Security group in use: not deleted')
         if self.image_uploaded and self.config.delete_image_after_run:
             self.comp.delete_image(self.glance_client, self.config.image_name)
 
@@ -426,11 +429,11 @@ class VmtpTest(object):
         except KeyboardInterrupt:
             traceback.format_exc()
         except (VmtpException, sshutils.SSHError, ClientException, Exception):
-            CONLOG.error(traceback.print_exc())
+            LOG.error(traceback.print_exc())
             error_flag = True
 
         if self.config.stop_on_error and error_flag:
-            CONLOG.error('Stopping execution on error, cleanup all VMs/networks manually')
+            LOG.error('Stopping execution on error, cleanup all VMs/networks manually')
             sys.exit(2)
         else:
             self.teardown()
@@ -458,7 +461,7 @@ def test_native_tp(nhosts, ifname, config):
             # use the IP address configured on given interface
             server_ip = server.get_interface_ip(ifname)
             if not server_ip:
-                CONLOG.error('Cannot get IP address for interface ' + ifname)
+                LOG.error('Cannot get IP address for interface ' + ifname)
             else:
                 server.display('Clients will use server IP address %s (%s)' %
                                (server_ip, ifname))
@@ -492,10 +495,10 @@ def test_native_tp(nhosts, ifname, config):
 def get_controller_info(ssh_access, net, res_col, retry_count):
     if not ssh_access:
         return
-    CONLOG.info('Fetching OpenStack deployment details...')
+    LOG.info('Fetching OpenStack deployment details...')
     sshcon = sshutils.SSH(ssh_access, connect_retry_count=retry_count)
     if sshcon is None:
-        CONLOG.error('Cannot connect to the controller node')
+        LOG.error('Cannot connect to the controller node')
         return
     res = {}
     res['distro'] = sshcon.get_host_os_version()
@@ -511,6 +514,8 @@ def get_controller_info(ssh_access, net, res_col, retry_count):
             res['l2agent_version'] = sshcon.get_l2agent_version(l2type)
     # print results
     CONLOG.info(res_col.ppr.pformat(res))
+    LSLOG.info(json.dumps(res, sort_keys=True))
+
     res_col.add_properties(res)
 
 def gen_report_data(proto, result):
@@ -639,6 +644,11 @@ def print_report(results):
     summary += str(ptable)
 
     CONLOG.info(summary)
+    ls_summary = {"Result": results, "Total_Scenarios": (len(table) - 1),
+                  "Passed_Scenarios": "%d [%.2f%%]" % (cnt_passed, passed_rate),
+                  "Failed Scenarios": "%d [%.2f%%]" % (cnt_failed, failed_rate),
+                  "Skipped Scenarios": "%d\n" % (cnt_skipped)}
+    LSLOG.info(json.dumps(ls_summary, sort_keys=True))
 
 def normalize_paths(cfg):
     '''
@@ -666,7 +676,7 @@ def get_ssh_access(opt_name, opt_value, config):
     host_access.private_key_file = config.private_key_file
     host_access.public_key_file = config.public_key_file
     if host_access.error:
-        CONLOG.error('Error for --' + (opt_name + ':' + host_access.error))
+        LOG.error('Error for --' + (opt_name + ':' + host_access.error))
         sys.exit(2)
     return host_access
 
@@ -880,15 +890,15 @@ def merge_opts_to_configs(opts):
     config.same_network_only = opts.same_network_only
 
     if config.public_key_file and not os.path.isfile(config.public_key_file):
-        CONLOG.warning('Invalid public_key_file:' + config.public_key_file)
+        LOG.warning('Invalid public_key_file:' + config.public_key_file)
         config.public_key_file = None
     if config.private_key_file and not os.path.isfile(config.private_key_file):
-        CONLOG.warning('Invalid private_key_file:' + config.private_key_file)
+        LOG.warning('Invalid private_key_file:' + config.private_key_file)
         config.private_key_file = None
 
     # direct: use SR-IOV ports for all the test VMs
     if opts.vnic_type not in [None, 'direct', 'macvtap', 'normal']:
-        CONLOG.error('Invalid vnic-type: ' + opts.vnic_type)
+        LOG.error('Invalid vnic-type: ' + opts.vnic_type)
         sys.exit(1)
     config.vnic_type = opts.vnic_type
     config.hypervisors = opts.hypervisors
@@ -937,7 +947,7 @@ def merge_opts_to_configs(opts):
                 raise ValueError
             val = int(opts.vm_bandwidth[0:-1])
         except ValueError:
-            CONLOG.error('Invalid --bandwidth parameter. A valid input must '
+            LOG.error('Invalid --bandwidth parameter. A valid input must '
                          'specify only one unit (K|M|G).')
             sys.exit(1)
         config.vm_bandwidth = int(val * (10 ** (ex_unit * 3)))
@@ -950,7 +960,7 @@ def merge_opts_to_configs(opts):
             for i in xrange(len(config.tcp_pkt_sizes)):
                 config.tcp_pkt_sizes[i] = int(config.tcp_pkt_sizes[i])
         except ValueError:
-            CONLOG.error('Invalid --tcpbuf parameter. A valid input must be '
+            LOG.error('Invalid --tcpbuf parameter. A valid input must be '
                          'integers seperated by comma.')
             sys.exit(1)
 
@@ -960,7 +970,7 @@ def merge_opts_to_configs(opts):
             for i in xrange(len(config.udp_pkt_sizes)):
                 config.udp_pkt_sizes[i] = int(config.udp_pkt_sizes[i])
         except ValueError:
-            CONLOG.error('Invalid --udpbuf parameter. A valid input must be '
+            LOG.error('Invalid --udpbuf parameter. A valid input must be '
                          'integers seperated by comma.')
             sys.exit(1)
 
@@ -987,12 +997,12 @@ def merge_opts_to_configs(opts):
         if mobj:
             config.gmond_svr_ip = mobj.group(1)
             config.gmond_svr_port = mobj.group(2)
-            CONLOG.info("Ganglia monitoring enabled (%s:%s)" %
+            LOG.info("Ganglia monitoring enabled (%s:%s)" %
                         (config.gmond_svr_ip, config.gmond_svr_port))
             config.time = 30
 
         else:
-            CONLOG.warning('Invalid --monitor syntax: ' + opts.monitor)
+            LOG.warning('Invalid --monitor syntax: ' + opts.monitor)
 
     ###################################################
     # Once we parse the config files, normalize
@@ -1017,7 +1027,7 @@ def merge_opts_to_configs(opts):
         elif opts.tp_tool.lower() == 'iperf':
             config.tp_tool = iperf_tool.IperfTool
         else:
-            CONLOG.warning('Invalid transport tool: ' + opts.tp_tool)
+            LOG.warning('Invalid transport tool: ' + opts.tp_tool)
             sys.exit(1)
     else:
         config.tp_tool = None
@@ -1068,12 +1078,13 @@ def run_vmtp(opts):
     for item in native_tp_results:
         rescol.add_flow_result(item)
         CONLOG.info(rescol.ppr.pformat(item))
+        LSLOG.info(json.dumps(item, sort_keys=True))
 
     # Parse the credentials of the OpenStack cloud, and run the benchmarking
     cred = credentials.Credentials(opts.rc, opts.passwd, opts.no_env)
     if cred.rc_auth_url:
         if config.debug:
-            CONLOG.info('Using ' + cred.rc_auth_url)
+            LOG.info('Using ' + cred.rc_auth_url)
         vmtp_instance = VmtpTest(config, cred, rescol)
         vmtp_instance.run()
         vmtp_net = vmtp_instance.net
