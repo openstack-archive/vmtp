@@ -19,7 +19,7 @@ import log
 from perf_tool import PerfTool
 
 CONLOG = log.getLogger('vmtp', 'console')
-LSLOG = log.getLogger('vmtp', 'logstash')
+FILELOG = log.getLogger('vmtp', 'file')
 LOG = log.getLogger('vmtp', 'all')
 
 # The resulting unit should be in K
@@ -33,7 +33,7 @@ def get_bdw_kbps(bdw, bdw_unit):
         return bdw / 1000
     if bdw_unit in MULTIPLIERS:
         return int(bdw * MULTIPLIERS[bdw_unit])
-    CONLOG.error('Error: unknown multiplier: ' + bdw_unit)
+    LOG.error('Error: unknown multiplier: ' + bdw_unit)
     return bdw
 
 class IperfTool(PerfTool):

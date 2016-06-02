@@ -18,7 +18,7 @@ import log
 from perf_tool import PingTool
 
 CONLOG = log.getLogger('vmtp', 'console')
-LSLOG = log.getLogger('vmtp', 'logstash')
+FILELOG = log.getLogger('vmtp', 'file')
 LOG = log.getLogger('vmtp', 'all')
 
 class PerfInstance(Instance):

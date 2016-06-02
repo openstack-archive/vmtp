@@ -20,7 +20,7 @@ from perf_tool import PerfTool
 import sshutils
 
 CONLOG = log.getLogger('vmtp', 'console')
-LSLOG = log.getLogger('vmtp', 'logstash')
+FILELOG = log.getLogger('vmtp', 'file')
 LOG = log.getLogger('vmtp', 'all')
 
 class NuttcpTool(PerfTool):

@@ -18,7 +18,7 @@ import log
 import yaml
 
 CONLOG = log.getLogger('vmtp', 'console')
-LSLOG = log.getLogger('vmtp', 'logstash')
+FILELOG = log.getLogger('vmtp', 'file')
 LOG = log.getLogger('vmtp', 'all')
 
 def config_load(file_name, from_cfg=None):
