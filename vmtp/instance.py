@@ -178,11 +178,11 @@ class Instance(object):
     # Display a status message with the standard header that has the instance
     # name (e.g. [foo] some text)
     def display(self, fmt, *args):
-        CONLOG.info(('[%s] ' + fmt) % ((self.name,) + args))
+        LOG.info(('[%s] ' + fmt) % ((self.name,) + args))
 
     # Debugging message, to be printed only in debug mode
     def buginf(self, fmt, *args):
-        CONLOG.debug(('[%s] ' + fmt) % ((self.name,) + args))
+        LOG.debug(('[%s] ' + fmt) % ((self.name,) + args))
 
     # Ping an IP from this instance
     def ping_check(self, target_ip, ping_count, pass_threshold):
