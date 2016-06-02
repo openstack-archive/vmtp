@@ -16,15 +16,10 @@
 import abc
 import re
 
-import log
 from pkg_resources import resource_filename
 
 # where to copy the tool on the target, must end with slash
 SCP_DEST_DIR = '/tmp/'
-
-CONLOG = log.getLogger('vmtp', 'console')
-LSLOG = log.getLogger('vmtp', 'logstash')
-LOG = log.getLogger('vmtp', 'all')
 
 #
 # A base class for all tools that can be associated to an instance
@@ -193,7 +188,7 @@ class PerfTool(object):
                     min_kbps = int((max_kbps + min_kbps) / 2)
 
                 kbps = int((max_kbps + min_kbps) / 2)
-                # CONLOG.debug('   undershot, min=%d kbps=%d max=%d' % (min_kbps,  kbps, max_kbps))
+                # LOG.debug('   undershot, min=%d kbps=%d max=%d' % (min_kbps,  kbps, max_kbps))
             elif loss_rate > max_loss_rate:
                 # overshot
                 max_kbps = kbps
@@ -201,7 +196,7 @@ class PerfTool(object):
                     kbps = measured_kbps
                 else:
                     kbps = int((max_kbps + min_kbps) / 2)
-                # CONLOG.debug('   overshot, min=%d kbps=%d max=%d' % (min_kbps,  kbps, max_kbps))
+                # LOG.debug('   overshot, min=%d kbps=%d max=%d' % (min_kbps,  kbps, max_kbps))
             else:
                 # converged within loss rate bracket
                 break

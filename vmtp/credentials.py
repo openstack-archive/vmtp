@@ -15,13 +15,10 @@
 
 # Module for credentials in Openstack
 import getpass
-import log
 import os
 import re
 
-CONLOG = log.getLogger('vmtp', 'console')
-LSLOG = log.getLogger('vmtp', 'logstash')
-LOG = log.getLogger('vmtp', 'all')
+from log import LOG
 
 class Credentials(object):
 
@@ -90,7 +87,7 @@ class Credentials(object):
                         elif name == "CACERT":
                             self.rc_cacert = value
             else:
-                CONLOG.error('Error: rc file does not exist %s' % (openrc_file))
+                LOG.error('Error: rc file does not exist %s' % (openrc_file))
                 success = False
         elif not no_env:
             # no openrc file passed - we assume the variables have been
@@ -98,7 +95,7 @@ class Credentials(object):
             # just check that they are present
             for varname in ['OS_USERNAME', 'OS_AUTH_URL', 'OS_TENANT_NAME']:
                 if varname not in os.environ:
-                    CONLOG.warning('%s is missing' % (varname))
+                    LOG.warning('%s is missing' % (varname))
                     success = False
             if success:
                 self.rc_username = os.environ['OS_USERNAME']

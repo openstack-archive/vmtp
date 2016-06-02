@@ -14,12 +14,7 @@
 #
 
 from instance import Instance as Instance
-import log
 from perf_tool import PingTool
-
-CONLOG = log.getLogger('vmtp', 'console')
-LSLOG = log.getLogger('vmtp', 'logstash')
-LOG = log.getLogger('vmtp', 'all')
 
 class PerfInstance(Instance):
     '''An openstack instance to run performance tools

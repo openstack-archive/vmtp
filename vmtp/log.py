@@ -34,18 +34,22 @@ def setup(product_name, debug=False, logfile=None):
     console_logger.addHandler(console_handler)
     console_logger.setLevel(log_level)
 
-    logstash_logger = logging.getLogger(product_name + '_' + 'logstash')
-    logstash_logger.setLevel(log_level)
+    file_logger = logging.getLogger(product_name + '_' + 'file')
+    file_logger.setLevel(log_level)
 
     all_logger = logging.getLogger(product_name + '_' + 'all')
     all_logger.addHandler(console_handler)
     all_logger.setLevel(log_level)
 
     if file_handler:
-        logstash_logger.addHandler(file_handler)
+        file_logger.addHandler(file_handler)
         all_logger.addHandler(file_handler)
 
 def getLogger(product, target):
     logger = logging.getLogger(product + "_" + target)
 
     return logger
+
+CONLOG = getLogger('vmtp', 'console')
+LOG = getLogger('vmtp', 'all')
+FILELOG = getLogger('vmtp', 'file')

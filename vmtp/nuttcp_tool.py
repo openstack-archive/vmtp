@@ -15,13 +15,8 @@
 
 import re
 
-import log
 from perf_tool import PerfTool
 import sshutils
-
-CONLOG = log.getLogger('vmtp', 'console')
-LSLOG = log.getLogger('vmtp', 'logstash')
-LOG = log.getLogger('vmtp', 'all')
 
 class NuttcpTool(PerfTool):
 
