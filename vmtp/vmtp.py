@@ -428,7 +428,7 @@ class VmtpTest(object):
         except KeyboardInterrupt:
             traceback.format_exc()
         except (VmtpException, sshutils.SSHError, ClientException, Exception):
-            LOG.error(traceback.print_exc())
+            LOG.error(traceback.format_exc())
             error_flag = True
 
         if self.config.stop_on_error and error_flag:
