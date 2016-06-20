@@ -147,13 +147,13 @@ class Compute(object):
     # and check that it gets into the ACTIVE state
     def create_server(self, vmname, image, flavor, key_name,
                       nic, sec_group, avail_zone=None, user_data=None,
-                      config_drive=None,
-                      retry_count=10):
+                      config_drive=None, files=None, retry_count=10):
 
         if sec_group:
             security_groups = [sec_group.name]
         else:
             security_groups = None
+
         # Also attach the created security group for the test
         instance = self.novaclient.servers.create(name=vmname,
                                                   image=image,
@@ -163,6 +163,7 @@ class Compute(object):
                                                   availability_zone=avail_zone,
                                                   userdata=user_data,
                                                   config_drive=config_drive,
+                                                  files=files,
                                                   security_groups=security_groups)
         if not instance:
             return None

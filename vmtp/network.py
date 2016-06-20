@@ -75,35 +75,34 @@ class Network(object):
                         self.ext_net = network
                         break
 
-            if not self.ext_net:
-                LOG.error("No external network found.")
-                return
+            if self.ext_net:
+                LOG.info("Using external network: " + self.ext_net['name'])
+                # Find or create the router to the external network
+                ext_net_id = self.ext_net['id']
+                routers = neutron_client.list_routers()['routers']
+                for router in routers:
+                    external_gw_info = router['external_gateway_info']
+                    if external_gw_info:
+                        if external_gw_info['network_id'] == ext_net_id:
+                            self.ext_router = router
+                            LOG.info('Found external router: %s' % (self.ext_router['name']))
+                            break
 
-            LOG.info("Using external network: " + self.ext_net['name'])
-
-            # Find or create the router to the external network
-            ext_net_id = self.ext_net['id']
-            routers = neutron_client.list_routers()['routers']
-            for router in routers:
-                external_gw_info = router['external_gateway_info']
-                if external_gw_info:
-                    if external_gw_info['network_id'] == ext_net_id:
-                        self.ext_router = router
-                        LOG.info('Found external router: %s' % (self.ext_router['name']))
-                        break
-
-            # create a new external router if none found and a name was given
-            self.ext_router_name = config.router_name
-            if (not self.ext_router) and self.ext_router_name:
-                self.ext_router = self.create_router(self.ext_router_name,
-                                                     self.ext_net['id'])
-                LOG.info('Created ext router %s.' % (self.ext_router_name))
-                self.ext_router_created = True
+                # create a new external router if none found and a name was given
+                self.ext_router_name = config.router_name
+                if (not self.ext_router) and self.ext_router_name:
+                    self.ext_router = self.create_router(self.ext_router_name,
+                                                         self.ext_net['id'])
+                    LOG.info('Created ext router %s.' % (self.ext_router_name))
+                    self.ext_router_created = True
+            else:
+                LOG.warning("No external network found.")
 
             if config.ipv6_mode:
                 self.ipv6_enabled = True
 
             # Create the networks and subnets depending on v4 or v6
+            enable_dhcp = not config.no_dhcp
             if config.ipv6_mode:
                 for (net, subnet, cidr, subnet_v6, cidr_v6) in zip(config.internal_network_name,
                                                                    config.internal_subnet_name,
@@ -112,7 +111,8 @@ class Network(object):
                                                                    config.internal_cidr_v6):
                     int_net = self.create_net(net, subnet, cidr,
                                               config.dns_nameservers,
-                                              subnet_v6, cidr_v6, config.ipv6_mode)
+                                              subnet_v6, cidr_v6, config.ipv6_mode,
+                                              enable_dhcp=enable_dhcp)
                     self.vm_int_net.append(int_net)
                     if config.same_network_only:
                         break
@@ -121,14 +121,16 @@ class Network(object):
                                                config.internal_subnet_name,
                                                config.internal_cidr):
                     int_net = self.create_net(net, subnet, cidr,
-                                              config.dns_nameservers)
+                                              config.dns_nameservers,
+                                              enable_dhcp=enable_dhcp)
                     self.vm_int_net.append(int_net)
                     if config.same_network_only:
                         break
 
             # Add both internal networks to router interface to enable
             # network to network connectivity
-            self.__add_router_interface()
+            if self.ext_net:
+                self.__add_router_interface()
 
         self.l2agent_type = self._get_l2agent_type()
         self.internal_iface_dict = self._get_internal_iface_dict()
@@ -138,7 +140,8 @@ class Network(object):
     # return that network.
     # dns_nameservers: a list of name servers e.g. ['8.8.8.8']
     def create_net(self, network_name, subnet_name, cidr, dns_nameservers,
-                   subnet_name_ipv6=None, cidr_ipv6=None, ipv6_mode=None):
+                   subnet_name_ipv6=None, cidr_ipv6=None, ipv6_mode=None,
+                   enable_dhcp=True):
 
         for network in self.networks:
             if network['name'] == network_name:
@@ -162,6 +165,9 @@ class Network(object):
                 'dns_nameservers': dns_nameservers
             }
         }
+        if not enable_dhcp:
+            body['subnet']['enable_dhcp'] = False
+
         subnet = self.neutron_client.create_subnet(body)['subnet']
         # add subnet id to the network dict since it has just been added
         network['subnets'] = [subnet['id']]
@@ -178,6 +184,8 @@ class Network(object):
                     'ipv6_address_mode': ipv6_mode
                 }
             }
+            if not enable_dhcp:
+                body['subnet']['enable_dhcp'] = False
             subnet = self.neutron_client.create_subnet(body)['subnet']
             # add the subnet id to the network dict
             network['subnets'].append(subnet['id'])
@@ -253,6 +261,9 @@ class Network(object):
                     # May fail with neutronclient.common.exceptions.Conflict
                     # if there are floating IP in use - just ignore
                     LOG.warning('Router interface may have floating IP in use: not deleted')
+                except TypeError:
+                    # Externel router is not existed, so let's just continue
+                    pass
 
     # Lookup network given network name
     def lookup_network(self, network_name):
@@ -304,7 +315,7 @@ class Network(object):
             body['port']['binding:vnic_type'] = vnic_type
         port = self.neutron_client.create_port(body)
         if self.config.debug:
-            LOG.info('Created port ' + port['port']['id'])
+            LOG.debug('Created port ' + port['port']['id'])
         return port['port']
 
     def delete_port(self, port):

@@ -17,7 +17,7 @@ import re
 
 from log import LOG
 import monitor
-from netaddr import IPAddress
+import netaddr
 import sshutils
 
 
@@ -55,7 +55,8 @@ class Instance(object):
             self.gmond_port = int(config.gmond_svr_port)
         else:
             self.gmond_port = 0
-        self.config_drive = None
+        self.config_drive = config.config_drive
+        self.no_floatingip = config.no_floatingip
 
     # Setup the ssh connectivity
     # this function is only used for native hosts
@@ -69,6 +70,42 @@ class Instance(object):
         self.ssh = sshutils.SSH(self.ssh_access,
                                 connect_retry_count=self.config.ssh_retry_count)
         return True
+
+    def get_network_interface(self, port_info):
+        ip_address = port_info['fixed_ips'][0]['ip_address']
+        subnet_id = port_info['fixed_ips'][0]['subnet_id']
+        subnet_info = self.net.neutron_client.show_subnet(subnet_id)['subnet']
+
+        cidr = netaddr.IPNetwork(subnet_info['cidr'])
+        network_dict = {
+            'ip_address': ip_address,
+            'netmask': str(cidr.netmask),
+            'network': str(cidr.network),
+            'broadcast': str(cidr.broadcast),
+            'gateway': subnet_info['gateway_ip'],
+            'dns': ''
+        }
+        if subnet_info['dns_nameservers']:
+            dns_servers = ','.join(subnet_info['dns_nameservers'])
+            network_dict['dns'] = 'dns-nameservers %s\n' % dns_servers
+
+        retStr = (
+            '# The loopback network interface\n'
+            'auto lo\n'
+            'iface lo inet loopback\n'
+            '\n'
+            '# The primary network interface\n'
+            'auto eth0\n'
+            'iface eth0 inet static\n'
+            '        address %(ip_address)s\n'
+            '        netmask %(netmask)s\n'
+            '        network %(network)s\n'
+            '        broadcast %(broadcast)s\n'
+            '        gateway %(gateway)s\n'
+            '        %(dns)s'
+        ) % network_dict
+
+        return retStr
 
     # Create a new VM instance, associate a floating IP for ssh access
     # and extract internal network IP
@@ -90,7 +127,7 @@ class Instance(object):
         else:
             user_data = None
 
-        if self.config.vnic_type:
+        if self.config.vnic_type or self.config.no_dhcp:
             # create the VM by passing a port ID instead of a net ID
             self.port = self.net.create_port(int_net['id'],
                                              [sec_group.id],
@@ -103,6 +140,11 @@ class Instance(object):
             # create the VM by passing a net ID
             nics = [{'net-id': int_net['id']}]
 
+        files = None
+        if self.config.no_dhcp:
+            network_interface = self.get_network_interface(self.port)
+            files = {'/etc/network/interfaces': network_interface}
+
         self.instance = self.comp.create_server(self.name,
                                                 image,
                                                 flavor_type,
@@ -112,6 +154,7 @@ class Instance(object):
                                                 az,
                                                 user_data,
                                                 self.config_drive,
+                                                files,
                                                 self.config.generic_retry_count)
         if user_data:
             user_data.close()
@@ -130,7 +173,7 @@ class Instance(object):
         else:
             # Set the internal ip to the correct ip for v4 and v6
             for ip_address in self.instance.networks[internal_network_name]:
-                ip = IPAddress(ip_address)
+                ip = netaddr.IPAddress(ip_address)
                 if self.config.ipv6_mode:
                     if ip.version == 6:
                         self.internal_ip = ip_address
@@ -140,14 +183,17 @@ class Instance(object):
                     if ip.version == 4:
                         self.internal_ip = ip_address
                         ipv4_fixed_address = ip_address
-            fip = self.net.create_floating_ip()
-            if not fip:
-                self.display('Floating ip creation failed')
-                return False
-            self.ssh_access.host = fip['floatingip']['floating_ip_address']
-            self.ssh_ip_id = fip['floatingip']['id']
-            self.display('Associating floating IP %s', self.ssh_access.host)
-            self.instance.add_floating_ip(self.ssh_access.host, ipv4_fixed_address)
+            if self.no_floatingip:
+                self.ssh_access.host = self.internal_ip
+            else:
+                fip = self.net.create_floating_ip()
+                if not fip:
+                    self.display('Floating ip creation failed.')
+                    return False
+                self.ssh_access.host = fip['floatingip']['floating_ip_address']
+                self.ssh_ip_id = fip['floatingip']['id']
+                self.display('Associating floating IP %s', self.ssh_access.host)
+                self.instance.add_floating_ip(self.ssh_access.host, ipv4_fixed_address)
 
         # extract the IP for the data network
         self.display('Internal network IP: %s', self.internal_ip)

@@ -270,8 +270,8 @@ class VmtpTest(object):
             self.config.internal_network_name = int_net_name
         else:
             # Make sure we have an external network and an external router
-            self.assert_true(self.net.ext_net)
-            self.assert_true(self.net.ext_router)
+            # self.assert_true(self.net.ext_net)
+            # self.assert_true(self.net.ext_router)
             self.assert_true(self.net.vm_int_net)
 
         # Get hosts for the availability zone to use
@@ -826,6 +826,22 @@ def parse_opts_from_cli():
                         help='binding vnic type for test VMs',
                         metavar='<direct|macvtap|normal>')
 
+    parser.add_argument('--no-dhcp', dest='no_dhcp',
+                        default=False,
+                        action='store_true',
+                        help='Assign IP address to guest instance')
+
+    parser.add_argument('--no-floatingip', dest='no_floatingip',
+                        default=False,
+                        action='store_true',
+                        help='Do not assign floating IP to guest instance')
+
+    parser.add_argument('--use-config-drive', dest='config_drive',
+                        default=False,
+                        action='store_true',
+                        help='Use config drive to configure guest instance. Enable this option '
+                             'when metadata service is not available')
+
     parser.add_argument('-d', '--debug', dest='debug',
                         default=False,
                         action='store_true',
@@ -979,6 +995,9 @@ def merge_opts_to_configs(opts):
     if opts.os_dataplane_network:
         config.os_dataplane_network = opts.os_dataplane_network
 
+    config.config_drive = opts.config_drive
+    config.no_floatingip = opts.no_floatingip
+    config.no_dhcp = opts.no_dhcp
     config.delete_image_after_run = opts.delete_image_after_run
 
     #####################################################
