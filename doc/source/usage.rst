@@ -7,24 +7,22 @@ VMTP Usage
 
 .. code::
 
-    usage: vmtp.py [-h] [-c <config_file>] [-sc] [-r <openrc_file>]
-                   [-m <gmond_ip>[:<port>]] [-p <password>] [-t <time>]
-                   [--host <user>@<host_ssh_ip>[:<password>:<server-listen-if-name>]]
-                   [--external-host <user>@<host_ssh_ip>[:password>]]
-                   [--controller-node <user>@<host_ssh_ip>[:<password>]]
-                   [--mongod-server <server ip>] [--json <file>]
-                   [--tp-tool <nuttcp|iperf>]
-                   [--availability_zone <availability_zone>] [--hypervisor [<az>:]
-                   <hostname>] [--inter-node-only] [--same-network-only]
-                   [--protocols <T|U|I>] [--multicast <multicast_address>]
-				   [--bandwidth <bandwidth>]
-                   [--tcpbuf <tcp_pkt_size1,...>] [--udpbuf <udp_pkt_size1,...>]
-                   [--reuse_network_name <network_name>]
-                   [--os-dataplane-network <network_name>]
-                   [--delete-image-after-run] [--no-env]
-                   [--vnic-type <direct|macvtap|normal>] [-d] [-v]
-                   [--stop-on-error] [--vm-image-url <url_to_image>]
-                   [--test-description <test_description>]
+    usage: vmtp [-h] [-c <config_file>] [-sc] [-r <openrc_file>]
+                [-m <gmond_ip>[:<port>]] [-p <password>] [-t <time>]
+                [--host <user>@<host_ssh_ip>[:<password>:<server-listen-if-name>]]
+                [--external-host <user>@<host_ssh_ip>[:password>]]
+                [--controller-node <user>@<host_ssh_ip>[:<password>]]
+                [--mongod-server <server ip>] [--json <file>]
+                [--tp-tool <nuttcp|iperf>]
+                [--availability_zone <availability_zone>] [--hypervisor [<az>:]
+                <hostname>] [--inter-node-only] [--same-network-only]
+                [--protocols <T|U|I>] [--bandwidth <bandwidth>]
+                [--tcpbuf <tcp_pkt_size1,...>] [--udpbuf <udp_pkt_size1,...>]
+                [--reuse_network_name <network_name>]
+                [--os-dataplane-network <network_name>] [--delete-image-after-run]
+                [--no-env] [--vnic-type <direct|macvtap|normal>] [-d] [-v]
+                [--stop-on-error] [--vm-image-url <url_to_image>]
+                [--test-description <test_description>]
 
     optional arguments:
       -h, --help            show this help message and exit
@@ -59,10 +57,7 @@ VMTP Usage
       --inter-node-only     only measure inter-node
       --same-network-only   only measure same network
       --protocols <T|U|I>   protocols T(TCP), U(UDP), I(ICMP) - default=TUI (all)
-      --multicast <multicast_address>
-                            bind to multicast address. (implies
-                            --protocols U, --tp-tool nuttcp)      
-	  --bandwidth <bandwidth>
+      --bandwidth <bandwidth>
                             the bandwidth limit for TCP/UDP flows in K/M/Gbps,
                             e.g. 128K/32M/5G. (default=no limit)
       --tcpbuf <tcp_pkt_size1,...>
@@ -88,7 +83,8 @@ VMTP Usage
                             manually)
       --vm-image-url <url_to_image>
                             URL to a Linux image in qcow2 format that can be
-                            downloaded from
+                            downloaded fromor location of the image file with
+                            prefix file://
       --test-description <test_description>
                             The test description to be stored in JSON or MongoDB
 
@@ -168,10 +164,10 @@ VMTP requires a Linux image available in Glance to spawn VMs. It could be upload
 There is a candidate image defined in the default config already. It has been verified working, but of course it is OK to try other Linux distro as well.
 
 
-VNIC Type
-^^^^^^^^^
+VNIC Type and SR-IOV Support
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-By default test VMs will be created with ports that have a "normal" VNIC type. To create test VMs with ports that use PCI passthrough SRIOV, specify **--vnic_type direct**. This will assume that the host where the VM are instantiated have SRIOV capable NIC.
+By default test VMs will be created with ports that have a "normal" VNIC type. To create test VMs with ports that use PCI passthrough SR-IOV, specify **--vnic_type direct**. This will assume that the host where the VM are instantiated have SR-IOV capable NIC.
 
 An exception will be thrown if a test VM is lauched on a host that does not have SRIOV capable NIC or has not been configured to use such feature.
 
@@ -186,40 +182,13 @@ VMTP supports to run on a provider network by supplying the provider network nam
 Note that the fixed IP addresses assigned to the test VM on the provider network must be reachable from the host which VMTP application is running on.
 
 
-Quick guide to run VMTP on an OpenStack Cloud
-----------------------------------------------
-
-Preparation
-^^^^^^^^^^^
-
-* Step 1)
-
-Download the openrc file from OpenStack Dashboard, and saved it to your local file system. (In Horizon dashboard: Project|Acces&Security!Api Access|Download OpenStack RC File)
-
-* Step 2)
-
-Create one configuration file for your specific cloud and use the *-c* option to pass that file name to VMTP. Parameters that you are most certainly required to change are:
-
-    **image_name**: The name of the Linux image that will run the test VMs created by vmtp. It must be set to an existing image available in openstack (check the name with Horizon or using "nova image-list" from the shell). Any recent Ubuntu or CentOS/Fedora image should work -- if needed you will need to upload an image to OpenStack manually prior to running VMTP.
-
-    **ssh_vm_username**: VM SSH username to use (specific to the image)
-
-    **flavor_type**: The flavor name to use (often specific to each cloud)
-
-* Step 3)
-
-Upload the Linux image to the OpenStack controller node, so that OpenStack is able to spawning VMs. You will be prompted an error if the image defined in the config file is not available to use when running the tool. The image can be uploaded using either Horizon dashboard, or the command below::
-
-    python vmtp.py -r admin-openrc.sh -p admin --vm_image_url http://<url_to_the_image>
-
-.. note:: Currently, VMTP only supports to load the image in qcow2 format.
-
-
 Examples of running VMTP on an OpenStack Cloud
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+----------------------------------------------
+Examples below invoke VMTP using the python interpreter (suitable for git installation). For Docker container or pip installation, simply invoke vmtp directly (instead of "python vmtp.py").
+
 
 Example 1: Typical Run
-""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^
 
 Run VMTP on an OpenStack cloud with the default configuration file, use "admin-openrc.sh" as the rc file, and "admin" as the password::
 
@@ -241,7 +210,7 @@ This will tell VMTP to only collect ICMP and TCP measurements.
 
 
 Example 2: Cloud upload/download performance measurement
-""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Run VMTP on an OpenStack cloud with a specified configuration file (mycfg.yaml), and saved the result to a JSON file::
 
@@ -252,10 +221,10 @@ If you do not have ssh password-less access to the external host (public key) yo
 
     python vmtp.py -c mycfg.yaml -r admin-openrc.sh -p admin --external-host localadmin@172.29.87.29:secret --json res.json
 
-Example 3: Store the OpenStack deployment details
-"""""""""""""""""""""""""""""""""""""""""""""""""
+Example 3: Retrieve the OpenStack deployment details
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Run VMTP on an OpenStack cloud, fetch the defails of the deployment and store it to JSON file. Assume the controlloer node is on 192.168.12.34 with admin/admin::
+Run VMTP on an OpenStack cloud, fetch the details of the deployment and store it to JSON file. Assume the controller node is on 192.168.12.34 with admin/admin::
 
     python vmtp.py -r admin-openrc.sh -p admin --json res.json --controller-node root@192.168.12.34:admin
 
@@ -271,7 +240,7 @@ Before storing info into MongoDB, some configurations are needed to change to fi
 
 
 Example 4: Specify which compute nodes to spawn VMs
-"""""""""""""""""""""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Run VMTP on an OpenStack cloud, spawn the test server VM on tme212, and the test client VM on tme210. Save the result, and perform the inter-node measurement only::
 
@@ -279,7 +248,7 @@ Run VMTP on an OpenStack cloud, spawn the test server VM on tme212, and the test
 
 
 Example 5: Collect native host performance data
-"""""""""""""""""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Run VMTP to get native host throughput between 172.29.87.29 and 172.29.87.30 using the localadmin ssh username and run each tcp/udp test session for 120 seconds (instead of the default 10 seconds)::
 
@@ -299,7 +268,7 @@ For example, to measure throughput between 2 hosts using the network attached to
 
 
 Example 6: IPV6 throughput measurement
-""""""""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 It is possible to use VMTP to measure throughput for IPv6.
 
@@ -331,7 +300,7 @@ Generating charts from JSON results
 
 .. code::
 
-    usage: genchart.py [-h] [-c <file>] [-b] [-p <all|tcp|udp>] [-v]
+    usage: vmtp_genchart.py [-h] [-c <file>] [-b] [-p <all|tcp|udp>] [-v]
                        <file> [<file> ...]
 
     VMTP Chart Generator V0.0.1
@@ -352,9 +321,9 @@ Examples of use:
 
 Generate charts from the JSON results file "tb172.json", store resulting html to "tb172.html" and open that file in the browser::
 
-    python genchart.py --chart tb172.html --browser tb172.json
+    python vmtp_genchart.py --chart tb172.html --browser tb172.json
     
 Same but only show UDP numbers::
 
-    python genchart.py --chart tb172.html --browser --protocol udp tb172.json
+    python vmtp_genchart.py --chart tb172.html --browser --protocol udp tb172.json
 

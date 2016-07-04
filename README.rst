@@ -32,6 +32,10 @@ For VM-related flows, VMTP will automatically create the necessary OpenStack res
 
 See the usage page for the description of all the command line arguments supported by VMTP.
 
+Online Documentation
+--------------------
+The complete documentation for VMTP including installation and usage guide is available at http://vmtp.readthedocs.io/en/latest
+
 
 Pre-requisite
 -------------
@@ -212,7 +216,7 @@ Sections 1 and 2 above provided that you also do one of the following:
 Links
 -----
 
-* Documentation: http://vmtp.readthedocs.org/en/latest
+* Documentation: http://vmtp.readthedocs.io/en/latest
 * Source: http://git.openstack.org/cgit/openstack/vmtp
 * Supports/Bugs: https://launchpad.net/vmtp
 * Mailing List: vmtp-core@lists.launchpad.net

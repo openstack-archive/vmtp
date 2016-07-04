@@ -69,33 +69,39 @@ Bugs should be filed on Launchpad, not GitHub:
    https://bugs.launchpad.net/vmtp
 
 
-Build VMTP Docker Image
------------------------
+Build the VMTP Docker Image
+---------------------------
+
+The VMTP Docker images are published in the DockerHub berrypatch repository:
+`<https://hub.docker.com/r/berrypatch/vmtp/>`_
 
 Two files are used to build the Docker image: *Dockerfile* and *.dockerignore*. The former provides all the build instructions while the latter provides the list of files/directories that should not be copied to the Docker image.
 
-In order to make the Docker image clean, remove all auto generated files from the root of your workspace first. It is strongly recommeneded to simply pull a new one from GitHub/StackForge. Specify the image name and the tag, and feed them to docker build. Examples to build the image with name "$USER/vmtp", tag "2.0.0" and "latest"::
+In order to make the Docker image clean, remove all auto generated files from the root of your workspace first. It is strongly recommeneded to simply pull a new one from GitHub/OPenStack. Specify the image name and the tag, and feed them to docker build.
+The tag should be an existing git tag for the vmtp repository. 
+
+To build the image with tag "2.0.0" and "latest"::
 
     $ cd <vmtp-ws-root>
-    $ sudo docker build --tag=$USER/vmtp:2.0.0 .
-    $ sudo docker build --tag=$USER/vmtp:latest .
+    $ sudo docker build --tag=berrypatch/vmtp:2.0.0 .
+    $ sudo docker build --tag=berrypatch/vmtp:latest .
 
 The images should be available for use::
 
     $ sudo docker images
     REPOSITORY          TAG                 IMAGE ID            CREATED             VIRTUAL SIZE
-    ahothan/vmtp        2.0.0               9f08056496d7        27 hours ago        494.6 MB
-    ahothan/vmtp        latest              9f08056496d7        27 hours ago        494.6 MB
+    berrypatch/vmtp     2.0.0               9f08056496d7        27 hours ago        494.6 MB
+    berrypatch/vmtp     latest              9f08056496d7        27 hours ago        494.6 MB
 
 For exchanging purposes, the image could be saved to a tar archive. You can distribute the VMTP Docker image among your servers easily with this feature::
 
     $ sudo docker save -o <IMAGE_FILE> <IMAGE_ID>
 
-To publish the image to Docker Hub::
+To publish you need to be a member of the berrypatch vmtp team. After the login (requires your DockerHub username and password), push the appropriate version to berrypatch::
 
     $ sudo docker login
-    $ sudo docker push $USER/vmtp:2.0.0
-    $ sudo docker push $USER/vmtp:latest
+    $ sudo docker push berrypatch/vmtp:2.0.0
+    $ sudo docker push berrypatch/vmtp:latest
 
 
 .. _developer_guide_of_openstack:
