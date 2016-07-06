@@ -54,7 +54,7 @@ class FlowPrinter(object):
         global flow_num
         flow_num = flow_num + 1
         CONLOG.info("=" * 60)
-        LOG.info('Flow %d: %s' % (flow_num, desc))
+        LOG.info('Flow %d: %s', flow_num, desc)
 
 class ResultsCollector(object):
 
@@ -208,8 +208,8 @@ class VmtpTest(object):
             self.image_instance = self.comp.find_image(self.config.image_name)
             if self.image_instance is None:
                 if self.config.vm_image_url != "":
-                    LOG.info('%s: image for VM not found, trying to upload it ...' %
-                             (self.config.image_name))
+                    LOG.info('%s: image for VM not found, trying to upload it ...',
+                             self.config.image_name)
                     keystone = keystoneclient.Client(**creds)
                     glance_endpoint = keystone.service_catalog.url_for(
                         service_type='image', endpoint_type='publicURL')
@@ -224,12 +224,12 @@ class VmtpTest(object):
                     self.image_uploaded = True
                 else:
                     # Exit the pogram
-                    LOG.error('%s: image to launch VM not found. ABORTING.' %
-                              (self.config.image_name))
+                    LOG.error('%s: image to launch VM not found. ABORTING.',
+                              self.config.image_name)
                     sys.exit(1)
 
             self.assert_true(self.image_instance)
-            LOG.info('Found image %s to launch VM, will continue' % (self.config.image_name))
+            LOG.info('Found image %s to launch VM, will continue', self.config.image_name)
             self.flavor_type = self.comp.find_flavor(self.config.flavor_type)
             self.net = network.Network(neutron, self.config)
 
@@ -1015,8 +1015,8 @@ def merge_opts_to_configs(opts):
         if mobj:
             config.gmond_svr_ip = mobj.group(1)
             config.gmond_svr_port = mobj.group(2)
-            LOG.info("Ganglia monitoring enabled (%s:%s)" %
-                     (config.gmond_svr_ip, config.gmond_svr_port))
+            LOG.info("Ganglia monitoring enabled (%s:%s)",
+                     config.gmond_svr_ip, config.gmond_svr_port)
             config.time = 30
 
         else:

@@ -87,7 +87,7 @@ class Credentials(object):
                         elif name == "CACERT":
                             self.rc_cacert = value
             else:
-                LOG.error('Error: rc file does not exist %s' % (openrc_file))
+                LOG.error('Error: rc file does not exist %s', openrc_file)
                 success = False
         elif not no_env:
             # no openrc file passed - we assume the variables have been
@@ -95,7 +95,7 @@ class Credentials(object):
             # just check that they are present
             for varname in ['OS_USERNAME', 'OS_AUTH_URL', 'OS_TENANT_NAME']:
                 if varname not in os.environ:
-                    LOG.warning('%s is missing' % (varname))
+                    LOG.warning('%s is missing', varname)
                     success = False
             if success:
                 self.rc_username = os.environ['OS_USERNAME']

@@ -408,7 +408,7 @@ class SSH(object):
         if int(pkt_loss) < int(pass_threshold):
             return 1
         else:
-            LOG.error('Ping to %s failed: %s' % (target_ip, cmd_output))
+            LOG.error('Ping to %s failed: %s', target_ip, cmd_output)
             return 0
 
     def get_file_from_host(self, from_path, to_path):
@@ -421,7 +421,7 @@ class SSH(object):
         try:
             scpcon.get(from_path, to_path)
         except scp.SCPException as exp:
-            LOG.error("Receive failed: [%s]" % exp)
+            LOG.error("Receive failed: [%s]", exp)
             return 0
         return 1
 
@@ -435,7 +435,7 @@ class SSH(object):
         try:
             scpcon.put(from_path, remote_path=to_path)
         except scp.SCPException as exp:
-            LOG.error("Send failed: [%s]" % exp)
+            LOG.error("Send failed: [%s]", exp)
             return 0
         return 1
 
@@ -461,7 +461,7 @@ class SSH(object):
         if self.stat(os_release_file):
             data = self.read_remote_file(os_release_file)
             if data is None:
-                LOG.error("Failed to read file %s" % os_release_file)
+                LOG.error("Failed to read file %s", os_release_file)
                 return None
 
             for line in data.splitlines():
@@ -479,7 +479,7 @@ class SSH(object):
         if self.stat(sys_release_file):
             data = self.read_remote_file(sys_release_file)
             if data is None:
-                LOG.error("Failed to read file %s" % sys_release_file)
+                LOG.error("Failed to read file %s", sys_release_file)
                 return None
 
             for line in data.splitlines():
@@ -508,7 +508,7 @@ class SSH(object):
             if mobj:
                 return mobj.group(0)
 
-        LOG.info("%s pkg installed " % rpm_pkg)
+        LOG.info("%s pkg installed ", rpm_pkg)
 
         return None
 

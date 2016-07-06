@@ -16,6 +16,7 @@
 import abc
 import re
 
+from log import LOG
 from pkg_resources import resource_filename
 
 # where to copy the tool on the target, must end with slash
@@ -188,7 +189,7 @@ class PerfTool(object):
                     min_kbps = int((max_kbps + min_kbps) / 2)
 
                 kbps = int((max_kbps + min_kbps) / 2)
-                # LOG.debug('   undershot, min=%d kbps=%d max=%d' % (min_kbps,  kbps, max_kbps))
+                LOG.debug('   undershot, min=%d kbps=%d max=%d', min_kbps, kbps, max_kbps)
             elif loss_rate > max_loss_rate:
                 # overshot
                 max_kbps = kbps
@@ -196,7 +197,7 @@ class PerfTool(object):
                     kbps = measured_kbps
                 else:
                     kbps = int((max_kbps + min_kbps) / 2)
-                # LOG.debug('   overshot, min=%d kbps=%d max=%d' % (min_kbps,  kbps, max_kbps))
+                LOG.debug('   overshot, min=%d kbps=%d max=%d', min_kbps, kbps, max_kbps)
             else:
                 # converged within loss rate bracket
                 break

@@ -62,7 +62,7 @@ class Compute(object):
             while img.status in ['queued', 'saving'] and retry < retry_count:
                 img = glance_client.images.find(name=img.name)
                 retry = retry + 1
-                LOG.debug("Image not yet active, retrying %s of %s..." % (retry, retry_count))
+                LOG.debug("Image not yet active, retrying %s of %s...", retry, retry_count)
                 time.sleep(2)
             if img.status != 'active':
                 raise Exception
@@ -73,21 +73,21 @@ class Compute(object):
         except IOError:
             # catch the exception for file based errors.
             LOG.error("Failed while uploading the image. Please make sure the "
-                      "image at the specified location %s is correct." % image_url)
+                      "image at the specified location %s is correct.", image_url)
             return False
         except Exception:
             LOG.error("Failed while uploading the image, please make sure the "
-                      "cloud under test has the access to URL: %s." % image_url)
+                      "cloud under test has the access to URL: %s.", image_url)
             return False
         return True
 
     def delete_image(self, glance_client, img_name):
         try:
-            LOG.log("Deleting image %s..." % img_name)
+            LOG.log("Deleting image %s...", img_name)
             img = glance_client.images.find(name=img_name)
             glance_client.images.delete(img.id)
         except Exception:
-            LOG.error("Failed to delete the image %s." % img_name)
+            LOG.error("Failed to delete the image %s.", img_name)
             return False
 
         return True
@@ -98,7 +98,7 @@ class Compute(object):
         for key in keypair_list:
             if key.name == name:
                 self.novaclient.keypairs.delete(name)
-                LOG.info('Removed public key %s' % (name))
+                LOG.info('Removed public key %s', name)
                 break
 
     # Test if keypair file is present if not create it
@@ -122,7 +122,7 @@ class Compute(object):
             with open(os.path.expanduser(public_key_file)) as pkf:
                 public_key = pkf.read()
         except IOError as exc:
-            LOG.error('Cannot open public key file %s: %s' % (public_key_file, exc))
+            LOG.error('Cannot open public key file %s: %s', public_key_file, exc)
             return None
         keypair = self.novaclient.keypairs.create(name, public_key)
         return keypair
@@ -173,14 +173,14 @@ class Compute(object):
             if instance.status == 'ACTIVE':
                 return instance
             if instance.status == 'ERROR':
-                LOG.error('Instance creation error:' + instance.fault['message'])
+                LOG.error('Instance creation error: %s', instance.fault['message'])
                 break
-            LOG.debug("[%s] VM status=%s, retrying %s of %s..." %
-                      (vmname, instance.status, (retry_attempt + 1), retry_count))
+            LOG.debug("[%s] VM status=%s, retrying %s of %s...",
+                      vmname, instance.status, (retry_attempt + 1), retry_count)
             time.sleep(2)
 
         # instance not in ACTIVE state
-        LOG.error('Instance failed status=' + instance.status)
+        LOG.error('Instance failed status=%s', instance.status)
         self.delete_server(instance)
         return None
 
@@ -210,10 +210,10 @@ class Compute(object):
                 if server.name == vmname and server.status == "ACTIVE":
                     return True
             # Sleep between retries
-            LOG.debug("[%s] VM not yet found, retrying %s of %s..." %
-                      (vmname, (retry_attempt + 1), retry_count))
+            LOG.debug("[%s] VM not yet found, retrying %s of %s...",
+                      vmname, (retry_attempt + 1), retry_count)
             time.sleep(2)
-        LOG.error("[%s] VM not found, after %s attempts" % (vmname, retry_count))
+        LOG.error("[%s] VM not found, after %s attempts", vmname, retry_count)
         return False
 
     # Returns True if server is found and deleted/False if not,
@@ -222,7 +222,7 @@ class Compute(object):
         servers_list = self.get_server_list()
         for server in servers_list:
             if server.name == vmname:
-                LOG.info('Deleting server %s' % (server))
+                LOG.info('Deleting server %s', server)
                 self.novaclient.servers.delete(server)
                 return True
         return False

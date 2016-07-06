@@ -76,7 +76,7 @@ class Network(object):
                         break
 
             if self.ext_net:
-                LOG.info("Using external network: " + self.ext_net['name'])
+                LOG.info("Using external network: %s.", self.ext_net['name'])
                 # Find or create the router to the external network
                 ext_net_id = self.ext_net['id']
                 routers = neutron_client.list_routers()['routers']
@@ -85,7 +85,7 @@ class Network(object):
                     if external_gw_info:
                         if external_gw_info['network_id'] == ext_net_id:
                             self.ext_router = router
-                            LOG.info('Found external router: %s' % (self.ext_router['name']))
+                            LOG.info('Found external router: %s', self.ext_router['name'])
                             break
 
                 # create a new external router if none found and a name was given
@@ -93,7 +93,7 @@ class Network(object):
                 if (not self.ext_router) and self.ext_router_name:
                     self.ext_router = self.create_router(self.ext_router_name,
                                                          self.ext_net['id'])
-                    LOG.info('Created ext router %s.' % (self.ext_router_name))
+                    LOG.info('Created ext router %s.', self.ext_router_name)
                     self.ext_router_created = True
             else:
                 LOG.warning("No external network found.")
@@ -145,7 +145,7 @@ class Network(object):
 
         for network in self.networks:
             if network['name'] == network_name:
-                LOG.info('Found existing internal network: %s' % (network_name))
+                LOG.info('Found existing internal network: %s', network_name)
                 return network
 
         body = {
@@ -189,7 +189,7 @@ class Network(object):
             subnet = self.neutron_client.create_subnet(body)['subnet']
             # add the subnet id to the network dict
             network['subnets'].append(subnet['id'])
-        LOG.info('Created internal network: %s.' % (network_name))
+        LOG.info('Created internal network: %s.', network_name)
         return network
 
     # Delete a network and associated subnet
@@ -200,7 +200,7 @@ class Network(object):
             for _ in range(1, 5):
                 try:
                     self.neutron_client.delete_network(network['id'])
-                    LOG.info('Network %s deleted.' % (name))
+                    LOG.info('Network %s deleted.', name)
                     break
                 except NetworkInUseClient:
                     time.sleep(1)
@@ -351,7 +351,7 @@ class Network(object):
                         self.neutron_client.remove_gateway_router(
                             self.ext_router['id'])
                         self.neutron_client.delete_router(self.ext_router['id'])
-                        LOG.info('External router %s deleted' % (self.ext_router['name']))
+                        LOG.info('External router %s deleted.', self.ext_router['name'])
                 except TypeError:
                     LOG.info("No external router set")
 
