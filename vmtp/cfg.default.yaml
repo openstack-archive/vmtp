@@ -152,6 +152,10 @@ tcp_pkt_sizes: [65536]
 # Can be overridden at the command line using --udpbuf
 udp_pkt_sizes: [128, 1024, 8192]
 
+# List of packet sizes to measure with ping
+# By default we measure for 64 (small), 391 (IMIX average) and 1500 (large)
+icmp_pkt_sizes: [64, 391, 1500]
+
 # UDP packet loss rate threshold in percentage beyond which bandwidth
 # iterations stop and below which iteration with a higher
 # bandwidth continues
