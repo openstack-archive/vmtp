@@ -30,6 +30,7 @@ class Credentials(object):
         dct['tenant_name'] = self.rc_tenant_name
         dct['cacert'] = self.rc_cacert
         dct['ca_cert'] = self.rc_cacert
+        dct['region_name'] = self.rc_region_name
         return dct
 
     def get_nova_credentials(self):
@@ -39,6 +40,7 @@ class Credentials(object):
         dct['auth_url'] = self.rc_auth_url
         dct['project_id'] = self.rc_tenant_name
         dct['cacert'] = self.rc_cacert
+        dct['region_name'] = self.rc_region_name
         return dct
 
     def get_nova_credentials_v2(self):
@@ -56,6 +58,7 @@ class Credentials(object):
         self.rc_tenant_name = None
         self.rc_auth_url = None
         self.rc_cacert = None
+        self.rc_region_name = None
         success = True
 
         if openrc_file:
@@ -86,6 +89,8 @@ class Credentials(object):
                             self.rc_tenant_name = value
                         elif name == "CACERT":
                             self.rc_cacert = value
+                        elif name == "REGION_NAME":
+                            self.rc_region_name = value
             else:
                 LOG.error('Error: rc file does not exist %s', openrc_file)
                 success = False
@@ -103,6 +108,8 @@ class Credentials(object):
                 self.rc_tenant_name = os.environ['OS_TENANT_NAME']
             if 'OS_CACERT' in os.environ:
                 self.rc_cacert = os.environ['OS_CACERT']
+            if 'OS_REGION_NAME' in os.environ:
+                self.rc_region_name = os.environ['OS_REGION_NAME']
 
         # always override with CLI argument if provided
         if pwd:
