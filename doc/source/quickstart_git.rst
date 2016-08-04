@@ -152,7 +152,7 @@ Then copy it to OpenStack using the glance CLI:
 
 .. code-block:: bash
 
-    glance --os-image-api-version 1 image-create --file /tmp/vmtp/trusty-server-cloudimg-amd64-uefi1.img --disk-format qcow2 --container-format bare --name 'Ubuntu 14.04'
+    glance --os-image-api-version 1 image-create --file /tmp/vmtp/trusty-server-cloudimg-amd64-uefi1.img --disk-format qcow2 --container-format bare --name 'Ubuntu Server 14.04'
 
 Then list the images to verify:
 

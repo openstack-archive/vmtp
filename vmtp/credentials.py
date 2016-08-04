@@ -91,6 +91,8 @@ class Credentials(object):
                             self.rc_cacert = value
                         elif name == "REGION_NAME":
                             self.rc_region_name = value
+                        elif name == "PASSWORD" and not pwd:
+                            pwd = value
             else:
                 LOG.error('Error: rc file does not exist %s', openrc_file)
                 success = False

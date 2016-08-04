@@ -545,18 +545,26 @@ def gen_report_data(proto, result):
                 if 'jitter' in item:
                     retval[item['pkt_size']]['jitter'] = item['jitter']
             elif proto == 'ICMP':
-                for key in ['rtt_avg_ms', 'rtt_max_ms', 'rtt_min_ms', 'rtt_stddev']:
-                    retval[key] = item[key]
+                pkt_size_results = {}
+                for pkt_size_res in item['results']:
+
+                    pkt_size_results[str(pkt_size_res['packet_size']) + '-byte'] = \
+                        '%s/%s/%s/%s' % (pkt_size_res['rtt_avg_ms'],
+                                         pkt_size_res['rtt_min_ms'],
+                                         pkt_size_res['rtt_max_ms'],
+                                         pkt_size_res['rtt_stddev'])
+                retval['rtt avg/min/max/stddev msec'] = pkt_size_results
 
         if proto in ['TCP', 'Upload', 'Download']:
             for key in retval:
                 retval[key] = '{0:n}'.format(retval[key] / tcp_test_count)
     except Exception:
         retval = "ERROR! Check JSON outputs for more details."
-
+        traceback.print_exc()
     return retval
 
 def print_report(results):
+
     # In order to parse the results with less logic, we are encoding the results as below:
     # Same Network = 0, Different Network = 1
     # Fixed IP = 0, Floating IP = 1
@@ -798,6 +806,13 @@ def parse_opts_from_cli():
                              'e.g. --udpbuf 128,2048. (default=128,1024,8192)',
                         metavar='<udp_pkt_size1,...>')
 
+    parser.add_argument('--icmp_pkt_sizes', dest='icmp_pkt_sizes',
+                        action='store',
+                        default=0,
+                        help='list of ICMP packet sizes in Bytes, '
+                             'e.g. --icmp_pkt_sizes 128,2048. (default=64,391,1500 391=IMIX avg)',
+                        metavar='<icmp_pkt_size1,...>')
+
     parser.add_argument('--reuse_network_name', dest='reuse_network_name',
                         action='store',
                         default=None,
@@ -874,6 +889,17 @@ def parse_opts_from_cli():
                         metavar='<log_file>')
 
     return parser.parse_known_args()[0]
+
+def decode_size_list(argname, size_list):
+    try:
+        pkt_sizes = size_list.split(',')
+        for i in xrange(len(pkt_sizes)):
+            pkt_sizes[i] = int(pkt_sizes[i])
+    except ValueError:
+        LOG.error('Invalid %s parameter. A valid input must be '
+                  'integers seperated by comma.' % argname)
+        sys.exit(1)
+    return pkt_sizes
 
 def merge_opts_to_configs(opts):
 
@@ -968,26 +994,15 @@ def merge_opts_to_configs(opts):
         config.vm_bandwidth = int(val * (10 ** (ex_unit * 3)))
 
 
-    # the pkt size for TCP and UDP
+    # the pkt size for TCP, UDP and ICMP
     if opts.tcp_pkt_sizes:
-        try:
-            config.tcp_pkt_sizes = opts.tcp_pkt_sizes.split(',')
-            for i in xrange(len(config.tcp_pkt_sizes)):
-                config.tcp_pkt_sizes[i] = int(config.tcp_pkt_sizes[i])
-        except ValueError:
-            LOG.error('Invalid --tcpbuf parameter. A valid input must be '
-                      'integers seperated by comma.')
-            sys.exit(1)
+        config.tcp_pkt_sizes = decode_size_list('--tcpbuf', opts.tcp_pkt_sizes)
 
     if opts.udp_pkt_sizes:
-        try:
-            config.udp_pkt_sizes = opts.udp_pkt_sizes.split(',')
-            for i in xrange(len(config.udp_pkt_sizes)):
-                config.udp_pkt_sizes[i] = int(config.udp_pkt_sizes[i])
-        except ValueError:
-            LOG.error('Invalid --udpbuf parameter. A valid input must be '
-                      'integers seperated by comma.')
-            sys.exit(1)
+        config.udp_pkt_sizes = decode_size_list('--udpbuf', opts.udp_pkt_sizes)
+
+    if opts.icmp_pkt_sizes:
+        config.icmp_pkt_sizes = decode_size_list('--icmp_pkt_sizes', opts.icmp_pkt_sizes)
 
     if opts.reuse_network_name:
         config.reuse_network_name = opts.reuse_network_name

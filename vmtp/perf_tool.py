@@ -229,7 +229,7 @@ class PingTool(PerfTool):
     def __init__(self, instance):
         PerfTool.__init__(self, 'ping', instance)
 
-    def run_client(self, target_ip, ping_count=5):
+    def _run_client(self, target_ip, ping_count, size=32):
         '''Perform the ping operation
         :return: a dict containing the results stats
 
@@ -241,9 +241,11 @@ class PingTool(PerfTool):
             rtt min/avg/max/mdev = 0.455/0.528/0.596/0.057 ms
         '''
         if self.instance.config.ipv6_mode:
-            cmd = "ping6 -c " + str(ping_count) + " " + str(target_ip)
+            ping_cmd = "ping6"
         else:
-            cmd = "ping -c " + str(ping_count) + " " + str(target_ip)
+            ping_cmd = "ping"
+        cmd = "%s -c %d -s %d %s" % (ping_cmd, ping_count, size, target_ip)
+        print cmd
         cmd_out = self.instance.exec_command(cmd)
         if not cmd_out:
             res = {'protocol': 'ICMP',
@@ -270,14 +272,23 @@ class PingTool(PerfTool):
             rtt_max = 0
             rtt_avg = 0
             rtt_stddev = 0
-        res = {'protocol': 'ICMP',
-               'tool': 'ping',
+        res = {'packet_size': size,
                'tx_packets': tx_packets,
                'rx_packets': rx_packets,
                'rtt_min_ms': rtt_min,
                'rtt_max_ms': rtt_max,
                'rtt_avg_ms': rtt_avg,
                'rtt_stddev': rtt_stddev}
+        return res
+
+    def run_client(self, target_ip, ping_count=10):
+        size_results = []
+        res = {'protocol': 'ICMP',
+               'tool': 'ping',
+               'results': size_results}
+        size_list = self.instance.config.icmp_pkt_sizes
+        for size in size_list:
+            size_results.append(self._run_client(target_ip, ping_count, size))
         return res
 
     def get_server_launch_cmd(self):
