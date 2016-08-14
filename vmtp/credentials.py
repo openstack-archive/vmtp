@@ -27,25 +27,12 @@ class Credentials(object):
         dct['username'] = self.rc_username
         dct['password'] = self.rc_password
         dct['auth_url'] = self.rc_auth_url
-        dct['tenant_name'] = self.rc_tenant_name
-        dct['cacert'] = self.rc_cacert
-        dct['ca_cert'] = self.rc_cacert
-        dct['region_name'] = self.rc_region_name
-        return dct
-
-    def get_nova_credentials(self):
-        dct = {}
-        dct['username'] = self.rc_username
-        dct['api_key'] = self.rc_password
-        dct['auth_url'] = self.rc_auth_url
-        dct['project_id'] = self.rc_tenant_name
-        dct['cacert'] = self.rc_cacert
-        dct['region_name'] = self.rc_region_name
-        return dct
-
-    def get_nova_credentials_v2(self):
-        dct = self.get_nova_credentials()
-        dct['version'] = 2
+        if self.rc_identity_api_version == 3:
+            dct['project_name'] = self.rc_project_name
+            dct['project_domain_id'] = self.rc_project_domain_id
+            dct['user_domain_id'] = self.rc_user_domain_id
+        else:
+            dct['tenant_name'] = self.rc_tenant_name
         return dct
 
     #
@@ -57,21 +44,23 @@ class Credentials(object):
         self.rc_username = None
         self.rc_tenant_name = None
         self.rc_auth_url = None
-        self.rc_cacert = None
+        self.rc_cacert = False
         self.rc_region_name = None
+        self.rc_project_name = None
+        self.rc_project_domain_id = None
+        self.rc_user_domain_id = None
+        self.rc_identity_api_version = 2
         success = True
 
         if openrc_file:
             if os.path.exists(openrc_file):
                 export_re = re.compile('export OS_([A-Z_]*)="?(.*)')
                 for line in open(openrc_file):
-                    line = line.strip()
-                    mstr = export_re.match(line)
+                    mstr = export_re.match(line.strip())
                     if mstr:
                         # get rif of posible trailing double quote
                         # the first one was removed by the re
-                        name = mstr.group(1)
-                        value = mstr.group(2)
+                        name, value = mstr.group(1), mstr.group(2)
                         if value.endswith('"'):
                             value = value[:-1]
                         # get rid of password assignment
@@ -80,6 +69,11 @@ class Credentials(object):
                         # export OS_PASSWORD=$OS_PASSWORD_INPUT
                         if value.startswith('$'):
                             continue
+                        # Check if api version is provided
+                        # Default is keystone v2
+                        if name == 'IDENTITY_API_VERSION':
+                            self.rc_identity_api_version = int(value)
+
                         # now match against wanted variable names
                         if name == 'USERNAME':
                             self.rc_username = value
@@ -93,6 +87,12 @@ class Credentials(object):
                             self.rc_region_name = value
                         elif name == "PASSWORD" and not pwd:
                             pwd = value
+                        elif name == "PROJECT_NAME":
+                            self.rc_project_name = value
+                        elif name == "PROJECT_DOMAIN_ID" or name == "PROJECT_DOMAIN_NAME":
+                            self.rc_project_domain_id = value
+                        elif name == "USER_DOMAIN_ID" or name == "USER_DOMAIN_ID":
+                            self.rc_user_domain_id = value
             else:
                 LOG.error('Error: rc file does not exist %s', openrc_file)
                 success = False
@@ -100,18 +100,37 @@ class Credentials(object):
             # no openrc file passed - we assume the variables have been
             # sourced by the calling shell
             # just check that they are present
-            for varname in ['OS_USERNAME', 'OS_AUTH_URL', 'OS_TENANT_NAME']:
-                if varname not in os.environ:
-                    LOG.warning('%s is missing', varname)
-                    success = False
-            if success:
-                self.rc_username = os.environ['OS_USERNAME']
-                self.rc_auth_url = os.environ['OS_AUTH_URL']
-                self.rc_tenant_name = os.environ['OS_TENANT_NAME']
+            if 'OS_IDENTITY_API_VERSION' in os.environ:
+                self.rc_identity_api_version = int(os.environ['OS_IDENTITY_API_VERSION'])
+
+            if self.rc_identity_api_version == 2:
+                for varname in ['OS_USERNAME', 'OS_AUTH_URL', 'OS_TENANT_NAME']:
+                    if varname not in os.environ:
+                        LOG.warning('%s is missing' % (varname))
+                        success = False
+                if success:
+                    self.rc_username = os.environ['OS_USERNAME']
+                    self.rc_auth_url = os.environ['OS_AUTH_URL']
+                    self.rc_tenant_name = os.environ['OS_TENANT_NAME']
+
+                if 'OS_REGION_NAME' in os.environ:
+                    self.rc_region_name = os.environ['OS_REGION_NAME']
+
+            elif self.rc_identity_api_version == 3:
+                for varname in ['OS_USERNAME', 'OS_AUTH_URL', 'OS_PROJECT_NAME',
+                                'OS_PROJECT_DOMAIN_ID', 'OS_USER_DOMAIN_ID']:
+                    if varname not in os.environ:
+                        LOG.warning('%s is missing' % (varname))
+                        success = False
+                if success:
+                    self.rc_username = os.environ['OS_USERNAME']
+                    self.rc_auth_url = os.environ['OS_AUTH_URL']
+                    self.rc_project_name = os.environ['OS_PROJECT_NAME']
+                    self.rc_project_domain_id = os.environ['OS_PROJECT_DOMAIN_ID']
+                    self.rc_user_domain_id = os.environ['OS_USER_DOMAIN_ID']
+
             if 'OS_CACERT' in os.environ:
                 self.rc_cacert = os.environ['OS_CACERT']
-            if 'OS_REGION_NAME' in os.environ:
-                self.rc_region_name = os.environ['OS_REGION_NAME']
 
         # always override with CLI argument if provided
         if pwd:
