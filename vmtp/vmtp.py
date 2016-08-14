@@ -30,15 +30,18 @@ import compute
 from config import config_load
 from config import config_loads
 import credentials
-from glanceclient.v1 import client as glanceclient
+from glanceclient import client as glanceclient
 import iperf_tool
-from keystoneclient.v2_0 import client as keystoneclient
+from keystoneclient import client as keystoneclient
+from keystoneclient.auth.identity import v3 as keystone_v3
+from keystoneclient.auth.identity import v2 as keystone_v2
+from keystoneclient import session
 from log import CONLOG
 from log import FILELOG
 from log import LOG
 import network
-from neutronclient.v2_0 import client as neutronclient
-from novaclient.client import Client
+from neutronclient.neutron import client as neutronclient
+from novaclient import client as novaclient
 from novaclient.exceptions import ClientException
 import nuttcp_tool
 from perf_instance import PerfInstance as PerfInstance
@@ -195,10 +198,15 @@ class VmtpTest(object):
         # If we need to reuse existing vms just return without setup
         if not self.config.reuse_existing_vm:
             creds = self.cred.get_credentials()
-            creds_nova = self.cred.get_nova_credentials_v2()
+            if self.cred.rc_identity_api_version == 3:
+                auth = keystone_v3.Password(**creds)
+            else:
+                auth = keystone_v2.Password(**creds)
+            sess = session.Session(auth=auth, verify=self.cred.rc_cacert)
+
             # Create the nova and neutron instances
-            nova_client = Client(**creds_nova)
-            neutron = neutronclient.Client(**creds)
+            nova_client = novaclient.Client('2', session=sess)
+            neutron = neutronclient.Client('2.0', session=sess)
 
             self.comp = compute.Compute(nova_client, self.config)
 
@@ -210,12 +218,9 @@ class VmtpTest(object):
                 if self.config.vm_image_url != "":
                     LOG.info('%s: image for VM not found, trying to upload it ...',
                              self.config.image_name)
-                    keystone = keystoneclient.Client(**creds)
-                    glance_endpoint = keystone.service_catalog.url_for(
-                        service_type='image', endpoint_type='publicURL')
-                    self.glance_client = glanceclient.Client(
-                        glance_endpoint, token=keystone.auth_token,
-                        cacert=creds['cacert'])
+                    keystone = keystoneclient.Client(self.cred.rc_identity_api_version,
+                                                     session=sess, auth_url=creds['auth_url'])
+                    self.glance_client = glanceclient.Client('1', session=sess)
                     self.comp.upload_image_via_url(
                         self.glance_client,
                         self.config.image_name,
