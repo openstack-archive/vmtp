@@ -356,6 +356,12 @@ class VmtpTest(object):
                                              self.server,
                                              bandwidth=self.config.vm_bandwidth,
                                              az_to=self.server.az)
+        if self.config.keep_first_flow_and_exit:
+            CONLOG.info(self.rescol.ppr.pformat(perf_output))
+            FILELOG.info(json.dumps(perf_output, sort_keys=True))
+            LOG.info('Stopping execution after first flow, cleanup all VMs/networks manually')
+            sys.exit(0)
+
         if self.config.stop_on_error:
             # check if there is any error in the results
             results_list = perf_output['results']
@@ -877,6 +883,12 @@ def parse_opts_from_cli():
                         action='store_true',
                         help='Stop and keep everything as-is on error (must cleanup manually)')
 
+    parser.add_argument('--keep-first-flow-and-exit', dest='keep_first_flow_and_exit',
+                        default=False,
+                        action='store_true',
+                        help='Stage and run the first flow and exit'
+                             ' without cleanup (must cleanup manually)')
+
     parser.add_argument('--vm-image-url', dest='vm_image_url',
                         action='store',
                         help='URL to a Linux image in qcow2 format that can be downloaded from'
@@ -932,6 +944,7 @@ def merge_opts_to_configs(opts):
 
     config.debug = opts.debug
     config.stop_on_error = opts.stop_on_error
+    config.keep_first_flow_and_exit = opts.keep_first_flow_and_exit
     config.inter_node_only = opts.inter_node_only
     config.same_network_only = opts.same_network_only
 
