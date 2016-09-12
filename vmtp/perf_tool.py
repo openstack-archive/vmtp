@@ -245,12 +245,10 @@ class PingTool(PerfTool):
         else:
             ping_cmd = "ping"
         cmd = "%s -c %d -s %d %s" % (ping_cmd, ping_count, size, target_ip)
-        print cmd
         cmd_out = self.instance.exec_command(cmd)
         if not cmd_out:
-            res = {'protocol': 'ICMP',
-                   'tool': 'ping',
-                   'error': 'failed'}
+            res = {'packet_size': size,
+                   'error': 'ping failed'}
             return res
         match = re.search(r'(\d*) packets transmitted, (\d*) ',
                           cmd_out)

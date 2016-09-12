@@ -10,12 +10,12 @@ lxml>=3.4.0
 paramiko>=1.14.0
 prettytable>=0.7.2
 pymongo>=2.7.2
+pytz>=2016.4
 python-glanceclient>=0.15.0
 python-neutronclient<3,>=2.3.6
 python-novaclient>=2.18.1
 python-openstackclient>=0.4.1
 python-keystoneclient>=1.7.2
-pytz>=2016.4
 scp>=0.8.0
 tabulate>=0.7.3
 

@@ -558,12 +558,15 @@ def gen_report_data(proto, result):
             elif proto == 'ICMP':
                 pkt_size_results = {}
                 for pkt_size_res in item['results']:
-
-                    pkt_size_results[str(pkt_size_res['packet_size']) + '-byte'] = \
-                        '%s/%s/%s/%s' % (pkt_size_res['rtt_avg_ms'],
-                                         pkt_size_res['rtt_min_ms'],
-                                         pkt_size_res['rtt_max_ms'],
-                                         pkt_size_res['rtt_stddev'])
+                    label = str(pkt_size_res['packet_size']) + '-byte'
+                    if 'error' in pkt_size_res:
+                        pkt_size_results[label] = pkt_size_res['error']
+                    else:
+                        pkt_size_results[label] = '%s/%s/%s/%s' % \
+                                                  (pkt_size_res['rtt_avg_ms'],
+                                                   pkt_size_res['rtt_min_ms'],
+                                                   pkt_size_res['rtt_max_ms'],
+                                                   pkt_size_res['rtt_stddev'])
                 retval['rtt avg/min/max/stddev msec'] = pkt_size_results
 
         if proto in ['TCP', 'Upload', 'Download']:
