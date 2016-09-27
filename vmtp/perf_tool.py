@@ -17,6 +17,7 @@ import abc
 import re
 
 from log import LOG
+import six
 from pkg_resources import resource_filename
 
 # where to copy the tool on the target, must end with slash
@@ -25,8 +26,8 @@ SCP_DEST_DIR = '/tmp/'
 #
 # A base class for all tools that can be associated to an instance
 #
+@six.add_metaclass(abc.ABCMeta)
 class PerfTool(object):
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self, name, instance):
         self.name = name
