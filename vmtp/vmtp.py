@@ -219,8 +219,6 @@ class VmtpTest(object):
                 if self.config.vm_image_url != "":
                     LOG.info('%s: image for VM not found, trying to upload it ...',
                              self.config.image_name)
-                    keystoneclient.Client(self.cred.rc_identity_api_version,
-                                          session=sess, auth_url=creds['auth_url'])
                     self.glance_client = glanceclient.Client('1', session=sess)
                     self.comp.upload_image_via_url(
                         self.glance_client,
