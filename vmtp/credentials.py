@@ -91,7 +91,7 @@ class Credentials(object):
                             self.rc_project_name = value
                         elif name == "PROJECT_DOMAIN_ID" or name == "PROJECT_DOMAIN_NAME":
                             self.rc_project_domain_id = value
-                        elif name == "USER_DOMAIN_ID" or name == "USER_DOMAIN_ID":
+                        elif name == "USER_DOMAIN_ID" or name == "USER_DOMAIN_NAME":
                             self.rc_user_domain_id = value
             else:
                 LOG.error('Error: rc file does not exist %s', openrc_file)
