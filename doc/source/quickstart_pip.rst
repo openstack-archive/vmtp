@@ -186,7 +186,7 @@ Get a copy of the default VMTP configuration file and save it in the local direc
 
 .. code-block:: bash
 
-    vmtp -s > vmtp.cfg
+    vmtp -sc > vmtp.cfg
 
 Edit the vmtp.cfg file and make sure the following parameters are set properly:
 

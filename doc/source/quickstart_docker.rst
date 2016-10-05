@@ -161,7 +161,7 @@ Get a copy of the default VMTP configuration file and save it in the local direc
 
 .. code-block:: bash
 
-    sudo docker run --rm -v $PWD:/tmp/vmtp berrypatch/vmtp vmtp -s > vmtp.cfg
+    sudo docker run --rm -v $PWD:/tmp/vmtp berrypatch/vmtp vmtp -sc > vmtp.cfg
 
 Edit the vmtp.cfg file and make sure the following parameters are set properly:
 
