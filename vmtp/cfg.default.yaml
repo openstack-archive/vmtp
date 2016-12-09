@@ -22,7 +22,20 @@ ssh_vm_username: 'ubuntu'
 # Name of the flavor to use for the test VMs
 # This name must be an exact match to a flavor name known by the target
 # OpenStack deployment (as shown from 'nova flavor-list')
-flavor_type: 'm1.small'
+flavor_type: 'vmtp'
+
+# Custom flavor attributes
+flavor:
+  # Number of vCPUs for the flavor
+  vcpus: 1
+  # Memory for the flavor in MB
+  ram: 2048
+  # Size of local disk in GB
+  disk: 0
+  # metadata are supported and can be added if needed, optional
+  # extra_specs:
+  #    "hw:cpu_policy": dedicated
+  #    "hw:mem_page_size": 2048
 
 # Name of the availability zone to use for the test VMs
 # Must be one of the zones listed by 'nova availability-zone-list'

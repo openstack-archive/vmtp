@@ -146,6 +146,7 @@ class VmtpTest(object):
         self.instance_access = None
         self.glance_client = None
         self.image_uploaded = False
+        self.flavor_created = False
         self.rescol = rescol
         self.config = config
         self.cred = cred
@@ -235,7 +236,14 @@ class VmtpTest(object):
 
             self.assert_true(self.image_instance)
             LOG.info('Found image %s to launch VM, will continue', self.config.image_name)
+
             self.flavor_type = self.comp.find_flavor(self.config.flavor_type)
+            if self.flavor_type is None:
+                LOG.info('Flavor %s not found. Creating custom flavor...', self.config.flavor_type)
+                self.flavor_type = self.comp.create_flavor(self.config.flavor_type,
+                                                           **dict(self.config.flavor))
+                self.flavor_created = True
+
             self.net = network.Network(neutron, self.config)
 
             self.rescol.add_property('l2agent_type', self.net.l2agent_type)
@@ -429,6 +437,8 @@ class VmtpTest(object):
             LOG.warning('Security group in use: not deleted')
         if self.image_uploaded and self.config.delete_image_after_run:
             self.comp.delete_image(self.glance_client, self.config.image_name)
+        if self.flavor_created:
+            self.comp.delete_flavor(self.flavor_type)
 
     def run(self):
         error_flag = False
