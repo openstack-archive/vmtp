@@ -231,8 +231,28 @@ class Compute(object):
         self.novaclient.servers.delete(server)
 
     def find_flavor(self, flavor_type):
-        flavor = self.novaclient.flavors.find(name=flavor_type)
+        try:
+            flavor = self.novaclient.flavors.find(name=flavor_type)
+            return flavor
+        except exceptions.NotFound:
+            return None
+
+    def create_flavor(self, flavor_type, vcpus, ram, disk, ephemeral=0, extra_specs=None):
+        flavor = self.novaclient.flavors.create(name=flavor_type, vcpus=vcpus, ram=ram, disk=disk,
+                                                ephemeral=ephemeral)
+        if extra_specs:
+            flavor.set_keys(extra_specs)
+        LOG.info('Flavor %s created.' % flavor_type)
         return flavor
+
+    def delete_flavor(self, flavor):
+        try:
+            flavor.delete()
+            LOG.info('Flavor %s deleted.' % flavor.name)
+            return True
+        except novaclient.exceptions:
+            LOG.error('Failed deleting flavor %s.' % flavor.name)
+            return False
 
     def normalize_az_host(self, az, host):
         if not az:
