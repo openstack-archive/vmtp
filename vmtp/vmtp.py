@@ -999,6 +999,11 @@ def merge_opts_to_configs(opts):
         config.vm_image_url = opts.vm_image_url
 
     ###################################################
+    # VM Flavor Type
+    ###################################################
+    config.flavor_type = config.flavor_type or 'vmtp'
+
+    ###################################################
     # MongoDB Server connection info.
     ###################################################
     if opts.mongod_server:
