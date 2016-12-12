@@ -19,12 +19,16 @@ image_name:  'Ubuntu Server 14.04'
 ssh_vm_username: 'ubuntu'
 #ssh_vm_username: fedora
 
-# Name of the flavor to use for the test VMs
-# This name must be an exact match to a flavor name known by the target
-# OpenStack deployment (as shown from 'nova flavor-list')
+# Flavor name to use for all VMs created by VMTP.
+# If this flavor is unspecified, flavor name will be set to default name "vmtp".
+# If this flavor exists it will be re-used as-is by VMTP.
+# Otherwise, a flavor with attributes specified in flavor property will be created.
 flavor_type: 'vmtp'
 
 # Custom flavor attributes
+# This flavor attributes is used to create a new flavor
+# if flavor_type is unspecified or doesn't exist in openstack.
+# Any created flavor will be deleted after vmtp ends.
 flavor:
   # Number of vCPUs for the flavor
   vcpus: 1
