@@ -69,7 +69,7 @@ Now that the RC file is available from the container, you can run any OpenStack 
 4.1. Verify flavor names
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-We will check the flavor names available as we will have to select one flavor that VMTP should use to launch VM instances.
+If you are planning to reuse an existing flavor, we will have to check the flavor names available to select one flavor that VMTP should use to launch VM instances.
 List the flavors (results may be different):
 
 .. code-block:: bash
