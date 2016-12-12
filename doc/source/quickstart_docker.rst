@@ -69,7 +69,7 @@ Now that the RC file is available from the container, you can run any OpenStack 
 4.1. Verify flavor names
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-We will check the flavor names available as we will have to select one flavor that VMTP should use to launch VM instances.
+If you are planning to reuse an existing flavor, we will have to check the flavor names available to select one flavor that VMTP should use to launch VM instances.
 List the flavors (results may be different):
 
 .. code-block:: bash
@@ -167,7 +167,8 @@ Edit the vmtp.cfg file and make sure the following parameters are set properly:
 
 - "image_name" must be the image name to use by VMTP ('Ubuntu Server 14.04' in the above example)
 - "ssh_vm_username" must be a valid user name for the Linux image ("ubuntu" for Ubuntu images)
-- "flavor_type" must be an appropriate flavor name (step 4.1 above)
+- "flavor_type" must be either an appropriate flavor name (step 4.1 above) or a custom flavor will be created with "flavor_type" name and specification declared in "flavor" config.
+- "flavor" must be the specification of a custom flavor that will be created in case "flavor_type" is non-existing in OpenStack.
 - "public_key_file" must point to your public key (see below)
 - "private_key_file" must point to your private key (see below)
 
