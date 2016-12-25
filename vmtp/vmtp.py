@@ -334,12 +334,12 @@ class VmtpTest(object):
                 FILELOG.info(json.dumps(res, sort_keys=True))
             client.dispose()
 
-    def add_location(self, label):
+    def add_location(self, label, client_az):
         '''Add a note to a label to specify same node or differemt node.'''
         # We can only tell if there is a host part in the az
         # e.g. 'nova:GG34-7'
-        if ':' in self.client.az:
-            if self.client.az == self.server.az:
+        if ':' in client_az:
+            if client_az == self.server.az:
                 return label + ' (intra-node)'
             else:
                 return label + ' (inter-node)'
@@ -354,7 +354,7 @@ class VmtpTest(object):
         self.create_instance(self.client, client_az, int_net)
 
     def measure_flow(self, label, target_ip):
-        label = self.add_location(label)
+        label = self.add_location(label, self.client.az)
         FlowPrinter.print_desc(label)
 
         # results for this flow as a dict
@@ -390,20 +390,39 @@ class VmtpTest(object):
 
         # we should have 1 or 2 AZ to use (intra and inter-node)
         for client_az in self.client_az_list:
-            self.create_flow_client(client_az, self.net.vm_int_net[0])
-            self.measure_flow("VM to VM same network fixed IP",
-                              self.server.internal_ip)
+            flow_desc = "VM to VM same network fixed IP"
+            try:
+                self.create_flow_client(client_az, self.net.vm_int_net[0])
+            except VmtpException:
+                label = self.add_location(flow_desc, client_az)
+                perf_output = {'desc': label,
+                               'results': ['error: VM cannot be spawned.']}
+                self.rescol.add_flow_result(perf_output)
+                CONLOG.info(self.rescol.ppr.pformat(perf_output))
+                FILELOG.info(json.dumps(perf_output, sort_keys=True))
+                continue
+
+            self.measure_flow(flow_desc, self.server.internal_ip)
             self.client.dispose()
             self.client = None
             if not self.config.reuse_network_name and not self.config.same_network_only:
                 # Different network
-                self.create_flow_client(client_az, self.net.vm_int_net[1])
+                flow_desc = "VM to VM different network fixed IP"
+                try:
+                    self.create_flow_client(client_az, self.net.vm_int_net[1])
+                except VmtpException:
+                    label = self.add_location(flow_desc, client_az)
+                    perf_output = {'desc': label,
+                                   'results': 'error: VM cannot be spawned.'}
+                    self.rescol.add_flow_result(perf_output)
+                    CONLOG.info(self.rescol.ppr.pformat(perf_output))
+                    FILELOG.info(json.dumps(perf_output, sort_keys=True))
+                    continue
 
-                self.measure_flow("VM to VM different network fixed IP",
-                                  self.server.internal_ip)
+                self.measure_flow(flow_desc, self.server.internal_ip)
                 if not self.config.ipv6_mode:
-                    self.measure_flow("VM to VM different network floating IP",
-                                      self.server.ssh_access.host)
+                    flow_desc = "VM to VM different network floating IP"
+                    self.measure_flow(flow_desc, self.server.ssh_access.host)
 
                 self.client.dispose()
                 self.client = None
@@ -620,6 +639,9 @@ def print_report(results):
             idx1 = idx2 = 0
         for item in res:
             for idx3, proto in enumerate(['TCP', 'UDP', 'ICMP', 'Multicast']):
+                if isinstance(item, str) and item.find('error') != -1:
+                    run_status[idx0][idx1][idx2][idx3] = SFAIL
+                    continue
                 if (item['protocol'] == proto) and (run_status[idx0][idx1][idx2][idx3] != SFAIL):
                     if 'error' in item:
                         run_status[idx0][idx1][idx2][idx3] = SFAIL
@@ -946,7 +968,7 @@ def merge_opts_to_configs(opts):
         config = config_load(opts.config, config)
 
     if opts.show_config:
-        print default_cfg_file
+        print(default_cfg_file)
         sys.exit(0)
 
     if opts.version:
