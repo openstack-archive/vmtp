@@ -29,8 +29,8 @@ class Credentials(object):
         dct['auth_url'] = self.rc_auth_url
         if self.rc_identity_api_version == 3:
             dct['project_name'] = self.rc_project_name
-            dct['project_domain_id'] = self.rc_project_domain_id
-            dct['user_domain_id'] = self.rc_user_domain_id
+            dct['project_domain_name'] = self.rc_project_domain_name
+            dct['user_domain_name'] = self.rc_user_domain_name
         else:
             dct['tenant_name'] = self.rc_tenant_name
         return dct
@@ -47,8 +47,8 @@ class Credentials(object):
         self.rc_cacert = False
         self.rc_region_name = None
         self.rc_project_name = None
-        self.rc_project_domain_id = None
-        self.rc_user_domain_id = None
+        self.rc_project_domain_name = None
+        self.rc_user_domain_name = None
         self.rc_identity_api_version = 2
         success = True
 
@@ -89,12 +89,12 @@ class Credentials(object):
                             pwd = value
                         elif name == "PROJECT_NAME":
                             self.rc_project_name = value
-                        elif name == "PROJECT_DOMAIN_ID" or name == "PROJECT_DOMAIN_NAME":
-                            self.rc_project_domain_id = value
-                        elif name == "USER_DOMAIN_ID" or name == "USER_DOMAIN_NAME":
-                            self.rc_user_domain_id = value
+                        elif name == "PROJECT_DOMAIN_NAME":
+                            self.rc_project_domain_name = value
+                        elif name == "USER_DOMAIN_NAME":
+                            self.rc_user_domain_name = value
             else:
-                LOG.error('Error: rc file does not exist %s', openrc_file)
+                LOG.error('Error: rc file does not exist %s' % (openrc_file))
                 success = False
         elif not no_env:
             # no openrc file passed - we assume the variables have been
@@ -118,7 +118,7 @@ class Credentials(object):
 
             elif self.rc_identity_api_version == 3:
                 for varname in ['OS_USERNAME', 'OS_AUTH_URL', 'OS_PROJECT_NAME',
-                                'OS_PROJECT_DOMAIN_ID', 'OS_USER_DOMAIN_ID']:
+                                'OS_PROJECT_DOMAIN_NAME', 'OS_USER_DOMAIN_NAME']:
                     if varname not in os.environ:
                         LOG.warning('%s is missing', varname)
                         success = False
@@ -126,8 +126,8 @@ class Credentials(object):
                     self.rc_username = os.environ['OS_USERNAME']
                     self.rc_auth_url = os.environ['OS_AUTH_URL']
                     self.rc_project_name = os.environ['OS_PROJECT_NAME']
-                    self.rc_project_domain_id = os.environ['OS_PROJECT_DOMAIN_ID']
-                    self.rc_user_domain_id = os.environ['OS_USER_DOMAIN_ID']
+                    self.rc_project_domain_name = os.environ['OS_PROJECT_DOMAIN_NAME']
+                    self.rc_user_domain_name = os.environ['OS_USER_DOMAIN_NAME']
 
             if 'OS_CACERT' in os.environ:
                 self.rc_cacert = os.environ['OS_CACERT']
