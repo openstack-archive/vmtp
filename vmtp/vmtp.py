@@ -51,6 +51,7 @@ from prettytable import PrettyTable
 import sshutils
 
 flow_num = 0
+return_code = 0
 class FlowPrinter(object):
     @staticmethod
     def print_desc(desc):
@@ -701,6 +702,10 @@ def print_report(results):
                   "Skipped Scenarios": "%d" % (cnt_skipped)}
     FILELOG.info(json.dumps(ls_summary, sort_keys=True))
 
+    if cnt_failed:
+        global return_code
+        return_code = 1
+
 def normalize_paths(cfg):
     '''
     Normalize the various paths to config files, tools, ssh priv and pub key
@@ -1211,6 +1216,7 @@ def main():
     opts = parse_opts_from_cli()
     log.setup('vmtp', debug=opts.debug, logfile=opts.logfile)
     run_vmtp(opts)
+    sys.exit(return_code)
 
 if __name__ == '__main__':
     main()
