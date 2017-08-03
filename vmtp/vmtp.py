@@ -474,6 +474,8 @@ class VmtpTest(object):
             LOG.error('Stopping execution on error, cleanup all VMs/networks manually')
             sys.exit(2)
         else:
+            global return_code
+            return_code = 1
             self.teardown()
 
 def test_native_tp(nhosts, ifname, config):
