@@ -467,15 +467,15 @@ class VmtpTest(object):
         except KeyboardInterrupt:
             traceback.format_exc()
         except (VmtpException, sshutils.SSHError, ClientException, Exception):
+            global return_code
             LOG.error(traceback.format_exc())
             error_flag = True
+            return_code = 1
 
         if self.config.stop_on_error and error_flag:
             LOG.error('Stopping execution on error, cleanup all VMs/networks manually')
             sys.exit(2)
         else:
-            global return_code
-            return_code = 1
             self.teardown()
 
 def test_native_tp(nhosts, ifname, config):
