@@ -19,22 +19,30 @@ import os
 import time
 
 import glanceclient.exc as glance_exception
+import keystoneauth1
 from log import LOG
 import novaclient
 import novaclient.exceptions as exceptions
 
-class Compute(object):
+try:
+    from glanceclient.openstack.common.apiclient.exceptions import NotFound as GlanceImageNotFound
+except ImportError:
+    from glanceclient.v1.apiclient.exceptions import NotFound as GlanceImageNotFound
 
-    def __init__(self, nova_client, config):
+
+class Compute(object):
+    def __init__(self, nova_client, neutron, config):
         self.novaclient = nova_client
+        self.neutron = neutron
         self.config = config
 
-    def find_image(self, image_name):
+    def find_image(self, glance_client, image_name):
         try:
-            image = self.novaclient.images.find(name=image_name)
-            return image
-        except novaclient.exceptions.NotFound:
-            return None
+            return next(glance_client.images.list(filters={'name': image_name}), None)
+        except (novaclient.exceptions.NotFound, keystoneauth1.exceptions.http.NotFound,
+                GlanceImageNotFound):
+            pass
+        return None
 
     def upload_image_via_url(self, glance_client, final_image_name,
                              image_url, retry_count=60):
@@ -42,25 +50,22 @@ class Compute(object):
         Directly uploads image to Nova via URL if image is not present
         '''
         retry = 0
+        file_prefix = "file://"
+        if not image_url.startswith(file_prefix):
+            LOG.error("File format %s is not supported. It must start with %s", image_url,
+                      file_prefix)
+            return False
         try:
-            # check image is file/url based.
-            file_prefix = "file://"
-            if image_url.startswith(file_prefix):
-                image_location = image_url.split(file_prefix)[1]
-                with open(image_location) as f_image:
-                    img = glance_client.images.create(
-                        name=str(final_image_name), disk_format="qcow2",
-                        container_format="bare", is_public=True, data=f_image)
-            else:
-                # Upload the image
-                img = glance_client.images.create(
-                    name=str(final_image_name), disk_format="qcow2",
-                    container_format="bare", is_public=True,
-                    copy_from=image_url)
+            image_location = image_url.split(file_prefix)[1]
+            f_image = open(image_location, 'rb')
+            img = glance_client.images.create(name=str(final_image_name))
+            glance_client.images.update(img.id, disk_format="qcow2",
+                                        container_format="bare")
+            glance_client.images.upload(img.id, f_image)
 
             # Check for the image in glance
             while img.status in ['queued', 'saving'] and retry < retry_count:
-                img = glance_client.images.find(name=img.name)
+                img = self.find_image(glance_client, image_name=img.name)
                 retry = retry + 1
                 LOG.debug("Image not yet active, retrying %s of %s...", retry, retry_count)
                 time.sleep(2)
@@ -70,21 +75,17 @@ class Compute(object):
             LOG.error("Cannot upload image without admin access. Please make "
                       "sure the image is uploaded and is either public or owned by you.")
             return False
-        except IOError:
+        except (Exception, IOError):
             # catch the exception for file based errors.
             LOG.error("Failed while uploading the image. Please make sure the "
                       "image at the specified location %s is correct.", image_url)
-            return False
-        except Exception:
-            LOG.error("Failed while uploading the image, please make sure the "
-                      "cloud under test has the access to URL: %s.", image_url)
             return False
         return True
 
     def delete_image(self, glance_client, img_name):
         try:
             LOG.log("Deleting image %s...", img_name)
-            img = glance_client.images.find(name=img_name)
+            img = self.find_image(glance_client, img_name)
             glance_client.images.delete(img.id)
         except Exception:
             LOG.error("Failed to delete the image %s.", img_name)
@@ -150,7 +151,7 @@ class Compute(object):
                       config_drive=None, files=None, retry_count=10):
 
         if sec_group:
-            security_groups = [sec_group.name]
+            security_groups = [sec_group["name"]]
         else:
             security_groups = None
 
@@ -300,7 +301,7 @@ class Compute(object):
                     if hyp.zone == zone:
                         # matches
                         return az_host
-                    # else continue - another zone with same host name?
+                        # else continue - another zone with same host name?
             # no match
             LOG.error('No match for availability zone and host ' + az_host)
             return None
@@ -401,72 +402,85 @@ class Compute(object):
     # Create a new security group with appropriate rules
     def security_group_create(self):
         # check first the security group exists
-        # May throw exceptions.NoUniqueMatch or NotFound
-        try:
-            group = self.novaclient.security_groups.find(name=self.config.security_group_name)
-            return group
-        except exceptions.NotFound:
-            group = self.novaclient.security_groups.create(name=self.config.security_group_name,
-                                                           description="PNS Security group")
-            # Once security group try to find it iteratively
-            # (this check may no longer be necessary)
-            for _ in range(self.config.generic_retry_count):
-                group = self.novaclient.security_groups.get(group)
-                if group:
-                    self.security_group_add_rules(group)
-                    return group
-                else:
-                    time.sleep(1)
-            return None
-        # except exceptions.NoUniqueMatch as exc:
-        #    raise exc
+        for security_group in self.neutron.list_security_groups()["security_groups"]:
+            if security_group["name"] == self.config.security_group_name:
+                return security_group
+        group = self.neutron.create_security_group({
+            "security_group": {
+                "name": self.config.security_group_name,
+                "description": "PNS Security groups"}})
+        self.security_group_add_rules(group["security_group"])
+        return group["security_group"]
 
     # Delete a security group
     def security_group_delete(self, group):
         if group:
             LOG.info("Deleting security group")
-            self.novaclient.security_groups.delete(group)
+            self.neutron.delete_security_group(group["id"])
 
     # Add rules to the security group
     def security_group_add_rules(self, group):
+
         # Allow ping traffic
-        self.novaclient.security_group_rules.create(group.id,
-                                                    ip_protocol="icmp",
-                                                    from_port=-1,
-                                                    to_port=-1)
+        self.neutron.create_security_group_rule(
+            self.generate_security_group_rule_dict(group_id=group["id"],
+                                                   protocol="icmp"))
+
         if self.config.ipv6_mode:
-            self.novaclient.security_group_rules.create(group.id,
-                                                        ip_protocol="icmp",
-                                                        from_port=-1,
-                                                        to_port=-1,
-                                                        cidr="::/0")
+            self.neutron.create_security_group_rule(
+                self.generate_security_group_rule_dict(group_id=group["id"],
+                                                       protocol="icmp",
+                                                       ether_type="IPv6"))
+
         # Allow SSH traffic
-        self.novaclient.security_group_rules.create(group.id,
-                                                    ip_protocol="tcp",
-                                                    from_port=22,
-                                                    to_port=22)
+        self.neutron.create_security_group_rule(
+            self.generate_security_group_rule_dict(group_id=group["id"],
+                                                   protocol="tcp",
+                                                   port_range_min=22,
+                                                   port_range_max=22))
+
         # Allow TCP/UDP traffic for perf tools like iperf/nuttcp
         # 5001: Data traffic (standard iperf data port)
         # 5002: Control traffic (non standard)
         # note that 5000/tcp is already picked by openstack keystone
         if not self.config.ipv6_mode:
-            self.novaclient.security_group_rules.create(group.id,
-                                                        ip_protocol="tcp",
-                                                        from_port=5001,
-                                                        to_port=5002)
-            self.novaclient.security_group_rules.create(group.id,
-                                                        ip_protocol="udp",
-                                                        from_port=5001,
-                                                        to_port=5001)
+            self.neutron.create_security_group_rule(
+                self.generate_security_group_rule_dict(group_id=group["id"],
+                                                       protocol="tcp",
+                                                       port_range_min=5001,
+                                                       port_range_max=5002))
+            self.neutron.create_security_group_rule(
+                self.generate_security_group_rule_dict(group_id=group["id"],
+                                                       protocol="udp",
+                                                       port_range_min=5001,
+                                                       port_range_max=5002))
+
         else:
             # IPV6 rules addition
-            self.novaclient.security_group_rules.create(group.id,
-                                                        ip_protocol="tcp",
-                                                        from_port=5001,
-                                                        to_port=5002,
-                                                        cidr="::/0")
-            self.novaclient.security_group_rules.create(group.id,
-                                                        ip_protocol="udp",
-                                                        from_port=5001,
-                                                        to_port=5001,
-                                                        cidr="::/0")
+            self.neutron.create_security_group_rule(
+                self.generate_security_group_rule_dict(group_id=group["id"],
+                                                       protocol="tcp",
+                                                       ethertype="IPv6",
+                                                       port_range_min=5001,
+                                                       port_range_max=5002))
+            self.neutron.create_security_group_rule(
+                self.generate_security_group_rule_dict(group_id=group["id"],
+                                                       protocol="udp",
+                                                       ethertype="IPv6",
+                                                       port_range_min=5001,
+                                                       port_range_max=5002))
+
+    # Generates dict for security group rule
+    def generate_security_group_rule_dict(self, group_id, protocol, ethertype='IPv4',
+                                          port_range_min=None,
+                                          port_range_max=None):
+        return {
+            'security_group_rule': {
+                'direction': 'ingress',
+                'security_group_id': group_id,
+                'ethertype': ethertype,
+                'port_range_min': port_range_min,
+                'port_range_max': port_range_max,
+                'protocol': protocol,
+                'remote_group_id': None,
+                'remote_ip_prefix': '0.0.0.0/0'}}

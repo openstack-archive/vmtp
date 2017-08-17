@@ -30,7 +30,7 @@ import compute
 from config import config_load
 from config import config_loads
 import credentials
-from glanceclient import client as glanceclient
+from glanceclient.v2 import client as glanceclient
 import iperf_tool
 from keystoneclient.auth.identity import v2 as keystone_v2
 from keystoneclient.auth.identity import v3 as keystone_v3
@@ -52,6 +52,8 @@ import sshutils
 
 flow_num = 0
 return_code = 0
+
+
 class FlowPrinter(object):
     @staticmethod
     def print_desc(desc):
@@ -60,8 +62,8 @@ class FlowPrinter(object):
         CONLOG.info("=" * 60)
         LOG.info('Flow %d: %s', flow_num, desc)
 
-class ResultsCollector(object):
 
+class ResultsCollector(object):
     def __init__(self):
         self.results = {'flows': []}
         self.results['date'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -109,7 +111,7 @@ class ResultsCollector(object):
     def save_to_db(self, cfg):
         '''Save results to MongoDB database.'''
         LOG.info("Saving results to MongoDB database...")
-        post_id = pns_mongo.\
+        post_id = pns_mongo. \
             pns_add_test_result_to_mongod(cfg.vmtp_mongod_ip,
                                           cfg.vmtp_mongod_port,
                                           cfg.vmtp_db,
@@ -118,8 +120,10 @@ class ResultsCollector(object):
         if post_id is None:
             LOG.error("Failed to add result to DB")
 
+
 class VmtpException(Exception):
     pass
+
 
 class VmtpTest(object):
     def __init__(self, config, cred, rescol):
@@ -209,23 +213,25 @@ class VmtpTest(object):
             # Create the nova and neutron instances
             nova_client = novaclient.Client('2', session=sess)
             neutron = neutronclient.Client('2.0', session=sess)
+            self.glance_client = glanceclient.Client('2', session=sess)
 
-            self.comp = compute.Compute(nova_client, self.config)
+            self.comp = compute.Compute(nova_client, neutron, self.config)
 
             # Add the appropriate public key to openstack
             self.comp.init_key_pair(self.config.public_key_name, self.instance_access)
 
-            self.image_instance = self.comp.find_image(self.config.image_name)
+            self.image_instance = self.comp.find_image(self.glance_client, self.config.image_name)
             if self.image_instance is None:
+                print(len(self.config.vm_image_url))
                 if self.config.vm_image_url != "":
                     LOG.info('%s: image for VM not found, trying to upload it ...',
                              self.config.image_name)
-                    self.glance_client = glanceclient.Client('1', session=sess)
                     self.comp.upload_image_via_url(
                         self.glance_client,
                         self.config.image_name,
                         self.config.vm_image_url)
-                    self.image_instance = self.comp.find_image(self.config.image_name)
+                    self.image_instance = self.comp.find_image(self.glance_client,
+                                                               self.config.image_name)
                     self.image_uploaded = True
                 else:
                     # Exit the pogram
@@ -478,6 +484,7 @@ class VmtpTest(object):
         else:
             self.teardown()
 
+
 def test_native_tp(nhosts, ifname, config):
     FlowPrinter.print_desc('Native Host to Host throughput')
     result_list = []
@@ -532,6 +539,7 @@ def test_native_tp(nhosts, ifname, config):
 
     return result_list
 
+
 def get_controller_info(ssh_access, net, res_col, retry_count):
     if not ssh_access:
         return
@@ -557,6 +565,7 @@ def get_controller_info(ssh_access, net, res_col, retry_count):
     FILELOG.info(json.dumps(res, sort_keys=True))
 
     res_col.add_properties(res)
+
 
 def gen_report_data(proto, result):
     try:
@@ -607,8 +616,8 @@ def gen_report_data(proto, result):
         traceback.print_exc()
     return retval
 
-def print_report(results):
 
+def print_report(results):
     # In order to parse the results with less logic, we are encoding the results as below:
     # Same Network = 0, Different Network = 1
     # Fixed IP = 0, Floating IP = 1
@@ -708,6 +717,7 @@ def print_report(results):
         global return_code
         return_code = 1
 
+
 def normalize_paths(cfg):
     '''
     Normalize the various paths to config files, tools, ssh priv and pub key
@@ -720,6 +730,7 @@ def normalize_paths(cfg):
         cfg.public_key_file = os.path.abspath(os.path.expanduser(cfg.public_key_file))
     if cfg.private_key_file:
         cfg.private_key_file = os.path.expanduser(os.path.expanduser(cfg.private_key_file))
+
 
 def get_ssh_access(opt_name, opt_value, config):
     '''Allocate a HostSshAccess instance to the option value
@@ -737,6 +748,7 @@ def get_ssh_access(opt_name, opt_value, config):
         LOG.error('Error for --' + (opt_name + ':' + host_access.error))
         sys.exit(2)
     return host_access
+
 
 def parse_opts_from_cli():
     parser = argparse.ArgumentParser()
@@ -947,6 +959,7 @@ def parse_opts_from_cli():
 
     return parser.parse_known_args()[0]
 
+
 def decode_size_list(argname, size_list):
     try:
         pkt_sizes = size_list.split(',')
@@ -958,8 +971,8 @@ def decode_size_list(argname, size_list):
         sys.exit(1)
     return pkt_sizes
 
-def merge_opts_to_configs(opts):
 
+def merge_opts_to_configs(opts):
     default_cfg_file = resource_string(__name__, "cfg.default.yaml")
     # read the default configuration file and possibly an override config file
     # the precedence order is as follows:
@@ -1056,7 +1069,6 @@ def merge_opts_to_configs(opts):
             sys.exit(1)
         config.vm_bandwidth = int(val * (10 ** (ex_unit * 3)))
 
-
     # the pkt size for TCP, UDP and ICMP
     if opts.tcp_pkt_sizes:
         config.tcp_pkt_sizes = decode_size_list('--tcpbuf', opts.tcp_pkt_sizes)
@@ -1129,6 +1141,7 @@ def merge_opts_to_configs(opts):
         config.tp_tool = None
 
     return config
+
 
 def run_vmtp(opts):
     '''Run VMTP
@@ -1214,11 +1227,13 @@ def run_vmtp(opts):
 
     return rescol.results
 
+
 def main():
     opts = parse_opts_from_cli()
     log.setup('vmtp', debug=opts.debug, logfile=opts.logfile)
     run_vmtp(opts)
     sys.exit(return_code)
+
 
 if __name__ == '__main__':
     main()
