@@ -386,8 +386,8 @@ class VmtpTest(object):
     def measure_vm_flows(self):
         # scenarios need to be tested for both inter and intra node
         # 1. VM to VM on same data network
-        # 2. VM to VM on seperate networks fixed-fixed
-        # 3. VM to VM on seperate networks floating-floating
+        # 2. VM to VM on separate networks fixed-fixed
+        # 3. VM to VM on separate networks floating-floating
 
         # we should have 1 or 2 AZ to use (intra and inter-node)
         for client_az in self.client_az_list:
@@ -954,7 +954,7 @@ def decode_size_list(argname, size_list):
             pkt_sizes[i] = int(pkt_sizes[i])
     except ValueError:
         LOG.error('Invalid %s parameter. A valid input must be '
-                  'integers seperated by comma.' % argname)
+                  'integers separated by comma.' % argname)
         sys.exit(1)
     return pkt_sizes
 

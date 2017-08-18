@@ -90,7 +90,7 @@ def search_documents_in_collection(collection, pattern):
     try:
         output = collection.find(pattern)
     except TypeError:
-        print "A TypeError occured. Invalid pattern: ", pattern
+        print "A TypeError occurred. Invalid pattern: ", pattern
         return None
 
     return output
