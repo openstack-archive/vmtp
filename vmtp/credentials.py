@@ -15,6 +15,9 @@
 
 # Module for credentials in Openstack
 import getpass
+from keystoneauth1.identity import v2
+from keystoneauth1.identity import v3
+from keystoneauth1 import session
 import os
 import re
 
@@ -35,6 +38,27 @@ class Credentials(object):
             dct['tenant_name'] = self.rc_tenant_name
         return dct
 
+    def get_session(self):
+        dct = {
+            'username': self.rc_username,
+            'password': self.rc_password,
+            'auth_url': self.rc_auth_url
+        }
+
+        if self.rc_identity_api_version == 3:
+            dct.update({
+                'project_name': self.rc_project_name,
+                'project_domain_name': self.rc_project_domain_name,
+                'user_domain_name': self.rc_user_domain_name
+            })
+            auth = v3.Password(**dct)
+        else:
+            dct.update({
+                'tenant_name': self.rc_tenant_name
+            })
+            auth = v2.Password(**dct)
+        return session.Session(auth=auth, verify=self.rc_cacert)
+
     #
     # Read a openrc file and take care of the password
     # The 2 args are passed from the command line and can be None
@@ -44,7 +68,7 @@ class Credentials(object):
         self.rc_username = None
         self.rc_tenant_name = None
         self.rc_auth_url = None
-        self.rc_cacert = False
+        self.rc_cacert = None
         self.rc_region_name = None
         self.rc_project_name = None
         self.rc_project_domain_name = None
@@ -75,7 +99,7 @@ class Credentials(object):
                             self.rc_identity_api_version = int(value)
 
                         # now match against wanted variable names
-                        if name == 'USERNAME':
+                        elif name == 'USERNAME':
                             self.rc_username = value
                         elif name == 'AUTH_URL':
                             self.rc_auth_url = value
@@ -87,12 +111,12 @@ class Credentials(object):
                             self.rc_region_name = value
                         elif name == "PASSWORD" and not pwd:
                             pwd = value
+                        elif name == "USER_DOMAIN_NAME":
+                            self.rc_user_domain_name = value
                         elif name == "PROJECT_NAME":
                             self.rc_project_name = value
                         elif name == "PROJECT_DOMAIN_NAME":
                             self.rc_project_domain_name = value
-                        elif name == "USER_DOMAIN_NAME":
-                            self.rc_user_domain_name = value
             else:
                 LOG.error('Error: rc file does not exist %s' % (openrc_file))
                 success = False

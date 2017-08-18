@@ -32,10 +32,7 @@ from config import config_loads
 import credentials
 from glanceclient import client as glanceclient
 import iperf_tool
-from keystoneclient.auth.identity import v2 as keystone_v2
-from keystoneclient.auth.identity import v3 as keystone_v3
 from keystoneclient import client as keystoneclient
-from keystoneclient import session
 from log import CONLOG
 from log import FILELOG
 from log import LOG
@@ -199,12 +196,7 @@ class VmtpTest(object):
 
         # If we need to reuse existing vms just return without setup
         if not self.config.reuse_existing_vm:
-            creds = self.cred.get_credentials()
-            if self.cred.rc_identity_api_version == 3:
-                auth = keystone_v3.Password(**creds)
-            else:
-                auth = keystone_v2.Password(**creds)
-            sess = session.Session(auth=auth, verify=self.cred.rc_cacert)
+            sess = self.cred.get_session()
 
             # Create the nova and neutron instances
             nova_client = novaclient.Client('2', session=sess)
