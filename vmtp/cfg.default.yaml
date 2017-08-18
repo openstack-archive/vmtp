@@ -202,7 +202,7 @@ os_dataplane_network: 'physnet1'
 
 ########################################
 # MongoDB pns database.
-# use "official_db" for offical runs only.
+# use "official_db" for official runs only.
 ########################################
 vmtp_db: "client_db"
 

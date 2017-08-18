@@ -2770,7 +2770,7 @@ main( int argc, char **argv )
 			}
 			af = res[stream_idx]->ai_family;
 /*
- * At the moment PF_ matches AF_ but are maintained seperate and the socket
+ * At the moment PF_ matches AF_ but are maintained separate and the socket
  * call is supposed to be PF_
  *
  * For now we set domain from the address family we looked up, but if these
