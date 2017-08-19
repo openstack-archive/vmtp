@@ -35,7 +35,7 @@ def get_bdw_kbps(bdw, bdw_unit):
 class IperfTool(PerfTool):
 
     def __init__(self, instance):
-        PerfTool.__init__(self, 'iperf', instance)
+        PerfTool.__init__(self, 'iperf-2.0.9', instance)
 
     def get_server_launch_cmd(self):
         '''Return the command to launch the server side.'''

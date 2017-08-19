@@ -21,7 +21,7 @@ import sshutils
 class NuttcpTool(PerfTool):
 
     def __init__(self, instance):
-        PerfTool.__init__(self, 'nuttcp-7.3.2', instance)
+        PerfTool.__init__(self, 'nuttcp-8.1.4', instance)
 
     def get_server_launch_cmd(self):
         '''Return the commands to launch the server side.'''
@@ -201,8 +201,8 @@ class NuttcpTool(PerfTool):
         else:
             # TCP output:
             # megabytes=1083.4252 real_seconds=10.04 rate_Mbps=905.5953 tx_cpu=3 rx_cpu=19
-            #      retrans=0 rtt_ms=0.55
-            re_tcp = r'rate_Mbps=([\d\.]*) tx_cpu=\d* rx_cpu=\d* retrans=(\d*) rtt_ms=([\d\.]*)'
+            #      retrans=0 cwnd=3202 rtt_ms=0.55
+            re_tcp = r'rate_Mbps=([\d\.]*) tx_cpu=\d* rx_cpu=\d* retrans=(\d*) cwnd=\d* rtt_ms=([\d\.]*)'
             match = re.search(re_tcp, cmd_out)
             if match:
                 rate_mbps = float(match.group(1))
