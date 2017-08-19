@@ -580,7 +580,8 @@ def gen_report_data(proto, result):
             if proto in ['TCP', 'Upload', 'Download']:
                 tcp_test_count = tcp_test_count + 1
                 retval['tp_kbps'] += item['throughput_kbps']
-                retval['rtt_ms'] += item['rtt_ms']
+                # iperf doesn't support to have rtt_ms
+                retval['rtt_ms'] += item.get('rtt_ms', 0)
             elif proto == 'UDP' or proto == 'Multicast':
                 retval[item['pkt_size']]['tp_kbps'] = item['throughput_kbps']
                 retval[item['pkt_size']]['loss_rate'] = item['loss_rate']
@@ -601,8 +602,12 @@ def gen_report_data(proto, result):
                 retval['rtt avg/min/max/stddev msec'] = pkt_size_results
 
         if proto in ['TCP', 'Upload', 'Download']:
-            for key in retval:
-                retval[key] = '{0:n}'.format(retval[key] / tcp_test_count)
+            for key in retval.keys():
+                if retval[key]:
+                    retval[key] = '{0:n}'.format(retval[key] / tcp_test_count)
+                else:
+                    retval.pop(key)
+
     except Exception:
         retval = "ERROR! Check JSON outputs for more details."
         traceback.print_exc()

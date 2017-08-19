@@ -1,8 +1,8 @@
 /*
- *	N U T T C P . C						v7.3.2
+ *	N U T T C P . C						v8.1.4
  *
- * Copyright(c) 2000 - 2014 Bill Fink.  All rights reserved.
- * Copyright(c) 2003 - 2014 Rob Scott.  All rights reserved.
+ * Copyright(c) 2000 - 2016 Bill Fink.  All rights reserved.
+ * Copyright(c) 2003 - 2016 Rob Scott.  All rights reserved.
  *
  * nuttcp is free, opensource software.  You can redistribute it and/or
  * modify it under the terms of Version 2 of the GNU General Public
@@ -18,7 +18,7 @@
  * Developed by Bill Fink, billfink@mindspring.com
  *          and Rob Scott, rob@hpcmo.hpc.mil
  * Latest version available at:
- *	http://lcp.nrl.navy.mil/nuttcp/
+ *	http://nuttcp.net/nuttcp/beta/
  *
  * Test TCP connection.  Makes a connection on port 5000(ctl)/5101(data)
  * and transfers fabricated buffers or data copied from stdin.
@@ -29,6 +29,27 @@
  *      T.C. Slattery, USNA
  * Minor improvements, Mike Muuss and Terry Slattery, 16-Oct-85.
  *
+ * 8.1.4, Rob Scott, 1-Nov-16
+ *	Fix to allow compile with -Werror=format-security as noted by Dhiru Kholia in fedora bug 1037224
+ *	Fix missing brackets caught by -Wmisleading-indentation
+ *      Add code to print out address family of connect/accept
+ *      Add code to translate v4mapped addresses
+ * 8.1.3, Bill Fink, 9-Sep-16
+ *	Fix to allow direct I/O on block devices
+ *	Fix parsing of "-R i[s]##[/##]" (blank between 'R' and 'i')
+ *	Updated Copyright notice for new year
+ * 8.1.2, Bill Fink, 5-Sep-16
+ *	Fix to not exercise 8.0.1 and 8.1.1 features for non-Linux systems
+ *	Changed nuttcp site to http://nuttcp.net/nuttcp/beta/
+ *	Added define test for NOT_LINUX to undefine LINUX for build testing
+ * 8.1.1, Bill Fink, 31-Aug-16
+ *	Add "-Ris##" option to emulate smoothed slow start behavior (Linux only)
+ * 8.0.1, Bill Fink, 22-Aug-16
+ *	Add reporting of TCP congestion window
+ * 7.3.4, Rob Scott & Bill Fink, 18-Jul-16
+ *	Use clock_gettime() on Windows/CYGWIN and Linux (if available)
+ * 7.3.3, Rob Scott, 1-May-15
+ *	Fix tos to work for ipv6 by setting traffic class
  * 7.3.2, Bill Fink, 3-Aug-14
  *	Allow longer server info timeout for third party via --idle-data-timeout
  * 7.3.1, Bill Fink, 27-Jul-14
@@ -501,6 +522,10 @@ static char RCSid[] = "@(#)$Revision: 1.2 $ (BRL)";
 #endif
 */
 
+#ifdef NOT_LINUX
+#undef linux
+#endif
+
 #ifndef WANT_WUR
 #undef _FORTIFY_SOURCE
 #else
@@ -551,6 +576,18 @@ static char RCSid[] = "@(#)$Revision: 1.2 $ (BRL)";
 #include <unistd.h>
 #include <sys/wait.h>
 #include <strings.h>
+#endif
+
+#ifndef USE_GETTIMEOFDAY
+#ifndef HAVE_CLOCK_GETTIME
+#if (defined(linux) && defined(_POSIX_TIMERS) && (_POSIX_TIMERS > 0) && (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 17)) || defined(__CYGWIN__)
+#define HAVE_CLOCK_GETTIME
+#endif
+#endif
+#endif
+
+#ifdef HAVE_CLOCK_GETTIME
+#include <time.h>		/* clock_gettime */
 #endif
 
 #ifndef ULLONG_MAX
@@ -614,6 +651,17 @@ typedef int socklen_t;
 #if !defined(EAI_NONAME)
 #include "addrinfo.h"			/* from missing */
 #endif
+
+/*
+ * The following macro is from openssh defines.h by Tatu Ylonen and marked "can be used freely for any purpose"
+ */
+#if !defined(IN6_IS_ADDR_V4MAPPED)
+#define IN6_IS_ADDR_V4MAPPED(a)               \
+        ((*(const __uint32_t *)(const void *)(&(a)->s6_addr[0]) == 0) && \
+        (*(const __uint32_t *)(const void *)(&(a)->s6_addr[4]) == 0) && \
+        (*(const __uint32_t *)(const void *)(&(a)->s6_addr[8]) == \
+        ntohl(0x0000ffff)))
+#endif /* !defined(IN6_IS_ADDR_V4MAPPED) */
 
 #define BETA_STR	"-beta8"
 #define BETA_FEATURES	"jitter/owd"
@@ -690,6 +738,12 @@ static struct	sigaction savesigact;
 #define RETRANS_FMT_BRIEF_STR2 " retrans"
 #define RETRANS_FMT_INTERVAL " %5d %sretrans"
 #define RETRANS_FMT_IN	"retrans = %d"
+#define CWND_FMT	" cwnd = %d KB"
+#define CWND_FMT_BRIEF " %d KB-cwnd"
+#define CWND_FMT_BRIEF_STR1 " %d = %d"
+#define CWND_FMT_BRIEF_STR2 " KB-cwnd"
+#define CWND_FMT_INTERVAL " %6d KB-cwnd"
+#define CWND_FMT_IN	"cwnd = %d"
 #define RTT_FMT		" RTT=%.3f ms"
 #define RTT_FMT_BRIEF	" %.2f msRTT"
 #define RTT_FMT_IN	"RTT=%lf"
@@ -756,6 +810,11 @@ static struct	sigaction savesigact;
 #define P_RETRANS_FMT_BRIEF	" %sretrans=%d"
 #define P_RETRANS_FMT_INTERVAL	" %sretrans=%d"
 #define P_RETRANS_FMT_IN	"retrans=%d"
+#define P_CWND_FMT		" cwnd=%d"
+#define P_CWND_FMT_STREAMS	" cwnd_by_stream=%d"
+#define P_CWND_FMT_BRIEF	" cwnd=%d"
+#define P_CWND_FMT_INTERVAL	" cwnd=%d"
+#define P_CWND_FMT_IN		"cwnd=%d"
 #define P_RTT_FMT		" rtt_ms=%.3f"
 #define P_RTT_FMT_BRIEF		" rtt_ms=%.2f"
 #define P_RTT_FMT_IN		"rtt_ms=%lf"
@@ -804,7 +863,10 @@ static struct	sigaction savesigact;
 #define TCP_ADV_WIN_SCALE	"/proc/sys/net/ipv4/tcp_adv_win_scale"
 #endif
 
+#define DEBUGOUTPUT		"/tmp/nuttcp-debugout.foo"
+
 #define BRIEF_RETRANS_STREAMS	0x2	/* brief per stream retrans info */
+#define BRIEF_CWND_STREAMS	0x4	/* brief per stream cwnd info */
 
 #define XMITSTATS		0x1	/* also give transmitter stats (MB) */
 #define DEBUGINTERVAL		0x2	/* add info to assist with
@@ -822,6 +884,8 @@ static struct	sigaction savesigact;
 #define	NOBETAMSG		0x400	/* suppress beta version message */
 #define	WANTRTT			0x800	/* output RTT info (default) */
 #define DEBUGJITTER		0x1000	/* debugging info for jitter option */
+#define	NOCWND			0x2000	/* no cwnd stats for "-i" */
+#define DEBUGIRATE		0x4000	/* debugging info for irate option */
 
 #ifdef NO_IPV6				/* Build without IPv6 support */
 #undef AF_INET6
@@ -836,6 +900,7 @@ static void err( char *s );
 static void mes( char *s );
 static void errmes( char *s );
 void pattern( char *cp, int cnt );
+void get_timeofday( struct timeval *tv, struct timezone *tz );
 void prep_timer();
 double read_timer( char *str, int len );
 static void prusage( struct rusage *r0,  struct rusage *r1, struct timeval *e, struct timeval *b, char *outp );
@@ -849,15 +914,13 @@ int mread( int fd, char *bufp, unsigned n );
 int mwrite( int fd, char *bufp, unsigned n, int last_write );
 char *getoptvalp( char **argv, int index, int reqval, int *skiparg );
 
-int get_retrans( int sockfd );
-
 #if defined(linux) && defined(TCPI_OPT_TIMESTAMPS)
 void print_tcpinfo();
 #endif
 
-int vers_major = 7;
-int vers_minor = 3;
-int vers_delta = 2;
+int vers_major = 8;
+int vers_minor = 1;
+int vers_delta = 4;
 int ivers;
 int rvers_major = 0;
 int rvers_minor = 0;
@@ -907,6 +970,7 @@ int sendwinavail=0, rcvwinavail=0, winadjust=0;
 
 #if defined(linux) && defined(TCPI_OPT_TIMESTAMPS)
 #ifdef OLD_TCP_INFO
+#define STRUCT_TCPINFO tcpinfo
 struct tcpinfo {		/* for collecting TCP retransmission info */
 	struct tcp_info	_tcpinf;
 	/* add missing structure elements */
@@ -927,6 +991,7 @@ struct tcpinfo {		/* for collecting TCP retransmission info */
 #define tcpinfo_snd_ssthresh	_tcpinf.tcpi_snd_ssthresh
 #define tcpinfo_snd_cwnd	_tcpinf.tcpi_snd_cwnd
 #else
+#define STRUCT_TCPINFO tcp_info
 struct tcp_info tcpinf;
 #define tcpinfo_state		tcpi_state
 #define tcpinfo_ca_state	tcpi_ca_state
@@ -941,7 +1006,14 @@ struct tcp_info tcpinf;
 #define tcpinfo_snd_ssthresh	tcpi_snd_ssthresh
 #define tcpinfo_snd_cwnd	tcpi_snd_cwnd
 #endif
+#else
+#define STRUCT_TCPINFO dummy_tcp_info
+struct dummy_tcp_info {
+	int	dummy1;
+} tcpinf;
 #endif
+
+int get_retrans( int sockfd, struct STRUCT_TCPINFO *tcpinfo );
 
 int udp = 0;			/* 0 = tcp, !0 = udp */
 int udplossinfo = 0;		/* set to 1 to give UDP loss info for
@@ -958,6 +1030,14 @@ int read_retrans = 1;		/* set to 0 if no need to read retrans info */
 int got_0retrans = 0;		/* set to 1 by client transmitter after
 				 * processing initial server output
 				 * having "0 retrans" */
+
+int init_pkt_cwnd = 0;		/* initial congestion window in packets */
+int sss_pkt_cwnd = 0;		/* smoothed slow start congestion window */
+int cwndinfo = 0;		/* set to 1 to give TCP congestion window info
+				 * for interval reporting */
+int send_cwnd = 1;		/* set to 0 if no need to send cwnd info */
+int do_cwnd = 0;		/* set to 1 for client transmitter */
+int read_cwnd = 1;		/* set to 0 if no need to read cwnd info */
 
 int need_swap;			/* client and server are different endian */
 int options = 0;		/* socket options */
@@ -1013,6 +1093,7 @@ unsigned long rate = MAXRATE;	/* transmit rate limit in Kbps */
 int maxburst = 1;		/* number of packets allowed to exceed rate */
 int nburst = 1;			/* number of packets currently exceeding rate */
 int irate = -1;			/* instantaneous rate limit if set */
+int iratesss = 0;		/* set if emulating smoothed slow start */
 double pkt_time;		/* packet transmission time in seconds */
 double pkt_time_ms;		/* packet transmission time in milliseconds */
 uint64_t irate_pk_usec;		/* packet transmission time in microseconds */
@@ -1100,6 +1181,7 @@ pid_t pid;			/* process id when forking server process */
 pid_t wait_pid;			/* return of wait system call */
 int pidstat;			/* status of forked process */
 FILE *ctlconn;			/* uses fd[0] for control channel */
+FILE *debugout;			/* used for voluminous nuttcp debug output */
 int savestdin;			/* used to save real standard in */
 int savestdout;			/* used to save real standard out */
 int firsttime = 1;		/* flag for first pass through server */
@@ -1147,8 +1229,11 @@ Usage (transmitter): nuttcp [-t] [-options] [ctl_addr/]host [3rd-party] [<in]\n\
 	-M##	MSS for data connection (TCP)\n\
 	-N##	number of streams (starting at port number), implies -B\n\
 	-R##	transmit rate limit in Kbps (or (m|M)bps or (g|G)bps or (p)ps)\n\
-	-Ri#[/#] instantaneous rate limit with optional packet burst\n\
-	-T##	transmit timeout in seconds (or (m|M)inutes or (h|H)ours)\n\
+	-Ri#[/#] instantaneous rate limit with optional packet burst\n"
+#if defined(linux)
+"	-Ris##  emulated smoothed slow start option for -Ri option (TCP)\n"
+#endif
+"	-T##	transmit timeout in seconds (or (m|M)inutes or (h|H)ours)\n\
 	-j	enable jitter measurements (assumes -u and -Ri options)\n\
 	-o	enable one-way delay reports (needs synchronized clocks)\n\
 	-i##	receiver interval reporting in seconds (or (m|M)inutes)\n\
@@ -1166,8 +1251,11 @@ Usage (transmitter): nuttcp [-t] [-options] [ctl_addr/]host [3rd-party] [<in]\n\
 "	-d	set TCP SO_DEBUG option on data socket\n\
 	-v[v]	verbose [or very verbose] output\n\
 	-b	brief output (default)\n\
-	-br	add per-stream TCP retrans info to brief summary (Linux only)\n\
-	-D	xmit only: don't buffer TCP writes (sets TCP_NODELAY sockopt)\n\
+	-br	add per-stream TCP retrans info to brief summary (Linux only)\n"
+#if defined(linux)
+"	-bc	add per-stream TCP cwnd info to brief summary (Linux only)\n"
+#endif
+"	-D	xmit only: don't buffer TCP writes (sets TCP_NODELAY sockopt)\n\
 	-B	recv only: only output full blocks of size from -l## (for TAR)\n"
 "	--packet-burst packet burst value for instantaneous rate limit option\n"
 "	--idle-data-timeout <value|minimum/default/maximum>  (default: 15/30/60)\n"
@@ -1223,8 +1311,11 @@ Format options:\n\
 	-fxmitstats	also give transmitter stats (MB) with -i (UDP only)\n\
 	-frunningtotal	also give cumulative stats on interval reports\n\
 	-f-drops	don't give packet drop info on brief output (UDP)\n\
-	-f-retrans	don't give retrans info on brief output (TCP)\n\
-	-f-percentloss	don't give %%loss info on brief output (UDP)\n\
+	-f-retrans	don't give retrans info on brief output (TCP)\n"
+#if defined(linux)
+"	-f-cwnd		don't give cwnd info on brief output (TCP)\n"
+#endif
+"	-f-percentloss	don't give %%loss info on brief output (UDP)\n\
 	-fparse		generate key=value parsable output\n\
 	-f-beta		suppress beta version message\n\
 	-f-rtt		suppress RTT info \n\
@@ -1246,10 +1337,12 @@ uint64_t chk_nbytes = 0;	/* byte counter used to test if no more data
 				 * client transmitter went away */
 
 double rtt = 0.0;		/* RTT between client and server in ms */
+int which_rt = 1;		/* which round trip for "-Ris" */
 uint32_t nretrans[MAXSTREAM+1];	/* number of TCP retransmissions */
 uint32_t iretrans[MAXSTREAM+1];	/* initial number of TCP retransmissions */
 uint32_t pretrans = 0;		/* previous number of TCP retransmissions */
 uint32_t sretrans = 0;		/* number of system TCP retransmissions */
+uint32_t cwnd[MAXSTREAM+1];	/* TCP congestion window in KB */
 
 int numCalls = 0;		/* # of NRead/NWrite calls. */
 int nstream = 1;		/* number of streams */
@@ -1408,9 +1501,14 @@ sigalarm( int signum )
 		exit(1);
 	}
 
+#ifdef HAVE_CLOCK_GETTIME
+	timec.tv_sec  = 0;	/* silence bogus compiler warning */
+	timec.tv_usec = 0;	/* silence bogus compiler warning */
+#endif
+
 	if (interval && !trans) {
 		/* Get real time */
-		gettimeofday(&timec, (struct timezone *)0);
+		get_timeofday(&timec, (struct timezone *)0);
 		tvsub( &timed, &timec, &timep );
 		realtd = timed.tv_sec + ((double)timed.tv_usec) / 1000000;
 		if (realtd <= 0.0)  realtd = 0.000001;
@@ -1526,6 +1624,18 @@ sigalarm( int signum )
 						*cp1++ = *cp2--;
 				}
 			}
+			if (read_cwnd) {
+				cwnd[1] = *(uint32_t *)(buf + 28);
+				if (need_swap) {
+					cp1 = (char *)&cwnd[1];
+					cp2 = buf + 31;
+					for ( i = 0; i < 4; i++ )
+						*cp1++ = *cp2--;
+				}
+				if ((cwnd[1] == 0x5254524Eu) ||    /* "RTRN" */
+				    (cwnd[1] == 0x48525452u))      /* "HRTR" */
+					cwnd[1] = init_pkt_cwnd;
+			}
 			if (*ident)
 				fprintf(stdout, "%s: ", ident + 1);
 			if (format & PARSE)
@@ -1606,6 +1716,14 @@ sigalarm( int signum )
 						(nretrans[1] - pretrans),
 						((retransinfo == 1) ||
 						 !nrbytes) ?  "" : "host-");
+			}
+			if (read_cwnd && sinkmode) {
+				if (format & PARSE)
+					fprintf(stdout, P_CWND_FMT_INTERVAL,
+						cwnd[1]);
+				else
+					fprintf(stdout, CWND_FMT_INTERVAL,
+						cwnd[1]);
 			}
 			if ((do_owd & OWD_MIN) && nowdi) {
 				if (format & PARSE)
@@ -1691,6 +1809,16 @@ sigalarm( int signum )
 							 !nrbytes) ?
 							    "" : "host-");
 				}
+				if (read_cwnd && sinkmode) {
+					if (format & PARSE)
+						fprintf(stdout,
+							P_CWND_FMT_INTERVAL,
+							cwnd[1]);
+					else
+						fprintf(stdout,
+							CWND_FMT_INTERVAL,
+							cwnd[1]);
+				}
 			}
 			if (udplossinfo && (format & XMITSTATS)) {
 				if (format & PARSE)
@@ -1751,11 +1879,11 @@ main( int argc, char **argv )
 			*host3res, *mcres = NULL;
 	union sockaddr_union client_ipaddr;
 	struct sockaddr_storage dummy;
-	struct timeval time_eod;	/* time EOD packet was received */
-	struct timeval time_eod0;	/* time EOD0 packet was received */
+	struct timeval time_eod  = {0};	/* time EOD packet was received */
+	struct timeval time_eod0 = {0};	/* time EOD0 packet was received */
 	struct timeval timed;		/* time delta */
-	struct timeval timeconn1;	/* time before connect() for RTT */
-	struct timeval timeconn2;	/* time after connect() for RTT */
+	struct timeval timeconn1 = {0};	/* time before connect() for RTT */
+	struct timeval timeconn2 = {0};	/* time after connect() for RTT */
 	struct timeval timeconn;	/* time to connect() == RTT */
 	union {
 		unsigned char	buf[sizeof(struct in_addr)];
@@ -1765,7 +1893,9 @@ main( int argc, char **argv )
 	int skiparg;
 	int reqval;
 	int got_srvr_retrans;
-	uint32_t total_retrans = 0;
+	int got_srvr_cwnd;
+	uint32_t total_retrans = 0;	/* total retrans for all streams */
+	uint32_t total_snd_cwnd = 0;	/* total cwnd for all streams in KB */
 	double idle_data_min = IDLE_DATA_MIN;
 	double idle_data_max = IDLE_DATA_MAX;
 	double default_idle_data = DEFAULT_IDLE_DATA;
@@ -2078,28 +2208,39 @@ main( int argc, char **argv )
 				b_flag = 1;
 				send_retrans = 0;
 				read_retrans = 0;
+				send_cwnd = 0;
+				read_cwnd = 0;
 			}
 			break;
 		case 'R':
 			reqval = 1;
 			haverateopt = 1;
-			if (argv[0][2] == 'i') {
-				cp1 = getoptvalp(argv, 3, reqval, &skiparg);
+			cp1 = getoptvalp(argv, 2, reqval, &skiparg);
+			if (*cp1 == 'i') {
+				cp1++;
+				if (*cp1 == 's') {
+					cp1++;
+#if defined(linux)
+					iratesss = 1;
+#else
+					fprintf(stderr, "smoothed slow start not supported for non-Linux\n");
+					fflush(stderr);
+#endif
+				}
 				sscanf(cp1, "%lf", &rate_opt);
 				irate = 1;
 			}
-			else if (argv[0][2] == 'a') {
-				cp1 = getoptvalp(argv, 3, reqval, &skiparg);
+			else if (*cp1 == 'a') {
+				cp1++;
 				sscanf(cp1, "%lf", &rate_opt);
 				irate = 0;
 			}
-			else if (argv[0][2] == 'u') {
+			else if (*cp1 == 'u') {
+				cp1++;
 				rate_opt = 0.0;
 				irate = 0;
-				cp1 = &argv[0][3];
 			}
 			else {
-				cp1 = getoptvalp(argv, 2, reqval, &skiparg);
 				sscanf(cp1, "%lf", &rate_opt);
 			}
 			if ((cp2 = strchr(cp1, '/'))) {
@@ -2202,6 +2343,14 @@ main( int argc, char **argv )
 					brief = atoi(cp1);
 				if (strchr(cp1, 'r'))
 					brief |= BRIEF_RETRANS_STREAMS;
+				if (strchr(cp1, 'c')) {
+#if defined(linux)
+					brief |= BRIEF_CWND_STREAMS;
+#else
+					fprintf(stderr, "\"-bc\" option not supported for non-Linux\n");
+					fflush(stderr);
+#endif
+				}
 			}
 			else
 				brief = 1;
@@ -2237,16 +2386,24 @@ main( int argc, char **argv )
 				format |= NOPERCENTLOSS;
 			else if (strcmp(&argv[0][2], "-drops") == 0)
 				format |= NODROPS;
-			else if (strcmp(&argv[0][2], "-retrans") == 0)
+			else if (strcmp(&argv[0][2], "-retrans") == 0) {
 				format |= NORETRANS;
+				format |= NOCWND;
+			}
 			else if (strcmp(&argv[0][2], "debugretrans") == 0)
 				format |= DEBUGRETRANS;
+			else if (strcmp(&argv[0][2], "-cwnd") == 0)
+				format |= NOCWND;
 			else if (strcmp(&argv[0][2], "debugpoll") == 0)
 				format |= DEBUGPOLL;
 			else if (strcmp(&argv[0][2], "debugmtu") == 0)
 				format |= DEBUGMTU;
 			else if (strcmp(&argv[0][2], "debugjitter") == 0)
 				format |= DEBUGJITTER;
+#if defined(linux)
+			else if (strcmp(&argv[0][2], "debugirate") == 0)
+				format |= DEBUGIRATE;
+#endif
 			else if (strcmp(&argv[0][2], "parse") == 0)
 				format |= PARSE;
 			else if (strcmp(&argv[0][2], "-beta") == 0)
@@ -2973,6 +3130,34 @@ main( int argc, char **argv )
 		interval = 0;
 	}
 
+	if (iratesss) {
+		if (udp) {
+			fprintf(stderr, "ignoring smoothed slow start option for udp transfer\n");
+			fflush(stderr);
+			iratesss = 0;
+		}
+		if (maxburst > 1) {
+			fprintf(stderr, "ignoring maxburst option with smoothed slow start option\n");
+			fflush(stderr);
+			maxburst = 1;
+		}
+		if (nstream > 1) {
+			fprintf(stderr, "ignoring smoothed slow start option for multiple streams\n");
+			fflush(stderr);
+			iratesss = 0;
+		}
+		if (format & NORETRANS) {
+			fprintf(stderr, "can't do smoothed slow start if no retransmission info\n");
+			fflush(stderr);
+			iratesss = 0;
+		}
+		if (!(format & NORETRANS) && (format & NOCWND)) {
+			fprintf(stderr, "can't do smoothed slow start if no congestion window info\n");
+			fflush(stderr);
+			iratesss = 0;
+		}
+	}
+
 	if (clientserver) {
 		if (trans) {
 			fprintf(stderr, "server mode only allowed for receiver\n");
@@ -3288,6 +3473,9 @@ main( int argc, char **argv )
 	if (!udp && trans) {
 		if (buflen >= 32) {
 			retransinfo = 1;
+#if defined(linux)
+			cwndinfo = 1;
+#endif
 			b_flag = 1;
 		}
 		else
@@ -3310,7 +3498,8 @@ main( int argc, char **argv )
 			errno = error_num;
 			err("posix_memalign");
 		}
-	} else
+	}
+	else
 #endif
 	if ((buf = (char *)malloc(mallocsize)) == (char *)NULL)
 		err("malloc");
@@ -3336,24 +3525,30 @@ main( int argc, char **argv )
 
 doit:
 	if (!udp && trans && (format & DEBUGRETRANS)) {
-		sretrans = get_retrans(-1);
+		sretrans = get_retrans(-1, &tcpinf);
 		fprintf(stdout, "initial system retrans = %d\n", sretrans);
 	}
 	nretrans[0] = 0;
+	cwnd[0] = 0;
 
 	for ( stream_idx = 1; stream_idx <= nstream; stream_idx++ ) {
 		fd[stream_idx] = -1;
 		nretrans[stream_idx] = 0;
+		cwnd[stream_idx] = 0;
 	}
 
 	for ( stream_idx = start_idx; stream_idx <= nstream; stream_idx++ ) {
 		if (clientserver && (stream_idx == 1)) {
 			retransinfo = 0;
+			cwndinfo = 0;
 			if (nstream == 1) {
 				send_retrans = 1;
 				read_retrans = 1;
+				send_cwnd = 1;
+				read_cwnd = 1;
 			}
 			do_retrans = 0;
+			do_cwnd = 0;
 			got_0retrans = 0;
 			if (client) {
 				if (udp && !host3 && !traceroute) {
@@ -3857,6 +4052,20 @@ doit:
 						abortconn = 1;
 					}
 				}
+				if (irvers >= 80101) {
+					fprintf(ctlconn, ", iratesss = %d", iratesss);
+				}
+				else {
+					if (iratesss && !trans) {
+						fprintf(stdout, "nuttcp%s%s: smoothed slow start option not supported by server version %d.%d.%d, need >= 8.1.1\n",
+							trans?"-t":"-r",
+							ident, rvers_major,
+							rvers_minor,
+							rvers_delta);
+						fflush(stdout);
+						iratesss = 0;
+					}
+				}
 				fprintf(ctlconn, "\n");
 				fflush(ctlconn);
 				if (abortconn) {
@@ -3882,6 +4091,12 @@ doit:
 						send_retrans = 0;
 					else
 						read_retrans = 0;
+				}
+				if (udp || (buflen < 32) || (irvers < 80001)) {
+					if (trans)
+						send_cwnd = 0;
+					else
+						read_cwnd = 0;
 				}
 				if (strncmp(buf, "OK", 2) != 0) {
 					mes("error from server");
@@ -4177,6 +4392,16 @@ doit:
 				else {
 					srcport = 0;
 				}
+				if (irvers >= 80101) {
+					sscanf(strstr(buf, ", iratesss =") + 13,
+						"%d", &iratesss);
+				}
+				else {
+					iratesss = 0;
+				}
+#if !defined(linux)
+				iratesss = 0;
+#endif
 				trans = !trans;
 				if (inetd && !sinkmode) {
 					fputs("KO\n", stdout);
@@ -4206,7 +4431,8 @@ doit:
 							errno = error_num;
 							err("posix_memalign");
 						}
-					} else
+					}
+					else
 #endif
 					if ((buf = (char *)malloc(mallocsize)) == (char *)NULL)
 						err("malloc");
@@ -4239,6 +4465,8 @@ doit:
 					b_flag = 1;
 					send_retrans = 0;
 					read_retrans = 0;
+					send_cwnd = 0;
+					read_cwnd = 0;
 				}
 				if (rate == 0)
 					rate = MAXRATE;
@@ -4273,6 +4501,28 @@ doit:
 					fprintf(stdout, "ctlport = %hu, port/nstream = %hu/%d\n", ctlport, port, nstream);
 					fputs("KO\n", stdout);
 					goto cleanup;
+				}
+				if (iratesss) {
+					if (udp) {
+						fputs("KO\n", stdout);
+						mes("iratesss not allowed for udp");
+						fputs("KO\n", stdout);
+						goto cleanup;
+					}
+					if (maxburst > 1) {
+						fputs("KO\n", stdout);
+						mes("maxburst > 1 not allowed with iratesss");
+						fprintf(stdout, "maxburst = %d\n", maxburst);
+						fputs("KO\n", stdout);
+						goto cleanup;
+					}
+					if (nstream > 1) {
+						fputs("KO\n", stdout);
+						mes("nstream > 1 not allowed with iratesss");
+						fprintf(stdout, "nstream = %d\n", nstream);
+						fputs("KO\n", stdout);
+						goto cleanup;
+					}
 				}
 				if (host3 && ctlport3 && (ctlport3 < 1024)) {
 					fputs("KO\n", stdout);
@@ -4461,6 +4711,12 @@ doit:
 					else
 						read_retrans = 0;
 				}
+				if (udp || (buflen < 32) || (irvers < 80001)) {
+					if (trans)
+						send_cwnd = 0;
+					else
+						read_cwnd = 0;
+				}
 			}
 		}
 
@@ -4640,7 +4896,8 @@ doit:
 				else {
 					err("unsupported AF");
 				}
-			} else {
+			}
+			else {
 				sinhim[stream_idx].sin_family = af;
 				if (ipad_stride.ip32 && (stream_idx > 1)) {
 					sinhim[stream_idx].sin_addr.s_addr =
@@ -4673,7 +4930,8 @@ doit:
 				sinhim6[stream_idx].sin6_port = htons(ctlport);
 				sinme6[stream_idx].sin6_port = htons(srcctlport); /* default is free choice */
 #endif
-			} else {
+			}
+			else {
 				sinhim[stream_idx].sin_port = htons(port + stream_idx - 1);
 				sinme[stream_idx].sin_port = htons(srcport); /* default is free choice */
 #ifdef AF_INET6
@@ -4681,7 +4939,8 @@ doit:
 				sinme6[stream_idx].sin6_port = htons(srcport); /* default is free choice */
 #endif
 			}
-		} else {
+		}
+		else {
 			/* rcvr listens for connections (unless reversed) */
 			if (stream_idx == 0) {
 				sinme[stream_idx].sin_port =   htons(ctlport);
@@ -4690,7 +4949,8 @@ doit:
 				sinme6[stream_idx].sin6_port = htons(ctlport);
 				sinhim6[stream_idx].sin6_port = htons(srcctlport); /* default is free choice */
 #endif
-			} else {
+			}
+			else {
 				sinme[stream_idx].sin_port =   htons(port + stream_idx - 1);
 				sinhim[stream_idx].sin_port = htons(srcport); /* default is free choice */
 #ifdef AF_INET6
@@ -4825,8 +5085,8 @@ doit:
 
 		if (clientserver && (stream_idx == 1)) {
 			if (!udp && trans) {
-				nretrans[0] = get_retrans(fd[0]);
-				if (retransinfo > 0)
+				nretrans[0] = get_retrans(fd[0], &tcpinf);
+				if ((retransinfo > 0) || cwndinfo)
 					b_flag = 1;
 			}
 		}
@@ -4914,6 +5174,8 @@ doit:
 				    fprintf(stdout, " rate_limit=%.3f rate_unit=Mbps rate_mode=%s",
 					(double)rate/1000,
 					irate ? "instantaneous" : "aggregate");
+				    if (iratesss)
+					fprintf(stdout, " smoothed_slow_start=on");
 				    if (maxburst > 1)
 					fprintf(stdout, " packet_burst=%d",
 						maxburst);
@@ -4955,6 +5217,8 @@ doit:
 				    fprintf(stdout, " rate limit = %.3f Mbps (%s)",
 					(double)rate/1000,
 					irate ? "instantaneous" : "aggregate");
+				    if (iratesss)
+					fprintf(stdout, " with smoothed slow start");
 				    if (maxburst > 1)
 					fprintf(stdout, ", packet burst = %d",
 						maxburst);
@@ -4972,7 +5236,8 @@ doit:
 				if ((rate != MAXRATE) || tos)
 				    fprintf(stdout, "\n");
 			    }
-			} else {
+			}
+			else {
 			    if ((brief <= 0) && (format & PARSE)) {
 				fprintf(stdout, "nuttcp-r%s: buflen=%d ",
 					ident, buflen);
@@ -5023,9 +5288,21 @@ doit:
 					errmes("unable to setsockopt SO_RCVBUF");
 			}
 			if (tos) {
-				if (setsockopt(fd[stream_idx], IPPROTO_IP, IP_TOS,
-					(void *)&tos, sizeof(tos)) < 0)
-					err("setsockopt");
+				if (af == AF_INET) {
+					if (setsockopt(fd[stream_idx], IPPROTO_IP, IP_TOS,
+						(void *)&tos, sizeof(tos)) < 0)
+						err("setsockopt");
+				}
+	#ifdef AF_INET6
+				else if (af == AF_INET6) {
+					if (setsockopt(fd[stream_idx], IPPROTO_IPV6, IPV6_TCLASS,
+						(void *)&tos, sizeof(tos)) < 0)
+						err("setsockopt");
+				}
+	#endif
+				else {
+				    err("unsupported AF");
+				}
 			}
 			if (nodelay && !udp) {
 				struct protoent *p;
@@ -5036,7 +5313,8 @@ doit:
 				if ((stream_idx == nstream) && (brief <= 0))
 					mes("nodelay");
 			}
-		    } else {
+		    }
+		    else {
 			/* Set the receiver options */
 			if (rcvwin) {
 				if (setsockopt(fd[stream_idx], SOL_SOCKET, SO_RCVBUF,
@@ -5047,9 +5325,21 @@ doit:
 					errmes("unable to setsockopt SO_SNDBUF");
 			}
 			if (tos) {
-				if (setsockopt(fd[stream_idx], IPPROTO_IP, IP_TOS,
-					(void *)&tos, sizeof(tos)) < 0)
-					err("setsockopt");
+				if (af == AF_INET) {
+					if (setsockopt(fd[stream_idx], IPPROTO_IP, IP_TOS,
+						(void *)&tos, sizeof(tos)) < 0)
+						err("setsockopt");
+				}
+	#ifdef AF_INET6
+				else if (af == AF_INET6) {
+					if (setsockopt(fd[stream_idx], IPPROTO_IPV6, IPV6_TCLASS,
+						(void *)&tos, sizeof(tos)) < 0)
+						err("setsockopt");
+				}
+	#endif
+				else {
+				    err("unsupported AF");
+				}
 			}
 		    }
 		}
@@ -5093,7 +5383,7 @@ doit:
 			}
 			num_connect_tries++;
 			if (stream_idx == 1)
-				gettimeofday(&timeconn1, (struct timezone *)0);
+				get_timeofday(&timeconn1, (struct timezone *)0);
 			if (af == AF_INET) {
 				error_num = connect(fd[stream_idx], (struct sockaddr *)&sinhim[stream_idx], sizeof(sinhim[stream_idx]));
 			}
@@ -5189,7 +5479,7 @@ doit:
 				}
 			}
 			if (stream_idx == 1) {
-				gettimeofday(&timeconn2, (struct timezone *)0);
+				get_timeofday(&timeconn2, (struct timezone *)0);
 				tvsub( &timeconn, &timeconn2, &timeconn1 );
 				rtt = timeconn.tv_sec*1000 +
 						((double)timeconn.tv_usec)/1000;
@@ -5214,13 +5504,22 @@ doit:
 			if ((stream_idx == nstream) && (brief <= 0)) {
 				char tmphost[ADDRSTRLEN] = "\0";
 				if (af == AF_INET) {
-				    inet_ntop(af, &sinhim[stream_idx].sin_addr.s_addr,
-					      tmphost, sizeof(tmphost));
+				    inet_ntop(af, &sinhim[stream_idx].sin_addr.s_addr, tmphost, sizeof(tmphost));
 				}
 #ifdef AF_INET6
 				else if (af == AF_INET6) {
-				    inet_ntop(af, sinhim6[stream_idx].sin6_addr.s6_addr,
-					      tmphost, sizeof(tmphost));
+				    if (!IN6_IS_ADDR_V4MAPPED(&sinhim6[stream_idx].sin6_addr)) {
+					inet_ntop(af, sinhim6[stream_idx].sin6_addr.s6_addr, tmphost, sizeof(tmphost));
+				    }
+				    else {
+					af = AF_INET;
+					bcopy(((char *)&sinhim6[stream_idx].sin6_addr) + 12,
+					      (char *)&sinhim[stream_idx].sin_addr,
+					      sizeof(struct in_addr));
+					sinhim[stream_idx].sin_family = AF_INET;
+					// port gets put in both structs, no translate or copy needed
+					inet_ntop(af, &sinhim[stream_idx].sin_addr.s_addr, tmphost, sizeof(tmphost));
+				    }
 				}
 #endif
 				else {
@@ -5241,11 +5540,9 @@ doit:
 				}
 				else {
 					fprintf(stdout,
-						"nuttcp%s%s: connect to %s",
+						"nuttcp%s%s: connect to %s with",
 						trans?"-t":"-r", ident,
 						tmphost);
-					if (rtt || (trans && datamss))
-						fprintf(stdout, " with");
 					if (trans && datamss) {
 						fprintf(stdout, " mss=%d",
 							datamss);
@@ -5255,9 +5552,21 @@ doit:
 					if (rtt)
 						fprintf(stdout, RTT_FMT, rtt);
 				}
+				if (af == AF_INET) {
+					fprintf(stdout, " af=inet");
+				}
+#ifdef AF_INET6
+				else if (af == AF_INET6) {
+					fprintf(stdout, " af=inet6");
+				}
+#endif
+				else {
+					fprintf(stdout, " af=%d", af);
+				}
 				fprintf(stdout, "\n");
 			}
-		    } else {
+		    }
+		    else {
 			/* The receiver listens for the connection
 			 * (unless reversed by the flip option)
 			 */
@@ -5407,8 +5716,7 @@ acceptnewconn:
 			    }
 			    if ((stream_idx == nstream) && (brief <= 0)) {
 				char tmphost[ADDRSTRLEN] = "\0";
-				inet_ntop(af, &peer.sin_addr.s_addr,
-					  tmphost, sizeof(tmphost));
+				inet_ntop(af, &peer.sin_addr.s_addr, tmphost, sizeof(tmphost));
 
 				if (format & PARSE) {
 					fprintf(stdout,
@@ -5422,13 +5730,24 @@ acceptnewconn:
 				}
 				else {
 					fprintf(stdout,
-						"nuttcp%s%s: accept from %s",
+						"nuttcp%s%s: accept from %s with",
 						trans?"-t":"-r", ident,
 						tmphost);
 					if (trans && datamss) {
-						fprintf(stdout, " with mss=%d",
+						fprintf(stdout, " mss=%d,",
 							datamss);
 					}
+				}
+				if (af == AF_INET) {
+					fprintf(stdout, " af=inet");
+				}
+#ifdef AF_INET6
+				else if (af == AF_INET6) {
+					fprintf(stdout, " af=inet6");
+				}
+#endif
+				else {
+					fprintf(stdout, " af=%d", af);
 				}
 				fprintf(stdout, "\n");
 			    }
@@ -5440,17 +5759,28 @@ acceptnewconn:
 			}
 #ifdef AF_INET6
 			else if (af == AF_INET6) {
-			    struct sockaddr_in6 peer;
-			    socklen_t peerlen = sizeof(peer);
+			    struct sockaddr_in6 peer6;
+			    struct sockaddr_in peer4;
+			    socklen_t peerlen = sizeof(peer6);
 			    if (getpeername(fd[stream_idx],
-					    (struct sockaddr *)&peer,
+					    (struct sockaddr *)&peer6,
 					    &peerlen) < 0) {
 				err("getpeername");
 			    }
 			    if ((stream_idx == nstream) && (brief <= 0)) {
 				char tmphost[ADDRSTRLEN] = "\0";
-				inet_ntop(af, peer.sin6_addr.s6_addr,
-					  tmphost, sizeof(tmphost));
+				if (!IN6_IS_ADDR_V4MAPPED(&peer6.sin6_addr)) {
+					inet_ntop(af, peer6.sin6_addr.s6_addr, tmphost, sizeof(tmphost));
+				}
+				else {
+					af = AF_INET;
+					bcopy(((char *)&peer6.sin6_addr.s6_addr) + 12,
+					      (char *)&peer4.sin_addr.s_addr,
+					      sizeof(struct in_addr));
+					peer4.sin_family = AF_INET;
+					peer4.sin_port = peer6.sin6_port;
+					inet_ntop(af, &peer4.sin_addr.s_addr, tmphost, sizeof(tmphost));
+				}
 				if (format & PARSE) {
 				    fprintf(stdout,
 					    "nuttcp%s%s: accept=%s",
@@ -5462,21 +5792,39 @@ acceptnewconn:
 				}
 				else {
 				    fprintf(stdout,
-					    "nuttcp%s%s: accept from %s",
+					    "nuttcp%s%s: accept from %s with",
 					    trans?"-t":"-r", ident,
 					    tmphost);
 				    if (trans && datamss) {
-					fprintf(stdout, " with mss=%d",
+					fprintf(stdout, " mss=%d,",
 						datamss);
 				    }
+				}
+				if (af == AF_INET) {
+					fprintf(stdout, " af=inet");
+				}
+#ifdef AF_INET6
+				else if (af == AF_INET6) {
+					fprintf(stdout, " af=inet6");
+				}
+#endif
+				else {
+					fprintf(stdout, " af=%d", af);
 				}
 				fprintf(stdout, "\n");
 			    }
 			    if (stream_idx == 0) {
-				clientaddr6 = peer.sin6_addr;
-				clientscope6 = peer.sin6_scope_id;
-				client_ipaddr.ss.ss_family = AF_INET6;
-				client_ipaddr.sin6.sin6_addr = clientaddr6;
+				if (af == AF_INET6) { // we didnt fix a mapped v4 ip
+					clientaddr6 = peer6.sin6_addr;
+					clientscope6 = peer6.sin6_scope_id;
+					client_ipaddr.ss.ss_family = AF_INET6;
+					client_ipaddr.sin6.sin6_addr = clientaddr6;
+				}
+				else { // mapped so af is AF_INET
+					clientaddr = peer4.sin_addr;
+					client_ipaddr.ss.ss_family = AF_INET;
+					client_ipaddr.sin.sin_addr = clientaddr;
+				}
 			    }
 			}
 #endif
@@ -5488,8 +5836,20 @@ acceptnewconn:
 		if (!udp && trans && (stream_idx >= 1) && (retransinfo > 0)) {
 			if ((stream_idx == 1) || (retransinfo == 1)) {
 				nretrans[stream_idx] =
-					get_retrans(fd[stream_idx]);
+					get_retrans(fd[stream_idx], &tcpinf);
 				iretrans[stream_idx] = nretrans[stream_idx];
+#if defined(linux)
+				if (retransinfo == 1) {
+					cwnd[stream_idx] =
+						tcpinf.tcpinfo_snd_cwnd
+							*datamss/1024;
+					if (stream_idx == 1) {
+						init_pkt_cwnd =
+							tcpinf.tcpinfo_snd_cwnd;
+						sss_pkt_cwnd = init_pkt_cwnd;
+					}
+				}
+#endif
 			}
 		}
 		optlen = sizeof(sendwinval);
@@ -5569,6 +5929,12 @@ acceptnewconn:
 				fprintf(stdout, "nuttcp%s%s: send_window_avail=%d receive_window_avail=%d\n", trans?"-t":"-r", ident, sendwinavail, rcvwinavail);
 			else
 				fprintf(stdout, "nuttcp%s%s: available send window = %d, available receive window = %d\n", trans?"-t":"-r", ident, sendwinavail, rcvwinavail);
+			if (!udp && trans && init_pkt_cwnd) {
+				if (format & PARSE)
+					fprintf(stdout, "nuttcp%s%s: initial_congestion_window_kb=%d initial_congestion_window_pkt=%d\n", trans?"-t":"-r", ident, init_pkt_cwnd*datamss/1024, init_pkt_cwnd);
+				else
+					fprintf(stdout, "nuttcp%s%s: initial congestion window = %d KB (%d packets)\n", trans?"-t":"-r", ident, init_pkt_cwnd*datamss/1024, init_pkt_cwnd);
+			}
 #endif
 		}
 	}
@@ -5760,14 +6126,21 @@ acceptnewconn:
 				}
 				else {
 					if (rate_pps)
-						sprintf(tmpargs[j], "-R%s%lup",
-							irate ? "i" : "", rate);
+						sprintf(tmpargs[j],
+							"-R%s%s%lup",
+							irate ? "i" : "",
+							iratesss ? "s" : "",
+							rate);
 					else
-						sprintf(tmpargs[j], "-R%s%lu",
-							irate ? "i" : "", rate);
+						sprintf(tmpargs[j],
+							"-R%s%s%lu",
+							irate ? "i" : "",
+							iratesss ? "s" : "",
+							rate);
 				}
 				cmdargs[i++] = tmpargs[j++];
-			} else {
+			}
+			else {
 				if (udp && !multicast)
 					cmdargs[i++] = "-R0";
 			}
@@ -5831,6 +6204,8 @@ acceptnewconn:
 					cmdargs[i++] = "-f-drops";
 				if (format & NORETRANS)
 					cmdargs[i++] = "-f-retrans";
+				if (!(format & NORETRANS) && (format & NOCWND))
+					cmdargs[i++] = "-f-cwnd";
 				if (format & PARSE)
 					cmdargs[i++] = "-fparse";
 			}
@@ -6233,12 +6608,13 @@ acceptnewconn:
 				inet_ntop(mc_af, &mc_group.imr_multiaddr,
 					  multaddr, sizeof(multaddr));
 
-				if (format & PARSE)
+				if (format & PARSE) {
 					fprintf(stdout,
 						"nuttcp%s%s: multicast_source=%s multicast_group=%s ssm=0\n",
 						trans?"-t":"-r", ident,
 						multsrc, multaddr);
-				else
+				}
+				else {
 					fprintf(stdout,
 						"nuttcp%s%s: receive from multicast source %s\n",
 						trans?"-t":"-r", ident,
@@ -6247,6 +6623,7 @@ acceptnewconn:
 						"nuttcp%s%s: using asm on multicast group %s\n",
 						trans?"-t":"-r", ident,
 						multaddr);
+				}
 			}
 		    }
 #ifdef AF_INET6
@@ -6286,12 +6663,13 @@ acceptnewconn:
 				inet_ntop(mc_af, &mc6_group.ipv6mr_multiaddr,
 					  multaddr, sizeof(multaddr));
 
-				if (format & PARSE)
+				if (format & PARSE) {
 					fprintf(stdout,
 						"nuttcp%s%s: multicast_source=%s multicast_group=%s ssm=0\n",
 						trans?"-t":"-r", ident,
 						multsrc, multaddr);
-				else
+				}
+				else {
 					fprintf(stdout,
 						"nuttcp%s%s: receive from multicast source %s\n",
 						trans?"-t":"-r", ident,
@@ -6300,6 +6678,7 @@ acceptnewconn:
 						"nuttcp%s%s: using asm on multicast group %s\n",
 						trans?"-t":"-r", ident,
 						multaddr);
+				}
 			}
 		    }
 #endif /* AF_INET6 */
@@ -6348,12 +6727,13 @@ acceptnewconn:
 					  multsrc, sizeof(multsrc));
 				inet_ntop(mc_af, &group->sin_addr.s_addr,
 					  multaddr, sizeof(multaddr));
-				if (format & PARSE)
+				if (format & PARSE) {
 					fprintf(stdout,
 						"nuttcp%s%s: multicast_source=%s multicast_group=%s ssm=1\n",
 						trans?"-t":"-r", ident,
 						multsrc, multaddr);
-				else
+				}
+				else {
 					fprintf(stdout,
 						"nuttcp%s%s: receive from multicast source %s\n",
 						trans?"-t":"-r", ident,
@@ -6362,6 +6742,7 @@ acceptnewconn:
 						"nuttcp%s%s: using ssm on multicast group %s\n",
 						trans?"-t":"-r", ident,
 						multaddr);
+				}
 			}
 		    }
 #ifdef AF_INET6
@@ -6408,12 +6789,13 @@ acceptnewconn:
 					  multsrc, sizeof(multsrc));
 				inet_ntop(mc_af, &group->sin6_addr.s6_addr,
 					  multaddr, sizeof(multaddr));
-				if (format & PARSE)
+				if (format & PARSE) {
 					fprintf(stdout,
 						"nuttcp%s%s: multicast_source=%s multicast_group=%s ssm=1\n",
 						trans?"-t":"-r", ident,
 						multsrc, multaddr);
-				else
+				}
+				else {
 					fprintf(stdout,
 						"nuttcp%s%s: receive from multicast source %s\n",
 						trans?"-t":"-r", ident,
@@ -6422,6 +6804,7 @@ acceptnewconn:
 						"nuttcp%s%s: using ssm on multicast group %s\n",
 						trans?"-t":"-r", ident,
 						multaddr);
+				}
 			}
 		    }
 #endif /* AF_INET6 */
@@ -6585,12 +6968,13 @@ acceptnewconn:
 					  multsrc, sizeof(multsrc));
 				inet_ntop(mc_af, &sinhim[1].sin_addr.s_addr,
 					  multaddr, sizeof(multaddr));
-				if (format & PARSE)
+				if (format & PARSE) {
 					fprintf(stdout,
 						"nuttcp%s%s: multicast_source=%s multicast_group=%s ssm=1\n",
 						trans?"-t":"-r", ident,
 						multsrc, multaddr);
-				else
+				}
+				else {
 					fprintf(stdout,
 						"nuttcp%s%s: sending from multicast source %s\n",
 						trans?"-t":"-r", ident,
@@ -6599,6 +6983,7 @@ acceptnewconn:
 						"nuttcp%s%s: using ssm on multicast group %s\n",
 						trans?"-t":"-r", ident,
 						multaddr);
+				}
 			}
 		    }
 #ifdef AF_INET6
@@ -6637,12 +7022,13 @@ acceptnewconn:
 					  multsrc, sizeof(multsrc));
 				inet_ntop(mc_af, &sinhim6[1].sin6_addr.s6_addr,
 					  multaddr, sizeof(multaddr));
-				if (format & PARSE)
+				if (format & PARSE) {
 					fprintf(stdout,
 						"nuttcp%s%s: multicast_source=%s multicast_group=%s ssm=1\n",
 						trans?"-t":"-r", ident,
 						multsrc, multaddr);
-				else
+				}
+				else {
 					fprintf(stdout,
 						"nuttcp%s%s: sending from multicast source %s\n",
 						trans?"-t":"-r", ident,
@@ -6651,6 +7037,7 @@ acceptnewconn:
 						"nuttcp%s%s: using ssm on multicast group %s\n",
 						trans?"-t":"-r", ident,
 						multaddr);
+				}
 			}
 		    }
 #endif /* AF_INET6 */
@@ -6734,6 +7121,13 @@ acceptnewconn:
 		irate_pk_nsec = (pkt_time*1000000 - irate_pk_usec)*1000;
 		pkt_time_ms = pkt_time*1000;
 	}
+#ifdef DEBUG
+	if (irate && (format & DEBUGIRATE)) {
+		debugout = fopen(DEBUGOUTPUT, "a+");
+		if (debugout)
+			fprintf(debugout, "BEGIN nuttcp debug output\n");
+	}
+#endif
 	prep_timer();
 	errno = 0;
 	stream_idx = 0;
@@ -6793,7 +7187,7 @@ acceptnewconn:
 			}
 			if (udplossinfo)
 				bcopy(&nbytes, buf + 24, 8);
-			if (!udp && interval && !(format & NORETRANS) &&
+			if (!udp && !(format & NORETRANS) &&
 			    (nstream == 1) &&
 			    ((retransinfo == 1) ||
 			     ((retransinfo >= 2) &&
@@ -6801,9 +7195,10 @@ acceptnewconn:
 				uint32_t tmp;
 
 				if (client) {
-					if (send_retrans)
+					if (trans || send_retrans)
 						do_retrans = 1;
-					send_retrans = 0;
+					if (trans)
+						send_retrans = 1;
 					if (!udp)
 						bzero(buf + 24, 8);
 				}
@@ -6822,6 +7217,22 @@ acceptnewconn:
 				do_retrans = 0;
 				if (!udp)
 					bzero(buf + 24, 8);
+			}
+			if (!udp && !(format & NOCWND) &&
+			    (nstream == 1) && cwndinfo) {
+				if (client) {
+					if (trans || send_cwnd)
+						do_cwnd = 1;
+					if (trans)
+						send_cwnd = 1;
+				}
+				else {
+					do_cwnd = 0;
+				}
+			}
+			else {
+				send_cwnd = 0;
+				do_cwnd = 0;
 			}
 			if (nbuf == INT_MAX)
 				nbuf = ULLONG_MAX;
@@ -6882,10 +7293,18 @@ acceptnewconn:
 					bcopy(&nbytes, buf + 24, 8);
 				if (send_retrans) {
 					nretrans[1] = get_retrans(
-							fd[stream_idx + 1]);
+							fd[stream_idx + 1],
+							&tcpinf);
 					nretrans[1] -= iretrans[1];
 					bcopy(&nretrans[1], buf + 24, 4);
 				}
+#if defined(linux)
+				if (send_cwnd) {
+					cwnd[1] = tcpinf.tcpinfo_snd_cwnd
+							*datamss/1024;
+					bcopy(&cwnd[1], buf + 28, 4);
+				}
+#endif
 				stream_idx++;
 				stream_idx = stream_idx % nstream;
 				if (do_poll &&
@@ -6989,6 +7408,20 @@ acceptnewconn:
 							    got_0retrans = 1;
 							}
 						    }
+						    else if (strstr(intervalbuf,
+								   "KB-cwnd")) {
+							if (strstr(intervalbuf,
+								"host-retrans"))
+							    *(cp1 - 34) = '\0';
+							else if (strstr(
+								    intervalbuf,
+								    "retrans"))
+							    *(cp1 - 29) = '\0';
+							else {
+							    *cp1 = '\0';
+							    got_0retrans = 1;
+							}
+						    }
 						    else {
 							if (strstr(intervalbuf,
 								"host-retrans"))
@@ -7026,7 +7459,8 @@ acceptnewconn:
 						if (do_retrans && sinkmode) {
 						    nretrans[1] =
 						      get_retrans(fd[stream_idx
-									+ 1]);
+									+ 1],
+								  &tcpinf);
 						    nretrans[1] -= iretrans[1];
 						    if (format & PARSE)
 							fprintf(stdout,
@@ -7044,6 +7478,21 @@ acceptnewconn:
 								"" : "host-");
 						    pretrans = nretrans[1];
 						}
+#if defined(linux)
+						if (do_cwnd && sinkmode) {
+						    cwnd[1] =
+						        tcpinf.tcpinfo_snd_cwnd
+								*datamss/1024;
+						    if (format & PARSE)
+							fprintf(stdout,
+							    P_CWND_FMT_INTERVAL,
+							    cwnd[1]);
+						    else
+							fprintf(stdout,
+							    CWND_FMT_INTERVAL,
+							    cwnd[1]);
+						}
+#endif
 						if (do_retrans && cp1 && ch) {
 						    *cp1 = ch;
 						    fputs(cp1, stdout);
@@ -7070,7 +7519,8 @@ acceptnewconn:
 				strcpy(buf, "EOD0");
 				(void)Nwrite( fd[stream_idx + 1], buf, 4 ); /* rcvr end */
 			}
-		} else {
+		}
+		else {
 			first_read = 1;
 			first_jitter = 1;
 			first_jitteri = 1;
@@ -7090,7 +7540,7 @@ acceptnewconn:
 			    while (((cnt=Nread(fd[stream_idx + 1], buf, buflen)) > 0) && !intr) {
 				    if (cnt <= 4) {
 					    if (strncmp(buf, "EOD0", 4) == 0) {
-						    gettimeofday(&time_eod0,
+						    get_timeofday(&time_eod0,
 							(struct timezone *)0);
 						    got_eod0 = 1;
 						    done = 1;
@@ -7098,7 +7548,7 @@ acceptnewconn:
 					    }
 					    if (strncmp(buf, "EOD", 3) == 0) {
 						    ocorrection = buf[3] - '0';
-						    gettimeofday(&time_eod,
+						    get_timeofday(&time_eod,
 							(struct timezone *)0);
 						    done = 1;
 						    break;	/* "EOF" */
@@ -7126,8 +7576,8 @@ acceptnewconn:
 				    else if (got_eod0) {
 					    /* got data after EOD0, so
 					     * extend EOD0 time */
-					    gettimeofday(&time_eod0,
-							 (struct timezone *)0);
+					    get_timeofday(&time_eod0,
+							  (struct timezone *)0);
 				    }
 				    if (!got_begin)
 					    continue;
@@ -7162,7 +7612,7 @@ acceptnewconn:
 				    }
 				    if (do_jitter) {
 					    if (first_jitter) {
-						    gettimeofday(
+						    get_timeofday(
 							&timepkr,
 							(struct timezone *)0);
 						    timepkri = timepkr;
@@ -7211,7 +7661,7 @@ acceptnewconn:
 					     */
 
 					    if (!do_owd) {
-						gettimeofday(&timerx,
+						get_timeofday(&timerx,
 							(struct timezone *)0);
 					    }
 					    if (do_jitter & JITTER_IGNORE_OOO) {
@@ -7264,7 +7714,7 @@ acceptnewconn:
 						    continue;
 					    }
 					    if (first_jitteri) {
-						    gettimeofday(
+						    get_timeofday(
 							&timepkri,
 							(struct timezone *)0);
 						    first_jitteri = 0;
@@ -7309,7 +7759,8 @@ acceptnewconn:
 						    ((double)timed.tv_usec)
 								/ 1000000;
 			    }
-			} else {
+			}
+			else {
 			    while (((cnt=Nread(fd[stream_idx + 1], buf, buflen)) > 0) && !intr) {
 				    nbytes += cnt;
 				    cnt = 0;
@@ -7323,32 +7774,50 @@ acceptnewconn:
 					    if (tmp == 0x5254524Eu) {
 						    /* "RTRN" */
 						    retransinfo = 1;
+#if defined(linux)
+						    cwndinfo = 1;
+#endif
 						    b_flag = 1;
 					    }
 					    else if (tmp == 0x48525452u) {
 						    /* "HRTR" */
 						    retransinfo = 2;
+						    cwndinfo = 0;
+						    read_cwnd = 0;
 						    b_flag = 1;
 					    }
 					    else if (tmp == 0x4E525452u) {
 						    /* "NRTR" */
 						    need_swap = 1;
 						    retransinfo = 1;
+#if defined(linux)
+						    cwndinfo = 1;
+#endif
 						    b_flag = 1;
 					    }
 					    else if (tmp == 0x52545248u) {
 						    /* "RTRH" */
 						    need_swap = 1;
 						    retransinfo = 2;
+						    cwndinfo = 0;
+						    read_cwnd = 0;
 						    b_flag = 1;
 					    }
 					    else {
 						    retransinfo = -1;
+						    cwndinfo = 0;
 						    read_retrans = 0;
+						    read_cwnd = 0;
+					    }
+					    if (format & NOCWND) {
+						    cwndinfo = 0;
+						    read_cwnd = 0;
 					    }
 					}
-					else
+					else {
 					    read_retrans = 0;
+					    read_cwnd = 0;
+					}
 				    }
 				    if (read_retrans) {
 					    if (!need_swap)
@@ -7361,6 +7830,17 @@ acceptnewconn:
 							    *cp1++ = *cp2--;
 					    }
 				    }
+				    if (read_cwnd) {
+					    if (!need_swap)
+						    bcopy(buf + 28,
+							  &cwnd[1], 4);
+					    else {
+						    cp1 = (char *)&cwnd[1];
+						    cp2 = buf + 31;
+						    for ( i = 0; i < 4; i++ )
+							    *cp1++ = *cp2--;
+					    }
+				    }
 				    stream_idx++;
 				    stream_idx = stream_idx % nstream;
 			    }
@@ -7368,14 +7848,16 @@ acceptnewconn:
 				    nbytes += cnt;
 			}
 		}
-	} else {
+	}
+	else {
 		register int cnt;
 		if (trans) {
 #if defined(linux)
 			struct stat instat;
 
 			if (fstat(savestdin, &instat) == 0) {
-				if (!S_ISREG(instat.st_mode)) {
+				if (!S_ISREG(instat.st_mode) &&
+				    !S_ISBLK(instat.st_mode)) {
 					zerocopy = 0;
 					directio = 0;
 				}
@@ -7425,12 +7907,14 @@ acceptnewconn:
 				strcpy(buf, "EOD0");
 				(void)Nwrite( fd[stream_idx + 1], buf, 4 ); /* rcvr end */
 			}
-		} else {
+		}
+		else {
 #if defined(linux)
 			struct stat outstat;
 
 			if (fstat(savestdout, &outstat) == 0) {
-				if (!S_ISREG(outstat.st_mode))
+				if (!S_ISREG(outstat.st_mode) &&
+				    !S_ISBLK(outstat.st_mode))
 					directio = 0;
 			}
 			else
@@ -7497,7 +7981,7 @@ acceptnewconn:
 	}
 
 	if (!udp && trans && (format & DEBUGRETRANS)) {
-		sretrans = get_retrans(-1);
+		sretrans = get_retrans(-1, &tcpinf);
 		fprintf(stdout, "before closing system retrans = %d\n",
 			sretrans);
 	}
@@ -7529,12 +8013,13 @@ acceptnewconn:
 				       (void *)&tcpinf, &optlen) < 0) {
 				mes("couldn't collect TCP info\n");
 				retransinfo = -1;
+				cwndinfo = 0;
 			}
 			if (ioctl(fd[stream_idx], SIOCOUTQ, &unsent) < 0) {
 				mes("couldn't get SIOCOUTQ value\n");
 				unsent = -1;
 			}
-			gettimeofday(&timeunsent, (struct timezone *)0);
+			get_timeofday(&timeunsent, (struct timezone *)0);
 			realtd = 0.0;
 			xmitrate = ((double)nbytes-(double)unsent)/realt;
 			xmitunsent = (double)unsent/xmitrate;
@@ -7566,8 +8051,8 @@ acceptnewconn:
 					       sizeof(intervalbuf), stdin))
 					{
 					setitimer(ITIMER_REAL, &itimer, 0);
-					gettimeofday(&timeunsent,
-						     (struct timezone *)0);
+					get_timeofday(&timeunsent,
+						      (struct timezone *)0);
 					if (strncmp(intervalbuf, "DONE", 4)
 							== 0) {
 						if (format & DEBUGPOLL) {
@@ -7636,7 +8121,8 @@ acceptnewconn:
 						    (nstream == 1)) {
 						    nretrans[1] =
 						      get_retrans(
-							    fd[stream_idx]);
+							    fd[stream_idx],
+							    &tcpinf);
 						    nretrans[1] -= iretrans[1];
 						    if (format & PARSE)
 							fprintf(stdout,
@@ -7654,6 +8140,20 @@ acceptnewconn:
 								"" : "host-");
 						    pretrans =
 							nretrans[1];
+						}
+						if (do_cwnd && sinkmode &&
+						    (nstream == 1)) {
+						    cwnd[1] =
+						        tcpinf.tcpinfo_snd_cwnd
+								*datamss/1024;
+						    if (format & PARSE)
+							fprintf(stdout,
+							    P_CWND_FMT_INTERVAL,
+							    cwnd[1]);
+						    else
+							fprintf(stdout,
+							    CWND_FMT_INTERVAL,
+							    cwnd[1]);
 						}
 						if (do_retrans && cp1 && ch) {
 						    *cp1 = ch;
@@ -7676,13 +8176,14 @@ acceptnewconn:
 					       (void *)&tcpinf, &optlen) < 0) {
 					mes("couldn't collect TCP info\n");
 					retransinfo = -1;
+					cwndinfo = 0;
 				}
 				if (ioctl(fd[stream_idx], SIOCOUTQ,
 					  &unsent) < 0) {
 					mes("couldn't get SIOCOUTQ value\n");
 					unsent = -1;
 				}
-				gettimeofday(&timec, (struct timezone *)0);
+				get_timeofday(&timec, (struct timezone *)0);
 				tvsub(&timed, &timec, &timeunsent);
 				realtd = timed.tv_sec
 					    + ((double)timed.tv_usec) / 1000000;
@@ -7704,6 +8205,7 @@ acceptnewconn:
 				       (void *)&tcpinf, &optlen) < 0) {
 				mes("couldn't collect TCP info\n");
 				retransinfo = -1;
+				cwndinfo = 0;
 			}
 			if (unsent > 0) {
 				/* assume receiver went away */
@@ -7721,15 +8223,22 @@ acceptnewconn:
 			if (retransinfo > 0) {
 				if ((stream_idx == 1) || (retransinfo == 1)) {
 					nretrans[stream_idx] =
-						get_retrans(fd[stream_idx]);
+						get_retrans(fd[stream_idx],
+							    &tcpinf);
 					nretrans[stream_idx] -=
 						iretrans[stream_idx];
+#if defined(linux)
+					if (retransinfo == 1)
+						cwnd[stream_idx] =
+							tcpinf.tcpinfo_snd_cwnd
+								*datamss/1024;
+#endif
 				}
 			}
 		}
 	}
 	if (!udp && trans && (format & DEBUGRETRANS)) {
-		sretrans = get_retrans(-1);
+		sretrans = get_retrans(-1, &tcpinf);
 		fprintf(stdout, "after closing system retrans = %d\n",
 			sretrans);
 	}
@@ -7815,7 +8324,7 @@ acceptnewconn:
 			}
 			fputs(intervalbuf, stdout);
 			if (do_retrans && sinkmode) {
-				nretrans[1] = get_retrans(fd[1]);
+				nretrans[1] = get_retrans(fd[1], &tcpinf);
 				nretrans[1] -= iretrans[1];
 				if (format & PARSE)
 					fprintf(stdout, P_RETRANS_FMT_INTERVAL,
@@ -7829,6 +8338,18 @@ acceptnewconn:
 							"" : "host-");
 				pretrans = nretrans[1];
 			}
+#if defined(linux)
+			if (do_cwnd && sinkmode) {
+				cwnd[1] = tcpinf.tcpinfo_snd_cwnd
+						*datamss/1024;
+				if (format & PARSE)
+					fprintf(stdout, P_CWND_FMT_INTERVAL,
+						cwnd[1]);
+				else
+					fprintf(stdout, CWND_FMT_INTERVAL,
+						cwnd[1]);
+			}
+#endif
 			if (do_retrans && cp1 && ch) {
 				*cp1 = ch;
 				fputs(cp1, stdout);
@@ -7852,6 +8373,7 @@ acceptnewconn:
 		setitimer(ITIMER_REAL, &itimer, 0);
 		cp1 = srvrbuf;
 		got_srvr_retrans = 0;
+		got_srvr_cwnd = 0;
 		while (fgets(cp1, sizeof(srvrbuf) - (cp1 - srvrbuf), stdin)) {
 			setitimer(ITIMER_REAL, &itimer, 0);
 			if (*(cp1 + strlen(cp1) - 1) != '\n') {
@@ -7967,6 +8489,42 @@ acceptnewconn:
 					else
 						sscanf(cp2, RTT_FMT_INB, &rtt);
 				}
+				if ((cp2 = strstr(cp1, "cwnd"))) {
+					got_srvr_cwnd = 1;
+					cwndinfo = 1;
+					if (format & PARSE)
+						sscanf(cp2, P_CWND_FMT_IN,
+						       &total_snd_cwnd);
+					else
+						sscanf(cp2, CWND_FMT_IN,
+						       &total_snd_cwnd);
+					if (format & PARSE) {
+						if ((cp2 = strstr(cp2,
+							    "cwnd_by_stream=")))
+							cp2 += 15;
+						else
+							cp2 = NULL;
+					}
+					else {
+						if ((cp2 = strstr(cp2, "( ")))
+							cp2 += 2;
+						else
+							cp2 = NULL;
+					}
+					if (cp2) {
+						sscanf(cp2, "%d", &cwnd[1]);
+						stream_idx = 2;
+						while ((stream_idx <=
+								nstream) &&
+						       (cp2 = strchr(cp2,
+								     '+'))) {
+							cp2++;
+							sscanf(cp2, "%d",
+							    &cwnd[stream_idx]);
+							stream_idx++;
+						}
+					}
+				}
 			}
 			else if ((cp2 = strstr(cp1, "RTT")) ||
 				 (cp2 = strstr(cp1, "rtt"))) {
@@ -8015,14 +8573,26 @@ acceptnewconn:
 		itimer.it_value.tv_usec = 0;
 		setitimer(ITIMER_REAL, &itimer, 0);
 		got_srvr_output = 1;
-		if (!udp && !trans && !got_srvr_retrans)
-			retransinfo = -1;
+		if (!udp && !trans) {
+			if (!got_srvr_retrans)
+				retransinfo = -1;
+			if (!got_srvr_cwnd)
+				cwndinfo = 0;
+		}
 	}
 
-	if (!udp && trans && (retransinfo > 0)) {
-		total_retrans = 0;
-		for ( stream_idx = 1; stream_idx <= nstream; stream_idx++ ) {
-			total_retrans += nretrans[stream_idx];
+	if (!udp && trans) {
+		if (retransinfo > 0) {
+			total_retrans = 0;
+			for ( stream_idx = 1; stream_idx <= nstream; stream_idx++ ) {
+				total_retrans += nretrans[stream_idx];
+			}
+		}
+		if (cwndinfo) {
+			total_snd_cwnd = 0;
+			for ( stream_idx = 1; stream_idx <= nstream; stream_idx++ ) {
+				total_snd_cwnd += cwnd[stream_idx];
+			}
 		}
 	}
 
@@ -8111,6 +8681,30 @@ acceptnewconn:
 				if (!(format & PARSE))
 					fprintf(stdout, " )");
 			}
+#if defined(linux)
+			if (cwndinfo) {
+				if (format & PARSE)
+					strcpy(fmt, P_CWND_FMT);
+				else
+					strcpy(fmt, CWND_FMT);
+				fprintf(stdout, fmt, total_snd_cwnd);
+				if ((nstream > 1) && (retransinfo == 1) &&
+				    total_snd_cwnd) {
+					if (format & PARSE)
+						fprintf(stdout, P_CWND_FMT_STREAMS,
+							cwnd[1]);
+					else
+						fprintf(stdout, " ( %d", cwnd[1]);
+					for ( stream_idx = 2; stream_idx <= nstream;
+					      stream_idx++ ) {
+						fprintf(stdout, "+%d",
+							cwnd[stream_idx]);
+					}
+					if (!(format & PARSE))
+						fprintf(stdout, " )");
+				}
+			}
+#endif
 			fprintf(stdout, "\n");
 		}
 
@@ -8344,7 +8938,7 @@ acceptnewconn:
 				if ((retransinfo > 0) &&
 				    (!(format & NORETRANS))) {
 					if (format & DEBUGRETRANS) {
-					    sretrans = get_retrans(-1);
+					    sretrans = get_retrans(-1, &tcpinf);
 					    fprintf(stdout,
 						"report system retrans = %d\n",
 						sretrans);
@@ -8400,6 +8994,45 @@ acceptnewconn:
 							retransinfo == 1 ?
 								"" : "host-");
 				}
+#if defined(linux)
+				if ((nstream > 1) && cwndinfo &&
+				    (retransinfo == 1) &&
+				    total_snd_cwnd && !(format & NOCWND) &&
+				    (brief & BRIEF_CWND_STREAMS)) {
+					if (format & PARSE) {
+					    fprintf(stdout, P_CWND_FMT_BRIEF,
+						    total_snd_cwnd);
+					    fprintf(stdout,
+						    P_CWND_FMT_STREAMS,
+						    cwnd[1]);
+					}
+					else {
+					    fprintf(stdout,
+						    CWND_FMT_BRIEF_STR1,
+						    total_snd_cwnd,
+						    cwnd[1]);
+					}
+					for ( stream_idx = 2;
+					      stream_idx <= nstream;
+					      stream_idx++ ) {
+					    fprintf(stdout, "+%d",
+						    cwnd[stream_idx]);
+					}
+					if (!(format & PARSE))
+					    fprintf(stdout,
+						    CWND_FMT_BRIEF_STR2);
+				}
+				else if (cwndinfo && (!(format & NOCWND))) {
+					if (format & PARSE)
+						fprintf(stdout,
+							P_CWND_FMT_BRIEF,
+							total_snd_cwnd);
+					else
+						fprintf(stdout,
+							CWND_FMT_BRIEF,
+							total_snd_cwnd);
+				}
+#endif
 				if (rtt && (format & WANTRTT)) {
 					if (format & PARSE)
 						strcpy(fmt, P_RTT_FMT_BRIEF);
@@ -8484,6 +9117,44 @@ acceptnewconn:
 							total_retrans,
 							retransinfo == 1 ?
 								"" : "host-");
+				}
+				if ((nstream > 1) && cwndinfo &&
+				    (retransinfo == 1) &&
+				    total_snd_cwnd && !(format & NOCWND) &&
+				    (brief & BRIEF_CWND_STREAMS) &&
+				    (irvers >= 80001)) {
+					if (format & PARSE) {
+					    fprintf(stdout, P_CWND_FMT_BRIEF,
+						    total_snd_cwnd);
+					    fprintf(stdout,
+						    P_CWND_FMT_STREAMS,
+						    cwnd[1]);
+					}
+					else {
+					    fprintf(stdout,
+						    CWND_FMT_BRIEF_STR1,
+						    total_snd_cwnd,
+						    cwnd[1]);
+					}
+					for ( stream_idx = 2;
+					      stream_idx <= nstream;
+					      stream_idx++ ) {
+					    fprintf(stdout, "+%d",
+						    cwnd[stream_idx]);
+					}
+					if (!(format & PARSE))
+					    fprintf(stdout,
+						    CWND_FMT_BRIEF_STR2);
+				}
+				else if (cwndinfo && (!(format & NOCWND))) {
+					if (format & PARSE)
+						fprintf(stdout,
+							P_CWND_FMT_BRIEF,
+							total_snd_cwnd);
+					else
+						fprintf(stdout,
+							CWND_FMT_BRIEF,
+							total_snd_cwnd);
 				}
 				if (rtt && (format & WANTRTT)) {
 					if (format & PARSE)
@@ -8570,11 +9241,18 @@ cleanup:
 			}
 		}
 		fclose(ctlconn);
+#ifdef DEBUG
+		if (irate && (format & DEBUGIRATE))
+			if (debugout) {
+				fprintf(debugout, "END nuttcp debug output\n");
+				fclose(debugout);
+			}
+#endif
 		if (!inetd)
 			close(fd[0]);
 		if (!udp && trans && (retransinfo > 0)) {
 			if (format & DEBUGRETRANS) {
-				sretrans = get_retrans(-1);
+				sretrans = get_retrans(-1, &tcpinf);
 				fprintf(stdout, "final system retrans = %d\n",
 					sretrans);
 			}
@@ -8623,6 +9301,7 @@ cleanup:
 		maxburst = 1;
 		nburst = 1;
 		irate = 0;
+		iratesss = 0;
 		irate_cum_nsec = 0.0;
 		timeout = 0.0;
 		interval = 0.0;
@@ -8647,8 +9326,12 @@ cleanup:
 		do_jitter = 0;
 		do_owd = 0;
 		retransinfo = 0;
+		init_pkt_cwnd = 0;
+		sss_pkt_cwnd = 0;
+		cwndinfo = 0;
 		force_retrans = 0;
 		rtt = 0.0;
+		which_rt = 1;
 		pretrans = 0;
 		sretrans = 0;
 		got_srvr_output = 0;
@@ -8677,6 +9360,7 @@ cleanup:
 			}
 			nretrans[stream_idx] = 0;
 			iretrans[stream_idx] = 0;
+			cwnd[stream_idx] = 0;
 		}
 		nstream = 1;
 		multilink = 0;
@@ -8763,13 +9447,42 @@ pattern( register char *cp, register int cnt )
 	}
 }
 
+void
+get_timeofday( struct timeval *tv, struct timezone *tz )
+{
+#ifdef HAVE_CLOCK_GETTIME
+	struct timespec tod;
+	clockid_t clk_id;
+
+#if defined(_POSIX_MONOTONIC_CLOCK) || defined(__CYGWIN__)
+	if (do_owd) {
+		clk_id = CLOCK_REALTIME;
+	}
+	else {
+		clk_id = CLOCK_MONOTONIC;
+	}
+#else	/* !(defined(_POSIX_MONOTONIC_CLOCK) || defined(__CYGWIN__)) */
+	clk_id = CLOCK_REALTIME;
+#endif	/* defined(_POSIX_MONOTONIC_CLOCK) || defined(__CYGWIN__) */
+
+	clock_gettime( clk_id, &tod );
+	tv->tv_sec  = tod.tv_sec;
+	tv->tv_usec = tod.tv_nsec / 1000;
+
+#else	/* !HAVE_CLOCK_GETTIME */
+	gettimeofday( tv, tz );
+#endif	/* HAVE_CLOCK_GETTIME */
+
+	return;
+}
+
 /*
  *			P R E P _ T I M E R
  */
 void
 prep_timer()
 {
-	gettimeofday(&time0, (struct timezone *)0);
+	get_timeofday(&time0, (struct timezone *)0);
 	timep.tv_sec = time0.tv_sec;
 	timep.tv_usec = time0.tv_usec;
 	timepk.tv_sec = time0.tv_sec;
@@ -8791,7 +9504,7 @@ read_timer( char *str, int len )
 	char line[132];
 
 	getrusage(RUSAGE_SELF, &ru1);
-	gettimeofday(&timedol, (struct timezone *)0);
+	get_timeofday(&timedol, (struct timezone *)0);
 	prusage(&ru0, &ru1, &timedol, &time0, line);
 	(void)strncpy( str, line, len );
 
@@ -8947,7 +9660,8 @@ psecs( long l, register char *cp )
 		i = l % 3600;
 		sprintf(cp, "%d%d", (i/60) / 10, (i/60) % 10);
 		END(cp);
-	} else {
+	}
+	else {
 		i = l;
 		sprintf(cp, "%d", i / 60);
 		END(cp);
@@ -8970,7 +9684,8 @@ Nread( int fd, char *buf, int count )
 	if (udp) {
 		cnt = recvfrom( fd, buf, count, 0, (struct sockaddr *)&from, &len );
 		numCalls++;
-	} else {
+	}
+	else {
 		if (b_flag)
 			cnt = mread( fd, buf, count );	/* fill buf */
 		else {
@@ -8986,7 +9701,7 @@ Nread( int fd, char *buf, int count )
 		bcopy(buf + 12, &usecs, 4);
 		timetx.tv_sec = ntohl(secs);
 		timetx.tv_usec = ntohl(usecs);
-		gettimeofday(&timerx, (struct timezone *)0);
+		get_timeofday(&timerx, (struct timezone *)0);
 		tvsub( &timed, &timerx, &timetx );
 		owd = timed.tv_sec*1000 + ((double)timed.tv_usec)/1000;
 		nowd++;
@@ -9014,11 +9729,14 @@ Nwrite( int fd, char *buf, int count )
 	struct timeval timedol;
 	struct timeval td;
 	register int cnt = 0;
-	double deltat;
+	double deltat, delta0;
+	double pktdelay = 0;
+	int pktdelay_sec, pktdelay_usec, sssdelay;
 
 	if (irate) {
+		sssdelay = 0;
 		/* Get real time */
-		gettimeofday(&timedol, (struct timezone *)0);
+		get_timeofday(&timedol, (struct timezone *)0);
 		tvsub( &td, &timedol, &timepk );
 		deltat = td.tv_sec + ((double)td.tv_usec) / 1000000;
 
@@ -9031,10 +9749,33 @@ Nwrite( int fd, char *buf, int count )
 		}
 
 		if (nburst++ >= maxburst) {
-			while ((maxburst*(double)count/rate/125 > deltat)
-			       && !intr) {
+			if (iratesss && cwndinfo) {
+				/* note iratesss only supported for 1 stream */
+				tvsub( &td, &timedol, &time0 );
+				delta0 = td.tv_sec + ((double)td.tv_usec)
+							/ 1000000;
+				if (delta0 > which_rt*rtt/1000) {
+					which_rt++;
+					sss_pkt_cwnd = (cwnd[1] + 1)*1024/datamss;
+					sss_pkt_cwnd *= 2;
+				}
+				pktdelay = rtt/1000/sss_pkt_cwnd*count/datamss;
+				if (pktdelay <
+					    maxburst*(double)count/rate/125) {
+					pktdelay =
+						maxburst*(double)count/rate/125;
+					iratesss = 0;
+				}
+				else {
+					sssdelay = 1;
+				}
+			}
+			else {
+				pktdelay = maxburst*(double)count/rate/125;
+			}
+			while ((pktdelay > deltat) && !intr) {
 				/* Get real time */
-				gettimeofday(&timedol, (struct timezone *)0);
+				get_timeofday(&timedol, (struct timezone *)0);
 				tvsub( &td, &timedol, &timepk );
 				deltat = td.tv_sec + ((double)td.tv_usec)
 							/ 1000000;
@@ -9042,15 +9783,28 @@ Nwrite( int fd, char *buf, int count )
 		}
 
 		if (nburst > maxburst) {
-			irate_cum_nsec += maxburst*irate_pk_nsec;
-			while (irate_cum_nsec >= 1000.0) {
-				irate_cum_nsec -= 1000.0;
-				timepk.tv_usec++;
+			if (sssdelay) {
+				pktdelay_sec = pktdelay;
+				pktdelay_usec = (pktdelay - pktdelay_sec)
+							*1000000;
+				timepk.tv_usec += pktdelay_usec;
+				if (timepk.tv_usec >= 1000000) {
+					timepk.tv_usec -= 1000000;
+					timepk.tv_sec += 1;
+				}
+				timepk.tv_sec += pktdelay_sec;
 			}
-			timepk.tv_usec += maxburst*irate_pk_usec;
-			while (timepk.tv_usec >= 1000000) {
-				timepk.tv_usec -= 1000000;
-				timepk.tv_sec++;
+			else {
+				irate_cum_nsec += maxburst*irate_pk_nsec;
+				while (irate_cum_nsec >= 1000.0) {
+					irate_cum_nsec -= 1000.0;
+					timepk.tv_usec++;
+				}
+				timepk.tv_usec += maxburst*irate_pk_usec;
+				while (timepk.tv_usec >= 1000000) {
+					timepk.tv_usec -= 1000000;
+					timepk.tv_sec++;
+				}
 			}
 			nburst = 1;
 		}
@@ -9059,7 +9813,7 @@ Nwrite( int fd, char *buf, int count )
 	else {
 		while ((double)nbytes/realt/125 > rate) {
 			/* Get real time */
-			gettimeofday(&timedol, (struct timezone *)0);
+			get_timeofday(&timedol, (struct timezone *)0);
 			tvsub( &td, &timedol, &time0 );
 			realt = td.tv_sec + ((double)td.tv_usec) / 1000000;
 			if (realt <= 0.0)  realt = 0.000001;
@@ -9069,7 +9823,7 @@ Nwrite( int fd, char *buf, int count )
 		uint32_t secs, usecs;
 
 		/* record transmitter timestamp in packet */
-		gettimeofday(&timedol, (struct timezone *)0);
+		get_timeofday(&timedol, (struct timezone *)0);
 		secs = htonl(timedol.tv_sec);
 		usecs = htonl(timedol.tv_usec);
 		bcopy(&secs, buf + 8, 4);
@@ -9094,7 +9848,36 @@ again:
 			errno = 0;
 			goto again;
 		}
-	} else {
+	}
+	else {
+#if defined(linux) && defined(DEBUG)
+		if (irate && (format & DEBUGIRATE) && debugout) {
+			struct timeval timewr;
+			double pktwrtime;
+			static int cnt = 0;
+
+			cnt++;
+			if (cnt == 1) {
+				fprintf(debugout, "count = %d, datamss = %d, "
+						  "pktxmit = %.8f, "
+						  "rtt = %.6f, maxburst = %d\n",
+					count, datamss,
+					(double)count/rate/125,
+					rtt/1000, maxburst);
+			}
+			get_timeofday(&timewr, (struct timezone *)0);
+			tvsub( &td, &timewr, &time0 );
+			pktwrtime = td.tv_sec + (double)td.tv_usec/1000000;
+			fprintf(debugout, "pktwrtime = %.6f, pktdelay = %.6f, "
+					  "sss_pkt_cwnd = %d, "
+					  "cur_pkt_cwnd = %d, iratesss = %d, "
+					  "which_rt = %d\n",
+					  pktwrtime, pktdelay,
+					  sss_pkt_cwnd,
+					  (cwnd[1] + 1)*1024/datamss, iratesss,
+					  which_rt);
+		}
+#endif
 		cnt = write( fd, buf, count );
 		numCalls++;
 	}
@@ -9298,7 +10081,7 @@ getoptvalp( char **argv, int index, int reqval, int *skiparg )
 char	proc_buf[PROC_BUF_LEN];
 char	proc_buf2[PROC_BUF_LEN2];
 
-int get_retrans( int sockfd )
+int get_retrans( int sockfd, struct STRUCT_TCPINFO *tcpinfo )
 {
 	FILE	*proc_snmp;
 	char	*cp, *cp2;
@@ -9313,27 +10096,35 @@ int get_retrans( int sockfd )
 
 #if defined(linux) && defined(TCPI_OPT_TIMESTAMPS)
 	if ((retransinfo <= 1) && (sockfd >= 0)) {
-		optlen = sizeof(tcpinf);
-		if (getsockopt(sockfd, SOL_TCP, TCP_INFO, (void *)&tcpinf,
+		optlen = sizeof(*tcpinfo);
+		if (getsockopt(sockfd, SOL_TCP, TCP_INFO, (void *)tcpinfo,
 			       &optlen) == 0) {
 			if (optlen >= SIZEOF_TCP_INFO_RETRANS) {
 				retransinfo = 1;
+				cwndinfo = 1;
 				b_flag = 1;
-				return(tcpinf.tcpi_total_retrans);
+				return(tcpinfo->tcpi_total_retrans);
 			}
 		}
 		if (retransinfo == 1) {
 			retransinfo = -1;
+			cwndinfo = 0;
 			return(0);
 		}
 		retransinfo = 2;
+		cwndinfo = 0;
 	}
+#else
+	retransinfo = 2;
+	cwndinfo = 0;
 #endif
 
 	if ((retransinfo == 3) || (!(proc_snmp = fopen(PROC_SNMP, "r")))) {
 		retransinfo = 3;
+		cwndinfo = 0;
 		if (pipe(pipefd) != 0) {
 			retransinfo = -1;
+			cwndinfo = 0;
 			return(0);
 		}
 		if ((pid = fork()) == (pid_t)-1) {
@@ -9341,6 +10132,7 @@ int get_retrans( int sockfd )
 			close(pipefd[0]);
 			close(pipefd[1]);
 			retransinfo = -1;
+			cwndinfo = 0;
 			return(0);
 		}
 		if (pid == 0) {
@@ -9363,6 +10155,7 @@ int get_retrans( int sockfd )
 		if (!(proc_snmp = fdopen(pipefd[0], "r"))) {
 			close(pipefd[0]);
 			retransinfo = -1;
+			cwndinfo = 0;
 			return(0);
 		}
 	}
@@ -9427,6 +10220,7 @@ close:
 
 	if (num_retrans < 0) {
 		retransinfo = -1;
+		cwndinfo = 0;
 		return(0);
 	}
 

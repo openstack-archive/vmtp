@@ -35,7 +35,7 @@ def get_bdw_kbps(bdw, bdw_unit):
 class IperfTool(PerfTool):
 
     def __init__(self, instance):
-        PerfTool.__init__(self, 'iperf', instance)
+        PerfTool.__init__(self, 'iperf-2.0.9', instance)
 
     def get_server_launch_cmd(self):
         '''Return the command to launch the server side.'''
@@ -66,6 +66,8 @@ class IperfTool(PerfTool):
                 bidir = bidirectional
                 loop_count = self.instance.config.tcp_tp_loop_count
             for pkt_size in pkt_size_list:
+                self.instance.display('Measuring %s Throughput (packet size=%d)...',
+                                      proto, pkt_size)
                 for _ in xrange(loop_count):
                     res = self.run_client_dir(target_ip, mss,
                                               bandwidth_kbps=bandwidth,
