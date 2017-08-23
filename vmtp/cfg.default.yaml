@@ -211,3 +211,17 @@ vmtp_db: "client_db"
 ########################################
 vmtp_collection: "pns_web_entry"
 
+# When enabled, all logs will be sent to a fluentd server at the requested IP and port
+# The fluentd "tag" and "label" fields for every message will be set to "nfvbench"
+fluentd:
+    # by default (logging_tag is empty) nfvbench log messages are not sent to fluentd
+    # to enable logging to fluents, specify a valid fluentd tag name to be used for the
+    # log records
+    logging_tag:
+
+    # IP address of the server, defaults to loopback
+    ip: 127.0.0.1
+
+    # port # to use, by default, use the default fluentd forward port
+    port: 24224
+

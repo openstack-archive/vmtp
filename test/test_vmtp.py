@@ -19,10 +19,23 @@ test_vmtp
 Tests for `vmtp` module.
 """
 
-from vmtp.tests import base
+import logging
+from vmtp.fluentd import FluentLogHandler
+import vmtp.log
 
 
-class TestVmtp(base.TestCase):
+def setup_module(module):
+    vmtp.log.setup(product_name="test")
 
-    def test_something(self):
-        pass
+
+def test_fluentd():
+    logger = logging.getLogger('fluent-logger')
+    handler = FluentLogHandler('vmtp', fluentd_port=7081)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.info('test')
+    logger.warning('test %d', 100)
+    try:
+        raise Exception("test")
+    except Exception:
+        logger.exception("got exception")
