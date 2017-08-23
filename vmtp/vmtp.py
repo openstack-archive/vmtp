@@ -30,6 +30,7 @@ import compute
 from config import config_load
 from config import config_loads
 import credentials
+from fluentd import FluentLogHandler
 from glanceclient.v2 import client as glanceclient
 import iperf_tool
 from keystoneclient import client as keystoneclient
@@ -49,7 +50,7 @@ import sshutils
 
 flow_num = 0
 return_code = 0
-
+fluent_logger = None
 
 class FlowPrinter(object):
     @staticmethod
@@ -189,7 +190,7 @@ class VmtpTest(object):
                 self.instance_access.public_key_file = pub_key
                 self.instance_access.private_key_file = priv_key
             else:
-                LOG.error('Default keypair ~/.ssh/id_rsa[.pub] does not exist. Please '
+                LOG.error('Default id ~/.ssh/id_rsa[.pub] does not exist. Please '
                           'either create one in your home directory, or specify your '
                           'keypair information in the config file before running VMTP.')
                 sys.exit(1)
@@ -458,7 +459,10 @@ class VmtpTest(object):
 
     def run(self):
         error_flag = False
-
+        if fluent_logger:
+            # take a snapshot of the current time for this new run
+            # so that all subsequent logs can relate to this run
+            fluent_logger.start_new_run()
         try:
             self.setup()
             self.measure_vm_flows()
@@ -1141,6 +1145,7 @@ def merge_opts_to_configs(opts):
 
 
 def run_vmtp(opts):
+    global fluent_logger
     '''Run VMTP
     :param opts: Parameters that to be passed to VMTP in type argparse.Namespace(). See:
                  http://vmtp.readthedocs.org/en/latest/usage.html#running-vmtp-as-a-library
@@ -1156,6 +1161,14 @@ def run_vmtp(opts):
                 opts.__setattr__(key, value)
 
     config = merge_opts_to_configs(opts)
+    # setup the fluent logger as soon as possible right after the config plugin is called
+    if config.fluentd.logging_tag:
+        fluent_logger = FluentLogHandler(config.fluentd.logging_tag,
+                                         fluentd_ip=config.fluentd.ip,
+                                         fluentd_port=config.fluentd.port)
+        LOG.addHandler(fluent_logger)
+    else:
+        fluent_logger = None
     rescol = ResultsCollector()
 
     # Run the native host tests if specified by user
