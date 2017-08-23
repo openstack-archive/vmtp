@@ -21,6 +21,7 @@ import time
 import glanceclient.exc as glance_exception
 import keystoneauth1
 from log import LOG
+from neutronclient.common.exceptions import Conflict
 import novaclient
 import novaclient.exceptions as exceptions
 
@@ -416,7 +417,12 @@ class Compute(object):
     def security_group_delete(self, group):
         if group:
             LOG.info("Deleting security group")
-            self.neutron.delete_security_group(group["id"])
+            for _ in range(1, 5):
+                try:
+                    self.neutron.delete_security_group(group["id"])
+                    break
+                except Conflict:
+                    time.sleep(1)
 
     # Add rules to the security group
     def security_group_add_rules(self, group):
