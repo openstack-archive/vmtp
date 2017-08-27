@@ -46,7 +46,7 @@ Create a virtual environment for Python, and install VMTP:
 .. code-block:: bash
 
     $ virtualenv ./vmtpenv
-    $ source ./vmtpenv/bin/activate
+    $ . ./vmtpenv/bin/activate
     $ pip install vmtp
     $ vmtp -h
 
