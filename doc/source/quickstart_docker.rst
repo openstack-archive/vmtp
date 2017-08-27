@@ -63,7 +63,7 @@ Now that the RC file is available from the container, you can run any OpenStack 
 .. code-block:: bash
 
     sudo docker run --rm -it -v $PWD:/tmp/vmtp berrypatch/vmtp bash
-    root@af7cedc3866f:/# source /tmp/vmtp/admin-openrc.sh
+    root@af7cedc3866f:/# . /tmp/vmtp/admin-openrc.sh
 
 
 4.1. Verify flavor names

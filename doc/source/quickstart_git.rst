@@ -18,7 +18,7 @@ Installation on Ubuntu/Debian
     $ sudo apt-get install libxml2-dev libxslt-dev libffi-dev libz-dev libyaml-dev libssl-dev
     $ # create a virtual environment
     $ virtualenv ./vmtpenv
-    $ source ./vmtpenv/bin/activate
+    $ . ./vmtpenv/bin/activate
     $ git clone git://git.openstack.org/openstack/vmtp
     $ cd vmtp
     $ pip install -r requirements-dev.txt
@@ -35,7 +35,7 @@ Installation on RHEL/CentOS
     $ sudo pip install git-review
     $ # create a virtual environment
     $ virtualenv ./vmtpenv
-    $ source ./vmtpenv/bin/activate
+    $ . ./vmtpenv/bin/activate
     $ git clone git://git.openstack.org/openstack/vmtp
     $ cd vmtp
     $ pip install -r requirements-dev.txt
@@ -60,7 +60,7 @@ First, download XCode from App Store, then execute below commands:
     $ sudo pip install virtualenv
     $ # create a virtual environment
     $ virtualenv ./vmtpenv
-    $ source ./vmtpenv/bin/activate
+    $ . ./vmtpenv/bin/activate
     $ git clone git://git.openstack.org/openstack/vmtp
     $ cd vmtp
     $ pip install -r requirements-dev.txt
@@ -100,7 +100,7 @@ In the VMTP virtual environment, you can run any OpenStack CLI command (since th
 
 .. code-block:: bash
 
-    source admin-openrc.sh
+    . admin-openrc.sh
 
 
 4.1. Verify flavor names
