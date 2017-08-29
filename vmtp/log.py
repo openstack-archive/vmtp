@@ -14,7 +14,16 @@
 
 import logging
 
+
 def setup(product_name, debug=False, logfile=None):
+    # ADD RUN_SUMMARY as a custom log level
+    logging.addLevelName(LogLevel.RUN_SUMMARY, "RUN_SUMMARY")
+
+    def run_summary(self, message, *args, **kws):
+        self._log(LogLevel.RUN_SUMMARY, message, args, **kws)
+
+    logging.Logger.run_summary = run_summary
+
     log_level = logging.DEBUG if debug else logging.INFO
     console_handler = file_handler = None
 
@@ -45,11 +54,28 @@ def setup(product_name, debug=False, logfile=None):
         file_logger.addHandler(file_handler)
         all_logger.addHandler(file_handler)
 
+
 def getLogger(product, target):
     logger = logging.getLogger(product + "_" + target)
-
     return logger
+
 
 CONLOG = getLogger('vmtp', 'console')
 LOG = getLogger('vmtp', 'all')
 FILELOG = getLogger('vmtp', 'file')
+
+
+class LogLevel(object):
+    RUN_SUMMARY = 100
+    highest_level = logging.INFO
+    warning_counter = 0
+    error_counter = 0
+
+    @staticmethod
+    def get_highest_level_log_name():
+        if LogLevel.highest_level == logging.INFO:
+            return "GOOD RUN"
+        elif LogLevel.highest_level == logging.WARNING:
+            return "RUN WITH WARNINGS"
+        else:
+            return "RUN WITH ERRORS"

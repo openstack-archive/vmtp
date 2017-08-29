@@ -14,6 +14,7 @@
 
 from datetime import datetime
 from fluent import sender
+from log import LogLevel
 import logging
 
 
@@ -39,6 +40,9 @@ class FluentLogHandler(logging.Handler):
         '''Delimitate a new run in the stream of records with a new timestamp
         '''
         self.runlogdate = str(datetime.now())
+        LogLevel.highest_level = logging.INFO
+        LogLevel.warning_counter = 0
+        LogLevel.error_counter = 0
 
     def emit(self, record):
         data = {
@@ -46,4 +50,15 @@ class FluentLogHandler(logging.Handler):
             "loglevel": record.levelname,
             "message": self.formatter.format(record)
         }
+        # if new log level is higher, update the value
+        if record.levelno > LogLevel.highest_level and record.levelno != LogLevel.RUN_SUMMARY:
+            LogLevel.highest_level = record.levelno
+        if record.levelno == logging.WARNING:
+            LogLevel.warning_counter += 1
+        elif record.levelno == logging.ERROR:
+            LogLevel.error_counter += 1
+        elif record.levelno == LogLevel.RUN_SUMMARY:
+            data["numloglevel"] = LogLevel.highest_level
+            data["numwarnings"] = LogLevel.warning_counter
+            data["numerrors"] = LogLevel.error_counter
         self.sender.emit(None, data)
