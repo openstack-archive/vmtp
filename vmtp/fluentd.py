@@ -14,6 +14,7 @@
 
 from datetime import datetime
 from fluent import sender
+from log import RunStatus
 import logging
 
 
@@ -39,6 +40,7 @@ class FluentLogHandler(logging.Handler):
         '''Delimitate a new run in the stream of records with a new timestamp
         '''
         self.runlogdate = str(datetime.now())
+        RunStatus.reset()
 
     def emit(self, record):
         data = {
@@ -46,4 +48,12 @@ class FluentLogHandler(logging.Handler):
             "loglevel": record.levelname,
             "message": self.formatter.format(record)
         }
+        if record.levelno == logging.WARNING:
+            RunStatus.warning_counter += 1
+        elif record.levelno == logging.ERROR:
+            RunStatus.error_counter += 1
+        elif record.levelno == RunStatus.RUN_SUMMARY_LOG_LEVEL:
+            data["numwarnings"] = RunStatus.get_warning_count()
+            data["numerrors"] = RunStatus.get_error_count()
+            data["numloglevel"] = RunStatus.get_highest_level()
         self.sender.emit(None, data)
