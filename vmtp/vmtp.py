@@ -37,6 +37,7 @@ from keystoneclient import client as keystoneclient
 from log import CONLOG
 from log import FILELOG
 from log import LOG
+from log import LogLevel
 import network
 from neutronclient.neutron import client as neutronclient
 from novaclient import client as novaclient
@@ -1239,10 +1240,15 @@ def run_vmtp(opts):
 
 
 def main():
-    opts = parse_opts_from_cli()
-    log.setup('vmtp', debug=opts.debug, logfile=opts.logfile)
-    run_vmtp(opts)
-    sys.exit(return_code)
+    try:
+        opts = parse_opts_from_cli()
+        log.setup('vmtp', debug=opts.debug, logfile=opts.logfile)
+        run_vmtp(opts)
+    except Exception as e:
+        LOG.exception(e)
+    finally:
+        LOG.run_summary(LogLevel.get_highest_level_log_name())
+        sys.exit(return_code)
 
 
 if __name__ == '__main__':
