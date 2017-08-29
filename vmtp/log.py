@@ -14,6 +14,7 @@
 
 import logging
 
+
 def setup(product_name, debug=False, logfile=None):
     log_level = logging.DEBUG if debug else logging.INFO
     console_handler = file_handler = None
@@ -45,10 +46,11 @@ def setup(product_name, debug=False, logfile=None):
         file_logger.addHandler(file_handler)
         all_logger.addHandler(file_handler)
 
+
 def getLogger(product, target):
     logger = logging.getLogger(product + "_" + target)
-
     return logger
+
 
 CONLOG = getLogger('vmtp', 'console')
 LOG = getLogger('vmtp', 'all')

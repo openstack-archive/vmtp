@@ -1239,10 +1239,20 @@ def run_vmtp(opts):
 
 
 def main():
-    opts = parse_opts_from_cli()
-    log.setup('vmtp', debug=opts.debug, logfile=opts.logfile)
-    run_vmtp(opts)
-    sys.exit(return_code)
+    run_summary_required = False
+    try:
+        opts = parse_opts_from_cli()
+        log.setup('vmtp', debug=opts.debug, logfile=opts.logfile)
+        run_vmtp(opts)
+        # If an exit occurs in run_vmtp such as printing version do not log run summary
+        run_summary_required = True
+    except Exception as e:
+        LOG.exception(e)
+    finally:
+        if fluent_logger:
+            # For the cases don't run vmtp do not record anything
+            fluent_logger.send_run_summary(run_summary_required)
+        sys.exit(return_code)
 
 
 if __name__ == '__main__':
