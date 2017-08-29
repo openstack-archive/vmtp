@@ -14,7 +14,17 @@
 
 import logging
 
+
 def setup(product_name, debug=False, logfile=None):
+    # Add RUN_SUMMARY as a custom log level to log highest level of log
+    # along with the number of errors and warnings in the run
+    logging.addLevelName(RunStatus.RUN_SUMMARY_LOG_LEVEL, "RUN_SUMMARY")
+
+    def run_summary(self, message, *args, **kws):
+        self._log(RunStatus.RUN_SUMMARY_LOG_LEVEL, message, args, **kws)
+
+    logging.Logger.run_summary = run_summary
+
     log_level = logging.DEBUG if debug else logging.INFO
     console_handler = file_handler = None
 
@@ -45,11 +55,49 @@ def setup(product_name, debug=False, logfile=None):
         file_logger.addHandler(file_handler)
         all_logger.addHandler(file_handler)
 
+
 def getLogger(product, target):
     logger = logging.getLogger(product + "_" + target)
-
     return logger
+
 
 CONLOG = getLogger('vmtp', 'console')
 LOG = getLogger('vmtp', 'all')
 FILELOG = getLogger('vmtp', 'file')
+
+
+class RunStatus(object):
+    RUN_SUMMARY_LOG_LEVEL = 100
+    warning_counter = 0
+    error_counter = 0
+
+    @staticmethod
+    def get_highest_level_desc():
+        highest_level = RunStatus.get_highest_level()
+        if highest_level == logging.INFO:
+            return "GOOD RUN"
+        elif highest_level == logging.WARNING:
+            return "RUN WITH WARNINGS"
+        else:
+            return "RUN WITH ERRORS"
+
+    @staticmethod
+    def reset():
+        RunStatus.warning_counter = 0
+        RunStatus.error_counter = 0
+
+    @staticmethod
+    def get_warning_count():
+        return RunStatus.warning_counter
+
+    @staticmethod
+    def get_error_count():
+        return RunStatus.error_counter
+
+    @staticmethod
+    def get_highest_level():
+        if RunStatus.get_error_count() > 0:
+            return logging.ERROR
+        elif RunStatus.get_warning_count() > 0:
+            return logging.WARNING
+        return logging.INFO
