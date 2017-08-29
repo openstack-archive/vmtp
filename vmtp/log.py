@@ -14,7 +14,18 @@
 
 import logging
 
+
 def setup(product_name, debug=False, logfile=None):
+    # ADD RUN_SUMMARY as a custom log level
+    logging.addLevelName(LogLevel.RUN_SUMMARY, "RUN_SUMMARY")
+
+    def run_summary(self, message, *args, **kws):
+        # Yes, logger takes its '*args' as 'args'.
+        if self.isEnabledFor(LogLevel.RUN_SUMMARY):
+            self._log(LogLevel.RUN_SUMMARY, message, args, **kws)
+
+    logging.Logger.run_summary = run_summary
+
     log_level = logging.DEBUG if debug else logging.INFO
     console_handler = file_handler = None
 
@@ -45,11 +56,31 @@ def setup(product_name, debug=False, logfile=None):
         file_logger.addHandler(file_handler)
         all_logger.addHandler(file_handler)
 
+
 def getLogger(product, target):
     logger = logging.getLogger(product + "_" + target)
-
     return logger
+
 
 CONLOG = getLogger('vmtp', 'console')
 LOG = getLogger('vmtp', 'all')
 FILELOG = getLogger('vmtp', 'file')
+
+
+class LogLevel(object):
+    INFO = 20
+    WARNING = 30
+    ERROR = 40
+    RUN_SUMMARY = 100
+    current = INFO
+
+    @staticmethod
+    def get_current_log_name():
+        if LogLevel.current == LogLevel.INFO:
+            return "INFO"
+        elif LogLevel.current == LogLevel.WARNING:
+            return "WARNING"
+        elif LogLevel.current == LogLevel.ERROR:
+            return "ERROR"
+        else:
+            return "RUN_SUMMARY"
