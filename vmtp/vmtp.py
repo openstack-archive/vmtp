@@ -52,6 +52,7 @@ flow_num = 0
 return_code = 0
 fluent_logger = None
 
+
 class FlowPrinter(object):
     @staticmethod
     def print_desc(desc):
@@ -1239,10 +1240,21 @@ def run_vmtp(opts):
 
 
 def main():
-    opts = parse_opts_from_cli()
-    log.setup('vmtp', debug=opts.debug, logfile=opts.logfile)
-    run_vmtp(opts)
-    sys.exit(return_code)
+    run_summary_required = False
+    try:
+        opts = parse_opts_from_cli()
+        log.setup('vmtp', debug=opts.debug, logfile=opts.logfile)
+        run_vmtp(opts)
+        # If an exit occurs in run_vmtp such as printing version do not log run summary
+        run_summary_required = True
+    except Exception as e:
+        LOG.exception(e)
+    finally:
+        if fluent_logger:
+            # only send a summary record if there was an actual vmtp run or
+            # if an error/exception was logged.
+            fluent_logger.send_run_summary(run_summary_required)
+        sys.exit(return_code)
 
 
 if __name__ == '__main__':
