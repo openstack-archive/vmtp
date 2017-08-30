@@ -39,6 +39,9 @@ class FluentLogHandler(logging.Handler):
         '''Delimitate a new run in the stream of records with a new timestamp
         '''
         self.runlogdate = str(datetime.now())
+        # reset counters
+        self.__warning_counter = 0
+        self.__error_counter = 0
 
     def emit(self, record):
         data = {
@@ -46,4 +49,40 @@ class FluentLogHandler(logging.Handler):
             "loglevel": record.levelname,
             "message": self.formatter.format(record)
         }
+        self.__update_stats(record.levelno)
         self.sender.emit(None, data)
+
+    # send stats related to the current run and reset state for a new run
+    def send_run_summary(self, run_summary_required):
+        if run_summary_required or self.__get_highest_level() == logging.ERROR:
+            data = {
+                "runlogdate": self.runlogdate,
+                "loglevel": "RUN_SUMMARY",
+                "message": self.__get_highest_level_desc(),
+                "numloglevel": self.__get_highest_level(),
+                "numerrors": self.__error_counter,
+                "numwarnings": self.__warning_counter
+            }
+            self.sender.emit(None, data)
+
+    def __get_highest_level(self):
+        if self.__error_counter > 0:
+            return logging.ERROR
+        elif self.__warning_counter > 0:
+            return logging.WARNING
+        return logging.INFO
+
+    def __get_highest_level_desc(self):
+        highest_level = self.__get_highest_level()
+        if highest_level == logging.INFO:
+            return "GOOD RUN"
+        elif highest_level == logging.WARNING:
+            return "RUN WITH WARNINGS"
+        else:
+            return "RUN WITH ERRORS"
+
+    def __update_stats(self, levelno):
+        if levelno == logging.WARNING:
+            self.__warning_counter += 1
+        elif levelno == logging.ERROR:
+            self.__error_counter += 1
