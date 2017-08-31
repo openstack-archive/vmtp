@@ -125,7 +125,7 @@ class VmtpException(Exception):
 
 
 class VmtpTest(object):
-    def __init__(self, config, cred, rescol):
+    def __init__(self, config, cred, rescol, opts):
         '''
             1. Authenticate nova and neutron with keystone
             2. Create new client objects for neutron and nova
@@ -154,6 +154,7 @@ class VmtpTest(object):
         self.rescol = rescol
         self.config = config
         self.cred = cred
+        self.opts = opts
 
     # Create an instance on a particular availability zone
     def create_instance(self, inst, az, int_net):
@@ -464,6 +465,11 @@ class VmtpTest(object):
             # take a snapshot of the current time for this new run
             # so that all subsequent logs can relate to this run
             fluent_logger.start_new_run()
+            user_opts = {}
+            for key in self.opts.keys():
+                if self.opts[key]:
+                    user_opts[key] = self.opts[key]
+            LOG.info(user_opts)
         try:
             self.setup()
             self.measure_vm_flows()
@@ -1205,7 +1211,7 @@ def run_vmtp(opts):
     if cred.rc_auth_url:
         if config.debug:
             LOG.info('Using ' + cred.rc_auth_url)
-        vmtp_instance = VmtpTest(config, cred, rescol)
+        vmtp_instance = VmtpTest(config, cred, rescol, vars(opts))
         vmtp_instance.run()
         vmtp_net = vmtp_instance.net
 

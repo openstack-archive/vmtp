@@ -32,8 +32,10 @@ class FluentLogHandler(logging.Handler):
         logging.Handler.__init__(self)
         self.tag = tag
         self.formatter = logging.Formatter('%(message)s')
-        self.sender = sender.FluentSender(self.tag, port=fluentd_port)
-        self.start_new_run()
+        self.sender = sender.FluentSender(self.tag, host=fluentd_ip, port=fluentd_port)
+        self.runlogdate = 0
+        self.__warning_counter = 0
+        self.__error_counter = 0
 
     def start_new_run(self):
         '''Delimitate a new run in the stream of records with a new timestamp
@@ -42,6 +44,8 @@ class FluentLogHandler(logging.Handler):
         # reset counters
         self.__warning_counter = 0
         self.__error_counter = 0
+        # send start record
+        self.__send_start_record()
 
     def emit(self, record):
         data = {
@@ -50,6 +54,18 @@ class FluentLogHandler(logging.Handler):
             "message": self.formatter.format(record)
         }
         self.__update_stats(record.levelno)
+        self.sender.emit(None, data)
+
+    # send START record for each run
+    def __send_start_record(self):
+        data = {
+            "runlogdate": self.runlogdate,
+            "loglevel": "START",
+            "message": "VMTP run is started",
+            "numloglevel": 0,
+            "numerrors": 0,
+            "numwarnings": 0
+        }
         self.sender.emit(None, data)
 
     # send stats related to the current run and reset state for a new run
