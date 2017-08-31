@@ -464,6 +464,8 @@ class VmtpTest(object):
             # take a snapshot of the current time for this new run
             # so that all subsequent logs can relate to this run
             fluent_logger.start_new_run()
+            params = ' '.join(str(e) for e in sys.argv[1:])
+            LOG.info(params)
         try:
             self.setup()
             self.measure_vm_flows()
