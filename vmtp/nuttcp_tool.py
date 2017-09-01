@@ -13,13 +13,13 @@
 #    under the License.
 #
 
-import re
-
+from log import LOG
 from perf_tool import PerfTool
+import re
 import sshutils
 
-class NuttcpTool(PerfTool):
 
+class NuttcpTool(PerfTool):
     def __init__(self, instance):
         PerfTool.__init__(self, 'nuttcp-8.1.4', instance)
 
@@ -169,51 +169,58 @@ class NuttcpTool(PerfTool):
             self.instance.display('SSH Error:' + str(exc))
             return [self.parse_error(protocol, str(exc))]
 
-        if udp or multicast:
-            # UDP output:
-            # megabytes=1.1924 real_seconds=10.01 rate_Mbps=0.9997 tx_cpu=99 rx_cpu=0
-            #      drop=0 pkt=1221 data_loss=0.00000
-            re_udp = r'rate_Mbps=([\d\.]*) tx_cpu=\d* rx_cpu=\d* drop=(\-*\d*) pkt=(\d*)'
-            if multicast:
-                re_udp += r' data_loss=[\d\.]* msmaxjitter=([\d\.]*) msavgOWD=([\-\d\.]*)'
-            match = re.search(re_udp, cmd_out)
-            if match:
-                rate_mbps = float(match.group(1))
-                drop = float(match.group(2))
-                pkt = int(match.group(3))
-                jitter = None
-
+        try:
+            if udp or multicast:
+                # UDP output:
+                # megabytes=1.1924 real_seconds=10.01 rate_Mbps=0.9997 tx_cpu=99 rx_cpu=0
+                #      drop=0 pkt=1221 data_loss=0.00000
+                re_udp = r'rate_Mbps=([\d\.]*) tx_cpu=\d* rx_cpu=\d* drop=(\-*\d*) pkt=(\d*)'
                 if multicast:
-                    jitter = float(match.group(4))
+                    re_udp += r' data_loss=[\d\.]* msmaxjitter=([\d\.]*) msavgOWD=([\-\d\.]*)'
+                match = re.search(re_udp, cmd_out)
+                if match:
+                    rate_mbps = float(match.group(1))
+                    drop = float(match.group(2))
+                    pkt = int(match.group(3))
+                    jitter = None
 
-                # Workaround for a bug of nuttcp that sometimes it will return a
-                # negative number for drop.
-                if drop < 0:
-                    drop = 0
+                    if multicast:
+                        jitter = float(match.group(4))
 
-                return [self.parse_results(protocol,
-                                           int(rate_mbps * 1024),
-                                           lossrate=round(drop * 100 / pkt, 2),
-                                           reverse_dir=reverse_dir,
-                                           msg_size=length,
-                                           cpu_load=cpu_load,
-                                           jitter=jitter)]
-        else:
-            # TCP output:
-            # megabytes=1083.4252 real_seconds=10.04 rate_Mbps=905.5953 tx_cpu=3 rx_cpu=19
-            #      retrans=0 cwnd=3202 rtt_ms=0.55
-            re_tcp = \
-                r'rate_Mbps=([\d\.]*) tx_cpu=\d* rx_cpu=\d* retrans=(\d*) cwnd=\d* rtt_ms=([\d\.]*)'
-            match = re.search(re_tcp, cmd_out)
-            if match:
-                rate_mbps = float(match.group(1))
-                retrans = int(match.group(2))
-                rtt_ms = float(match.group(3))
-                return [self.parse_results(protocol,
-                                           int(rate_mbps * 1024),
-                                           retrans=retrans,
-                                           rtt_ms=rtt_ms,
-                                           reverse_dir=reverse_dir,
-                                           msg_size=length,
-                                           cpu_load=cpu_load)]
+                    # Workaround for a bug of nuttcp that sometimes it will return a
+                    # negative number for drop.
+                    if drop < 0:
+                        drop = 0
+
+                    return [self.parse_results(protocol,
+                                               int(rate_mbps * 1024),
+                                               lossrate=round(drop * 100 / pkt, 2),
+                                               reverse_dir=reverse_dir,
+                                               msg_size=length,
+                                               cpu_load=cpu_load,
+                                               jitter=jitter)]
+            else:
+                # TCP output:
+                # megabytes=1083.4252 real_seconds=10.04 rate_Mbps=905.5953 tx_cpu=3 rx_cpu=19
+                #      retrans=0 cwnd=3202 rtt_ms=0.55
+                re_tcp = \
+                    r'rate_Mbps=([\d\.]*) tx_cpu=\d* rx_cpu=\d*' + \
+                    'retrans=(\d*) cwnd=\d* rtt_ms=([\d\.]*)'
+                match = re.search(re_tcp, cmd_out)
+                if match:
+                    rate_mbps = float(match.group(1))
+                    retrans = int(match.group(2))
+                    rtt_ms = float(match.group(3))
+                    return [self.parse_results(protocol,
+                                               int(rate_mbps * 1024),
+                                               retrans=retrans,
+                                               rtt_ms=rtt_ms,
+                                               reverse_dir=reverse_dir,
+                                               msg_size=length,
+                                               cpu_load=cpu_load)]
+        except Exception as exc:
+            LOG.exception(cmd_out)
+            self.instance.display('Parsing Error:' + str(exc))
+            return [self.parse_error(protocol, "cmd=%s: out=%s: exc=%s" % (cmd, cmd_out, str(exc)))]
+
         return [self.parse_error(protocol, 'Could not parse: %s' % (cmd_out))]
