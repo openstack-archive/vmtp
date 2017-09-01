@@ -204,8 +204,8 @@ class NuttcpTool(PerfTool):
                 # megabytes=1083.4252 real_seconds=10.04 rate_Mbps=905.5953 tx_cpu=3 rx_cpu=19
                 #      retrans=0 cwnd=3202 rtt_ms=0.55
                 re_tcp = \
-                    r'rate_Mbps=([\d\.]*) tx_cpu=\d* rx_cpu=\d*' + \
-                    'retrans=(\d*) cwnd=\d* rtt_ms=([\d\.]*)'
+                    r'rate_Mbps=([\d\.]*) tx_cpu=\d* rx_cpu=\d*' \
+                    ' retrans=(\d*) cwnd=\d* rtt_ms=([\d\.]*)'
                 match = re.search(re_tcp, cmd_out)
                 if match:
                     rate_mbps = float(match.group(1))
