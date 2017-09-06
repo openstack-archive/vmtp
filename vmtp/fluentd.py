@@ -15,6 +15,7 @@
 from datetime import datetime
 from fluent import sender
 import logging
+import pytz
 
 
 class FluentLogHandler(logging.Handler):
@@ -51,7 +52,10 @@ class FluentLogHandler(logging.Handler):
         data = {
             "runlogdate": self.runlogdate,
             "loglevel": record.levelname,
-            "message": self.formatter.format(record)
+            "message": self.formatter.format(record),
+            "@timestamp": datetime.utcnow().replace(tzinfo=pytz.utc).strftime(
+                "%Y-%m-%dT%H:%M:%S.%f%z")
+
         }
         self.__update_stats(record.levelno)
         self.sender.emit(None, data)
@@ -64,7 +68,9 @@ class FluentLogHandler(logging.Handler):
             "message": "VMTP run is started",
             "numloglevel": 0,
             "numerrors": 0,
-            "numwarnings": 0
+            "numwarnings": 0,
+            "@timestamp": datetime.utcnow().replace(tzinfo=pytz.utc).strftime(
+                "%Y-%m-%dT%H:%M:%S.%f%z")
         }
         self.sender.emit(None, data)
 
@@ -77,7 +83,9 @@ class FluentLogHandler(logging.Handler):
                 "message": self.__get_highest_level_desc(),
                 "numloglevel": self.__get_highest_level(),
                 "numerrors": self.__error_counter,
-                "numwarnings": self.__warning_counter
+                "numwarnings": self.__warning_counter,
+                "@timestamp": datetime.utcnow().replace(tzinfo=pytz.utc).strftime(
+                    "%Y-%m-%dT%H:%M:%S.%f%z")
             }
             self.sender.emit(None, data)
 
