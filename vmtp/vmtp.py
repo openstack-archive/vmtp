@@ -1170,6 +1170,7 @@ def run_vmtp(opts):
                                          fluentd_ip=config.fluentd.ip,
                                          fluentd_port=config.fluentd.port)
         LOG.addHandler(fluent_logger)
+        FILELOG.addHandler(fluent_logger)
     else:
         fluent_logger = None
     rescol = ResultsCollector()
