@@ -151,10 +151,10 @@ class NuttcpTool(PerfTool):
             duration_sec = self.instance.get_cmd_duration()
         # use data port 5001 and control port 5002
         # must be enabled in the VM security group
-        cmd = "%s -T%d %s -p5001 -P5002 -fparse %s" % (self.dest_path,
-                                                       duration_sec,
-                                                       opts,
-                                                       target_ip)
+        cmd = "%s -a -T%d %s -p5001 -P5002 -fparse %s" % (self.dest_path,
+                                                          duration_sec,
+                                                          opts,
+                                                          target_ip)
         self.instance.buginf(cmd)
         try:
             if no_cpu_timed:
