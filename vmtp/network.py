@@ -17,8 +17,10 @@ import time
 
 from log import LOG
 # Module containing a helper class for operating on OpenStack networks
+from neutronclient.common.exceptions import IpAddressInUseClient
 from neutronclient.common.exceptions import NetworkInUseClient
 from neutronclient.common.exceptions import NeutronException
+from neutronclient.common.exceptions import PortInUseClient
 import vmtp
 
 class Network(object):
@@ -320,7 +322,13 @@ class Network(object):
 
     def delete_port(self, port):
         LOG.debug('Deleting port ' + port['id'])
-        self.neutron_client.delete_port(port['id'])
+        for _ in range(1, 5):
+            try:
+                self.neutron_client.delete_port(port['id'])
+                break
+            except PortInUseClient:
+                time.sleep(1)
+
 
     # Create a floating ip on the external network and return it
     def create_floating_ip(self):
@@ -334,7 +342,13 @@ class Network(object):
 
     # Delete floating ip given a floating ip ad
     def delete_floating_ip(self, floatingip):
-        self.neutron_client.delete_floatingip(floatingip)
+        LOG.info("Deleting floating ip " + floatingip)
+        for _ in range(1, 5):
+            try:
+                self.neutron_client.delete_floatingip(floatingip)
+                break
+            except IpAddressInUseClient:
+                time.sleep(1)
 
     # Dispose all network resources, call after all VM have been deleted
     def dispose(self):

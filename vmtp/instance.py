@@ -18,7 +18,9 @@ import re
 from log import LOG
 import monitor
 import netaddr
+from novaclient.exceptions import BadRequest
 import sshutils
+import time
 
 
 # a dictionary of sequence number indexed by a name prefix
@@ -193,7 +195,12 @@ class Instance(object):
                 self.ssh_access.host = fip['floatingip']['floating_ip_address']
                 self.ssh_ip_id = fip['floatingip']['id']
                 self.display('Associating floating IP %s', self.ssh_access.host)
-                self.instance.add_floating_ip(self.ssh_access.host, ipv4_fixed_address)
+                for _ in range(1, 5):
+                    try:
+                        self.instance.add_floating_ip(self.ssh_access.host, ipv4_fixed_address)
+                        break
+                    except BadRequest:
+                        time.sleep(1)
 
         # extract the IP for the data network
         self.display('Internal network IP: %s', self.internal_ip)
