@@ -34,14 +34,14 @@ class FluentLogHandler(logging.Handler):
         self.tag = tag
         self.formatter = logging.Formatter('%(message)s')
         self.sender = sender.FluentSender(self.tag, host=fluentd_ip, port=fluentd_port)
-        self.runlogdate = 0
+        self.runlogdate = datetime.utcnow().replace(tzinfo=pytz.utc).strftime(
+            "%Y-%m-%dT%H:%M:%S.%f%z")
         self.__warning_counter = 0
         self.__error_counter = 0
 
     def start_new_run(self):
         '''Delimitate a new run in the stream of records with a new timestamp
         '''
-        self.runlogdate = str(datetime.now())
         # reset counters
         self.__warning_counter = 0
         self.__error_counter = 0
