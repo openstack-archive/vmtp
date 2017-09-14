@@ -41,7 +41,8 @@ class FluentLogHandler(logging.Handler):
     def start_new_run(self):
         '''Delimitate a new run in the stream of records with a new timestamp
         '''
-        self.runlogdate = str(datetime.now())
+        self.runlogdate = datetime.utcnow().replace(tzinfo=pytz.utc).strftime(
+            "%Y-%m-%dT%H:%M:%S.%f%z")
         # reset counters
         self.__warning_counter = 0
         self.__error_counter = 0
