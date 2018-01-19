@@ -599,7 +599,7 @@ def gen_report_data(proto, result):
                 for pkt_size_res in item['results']:
                     label = str(pkt_size_res['packet_size']) + '-byte'
                     if 'error' in pkt_size_res:
-                        pkt_size_results[label] = pkt_size_res['error']
+                        pkt_size_results[label] = 'error: ' + pkt_size_res['error']
                     else:
                         pkt_size_results[label] = '%s/%s/%s/%s' % \
                                                   (pkt_size_res['rtt_avg_ms'],
