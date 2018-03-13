@@ -220,10 +220,15 @@ class VmtpTest(object):
                 if self.config.vm_image_url != "":
                     LOG.info('%s: image for VM not found, trying to upload it ...',
                              self.config.image_name)
-                    self.comp.upload_image_via_url(
+                    flag = self.comp.upload_image_via_url(
                         self.glance_client,
                         self.config.image_name,
                         self.config.vm_image_url)
+                    if not flag:
+                        # Exit the pogram
+                        LOG.error('Cannot upload image %s to the cloud. ABORTING.',
+                                  self.config.image_name)
+                        sys.exit(1)
                     self.image_instance = self.comp.find_image(self.glance_client,
                                                                self.config.image_name)
                     self.image_uploaded = True

@@ -361,7 +361,7 @@ class Compute(object):
         else:
             for host in host_list:
                 # this host must be a compute node
-                if host.binary != 'nova-compute' or host.state != 'up':
+                if host.binary != 'nova-compute' or host.state != 'up' or host.status != 'enabled':
                     continue
                 candidate = None
                 if self.config.availability_zone:
