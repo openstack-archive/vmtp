@@ -117,7 +117,7 @@ internal_network_name: ['pns-internal-net', 'pns-internal-net2']
 internal_subnet_name: ['pns-internal-subnet', 'pns-internal-subnet2']
 
 # Name of the subnets for ipv6
-internal_subnet_name_ipv6: ['pns-internal-v6-subnet','pns-internal-v6-subnet2']
+internal_subnet_name_v6: ['pns-internal-v6-subnet','pns-internal-v6-subnet2']
 
 # Default CIDRs to use for the internal mgmt subnet
 internal_cidr: ['192.168.1.0/24' , '192.168.2.0/24']
