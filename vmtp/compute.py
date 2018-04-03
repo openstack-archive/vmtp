@@ -436,7 +436,7 @@ class Compute(object):
             self.neutron.create_security_group_rule(
                 self.generate_security_group_rule_dict(group_id=group["id"],
                                                        protocol="icmp",
-                                                       ether_type="IPv6"))
+                                                       ethertype="IPv6"))
 
         # Allow SSH traffic
         self.neutron.create_security_group_rule(
@@ -480,13 +480,18 @@ class Compute(object):
     def generate_security_group_rule_dict(self, group_id, protocol, ethertype='IPv4',
                                           port_range_min=None,
                                           port_range_max=None):
+        remote_ip_prefix = '0.0.0.0/0'
+        security_group_rule = {
+            'direction': 'ingress',
+            'security_group_id': group_id,
+            'ethertype': ethertype,
+            'port_range_min': port_range_min,
+            'port_range_max': port_range_max,
+            'protocol': protocol,
+            'remote_group_id': None}
+        if ethertype == 'IPv6':
+            remote_ip_prefix = '::/0'
+        security_group_rule.update({'remote_ip_prefix': remote_ip_prefix})
+
         return {
-            'security_group_rule': {
-                'direction': 'ingress',
-                'security_group_id': group_id,
-                'ethertype': ethertype,
-                'port_range_min': port_range_min,
-                'port_range_max': port_range_max,
-                'protocol': protocol,
-                'remote_group_id': None,
-                'remote_ip_prefix': '0.0.0.0/0'}}
+            'security_group_rule': security_group_rule}
