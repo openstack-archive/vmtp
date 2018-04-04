@@ -40,8 +40,13 @@ class IperfTool(PerfTool):
     def get_server_launch_cmd(self):
         '''Return the command to launch the server side.'''
         # Need 1 server for tcp (port 5001) and 1 for udp (port 5001)
-        return [self.dest_path + ' -s >/dev/null &',
-                self.dest_path + ' -s -u >/dev/null &']
+        if self.instance.config.ipv6_mode:
+            return [self.dest_path + ' -s -V >/dev/null &',
+                    self.dest_path + ' -s -u -V >/dev/null &']
+        else:
+            return [self.dest_path + ' -s >/dev/null &',
+                    self.dest_path + ' -s -u >/dev/null &']
+
 
     def run_client(self, target_ip, target_instance,
                    mss=None, bandwidth=0, bidirectional=False):
@@ -112,6 +117,9 @@ class IperfTool(PerfTool):
 
         if length:
             opts += " -l" + str(length)
+
+        if self.instance.config.ipv6_mode:
+            opts += " -V "
 
         if udp:
             opts += " -u"
