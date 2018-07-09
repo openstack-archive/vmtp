@@ -188,19 +188,17 @@ class Instance(object):
             if self.no_floatingip:
                 self.ssh_access.host = self.internal_ip
             else:
-                fip = self.net.create_floating_ip()
+                interface_list = self.instance.interface_list()
+                if not interface_list:
+                    self.display('Cannot find port id for %s.', self.name)
+                    return False
+                port_id = interface_list[0].id
+                fip = self.net.create_floating_ip(port_id)
                 if not fip:
                     self.display('Floating ip creation failed.')
                     return False
                 self.ssh_access.host = fip['floatingip']['floating_ip_address']
                 self.ssh_ip_id = fip['floatingip']['id']
-                self.display('Associating floating IP %s', self.ssh_access.host)
-                for _ in range(1, 5):
-                    try:
-                        self.instance.add_floating_ip(self.ssh_access.host, ipv4_fixed_address)
-                        break
-                    except BadRequest:
-                        time.sleep(1)
 
         # extract the IP for the data network
         self.display('Internal network IP: %s', self.internal_ip)

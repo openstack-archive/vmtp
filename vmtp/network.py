@@ -331,10 +331,11 @@ class Network(object):
 
 
     # Create a floating ip on the external network and return it
-    def create_floating_ip(self):
+    def create_floating_ip(self, port_id):
         body = {
             "floatingip": {
-                "floating_network_id": self.ext_net['id']
+                "floating_network_id": self.ext_net['id'],
+                "port_id": port_id
             }
         }
         fip = self.neutron_client.create_floatingip(body)
