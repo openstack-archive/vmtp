@@ -18,9 +18,7 @@ import re
 from log import LOG
 import monitor
 import netaddr
-from novaclient.exceptions import BadRequest
 import sshutils
-import time
 
 
 # a dictionary of sequence number indexed by a name prefix
@@ -175,32 +173,21 @@ class Instance(object):
         else:
             # Set the internal ip to the correct ip for v4 and v6
             for ip_address in self.instance.networks[internal_network_name]:
-                ip = netaddr.IPAddress(ip_address)
-                if self.config.ipv6_mode:
-                    if ip.version == 6:
-                        self.internal_ip = ip_address
-                    else:
-                        ipv4_fixed_address = ip_address
-                else:
-                    if ip.version == 4:
-                        self.internal_ip = ip_address
-                        ipv4_fixed_address = ip_address
+                self.internal_ip = ip_address
             if self.no_floatingip:
                 self.ssh_access.host = self.internal_ip
             else:
-                fip = self.net.create_floating_ip()
+                interface_list = self.instance.interface_list()
+                if not interface_list:
+                    self.display('Cannot find port id for %s.', self.name)
+                    return False
+                port_id = interface_list[0].id
+                fip = self.net.create_floating_ip(port_id)
                 if not fip:
                     self.display('Floating ip creation failed.')
                     return False
                 self.ssh_access.host = fip['floatingip']['floating_ip_address']
                 self.ssh_ip_id = fip['floatingip']['id']
-                self.display('Associating floating IP %s', self.ssh_access.host)
-                for _ in range(1, 5):
-                    try:
-                        self.instance.add_floating_ip(self.ssh_access.host, ipv4_fixed_address)
-                        break
-                    except BadRequest:
-                        time.sleep(1)
 
         # extract the IP for the data network
         self.display('Internal network IP: %s', self.internal_ip)
