@@ -1,0 +1,9 @@
+Code-Review+1: Morgan Richomme <morgan.richomme@orange.com>
+Code-Review+2: Alec Hothan <ahothan@cisco.com>
+Workflow+1: Alec Hothan <ahothan@cisco.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Wed, 18 Jul 2018 16:11:18 +0000
+Reviewed-on: https://review.openstack.org/580914
+Project: openstack/vmtp
+Branch: refs/heads/master
