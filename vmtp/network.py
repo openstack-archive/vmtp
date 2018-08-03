@@ -57,38 +57,54 @@ class Network(object):
                 raise vmtp.VmtpException("Unable to find the network to be reused.")
                 return
         else:
+            ##########################################
+            # If the user defined router is available,
+            # then select it and its gateway
+            ##########################################
+            routers = neutron_client.list_routers(
+                name=config.router_name)['routers']
+            if routers and routers[0].get("external_gateway_info"):
+                self.ext_router = routers[0]
+                ext_net = self.ext_router["external_gateway_info"][
+                    'network_id']
+                self.ext_net = neutron_client.show_network(ext_net)['network']
+                LOG.info('Using external router: %s', self.ext_router['name'])
+
             ##############################################
             # If a user provided ext_net_name is not available,
             # then find the first network that is external
             ##############################################
-            for network in self.networks:
-                if network['router:external']:
-                    try:
-                        if network['name'] == config.ext_net_name:
+            if not self.ext_net:
+                for network in self.networks:
+                    if network['router:external']:
+                        try:
+                            if network['name'] == config.ext_net_name:
+                                self.ext_net = network
+                                break
+                            if not self.ext_net:
+                                self.ext_net = network
+                        except AttributeError:
+                            ###############################################
+                            # A attribute error indicates, no user defined
+                            # external network defined, so use the first one
+                            ###############################################
                             self.ext_net = network
                             break
-                        if not self.ext_net:
-                            self.ext_net = network
-                    except AttributeError:
-                        ###############################################
-                        # A attribute error indicates, no user defined
-                        # external network defined, so use the first one
-                        ###############################################
-                        self.ext_net = network
-                        break
 
             if self.ext_net:
                 LOG.info("Using external network: %s.", self.ext_net['name'])
                 # Find or create the router to the external network
                 ext_net_id = self.ext_net['id']
-                routers = neutron_client.list_routers()['routers']
-                for router in routers:
-                    external_gw_info = router['external_gateway_info']
-                    if external_gw_info:
-                        if external_gw_info['network_id'] == ext_net_id:
-                            self.ext_router = router
-                            LOG.info('Found external router: %s', self.ext_router['name'])
-                            break
+                if not self.ext_router:
+                    routers = neutron_client.list_routers()['routers']
+                    for router in routers:
+                        external_gw_info = router['external_gateway_info']
+                        if external_gw_info:
+                            if external_gw_info['network_id'] == ext_net_id:
+                                self.ext_router = router
+                                LOG.info('Found external router: %s',
+                                         self.ext_router['name'])
+                                break
 
                 # create a new external router if none found and a name was given
                 self.ext_router_name = config.router_name
