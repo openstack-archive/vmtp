@@ -467,6 +467,12 @@ class Compute(object):
                 self.generate_security_group_rule_dict(group_id=group["id"],
                                                        protocol="tcp",
                                                        ethertype="IPv6",
+                                                       port_range_min=22,
+                                                       port_range_max=22))
+            self.neutron.create_security_group_rule(
+                self.generate_security_group_rule_dict(group_id=group["id"],
+                                                       protocol="tcp",
+                                                       ethertype="IPv6",
                                                        port_range_min=5001,
                                                        port_range_max=5002))
             self.neutron.create_security_group_rule(
