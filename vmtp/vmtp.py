@@ -413,7 +413,6 @@ class VmtpTest(object):
             self.client = None
             if not self.config.reuse_network_name and not self.config.same_network_only:
                 # Different network
-                flow_desc = "VM to VM different network fixed IP"
                 try:
                     self.create_flow_client(client_az, self.net.vm_int_net[1])
                 except VmtpException:
@@ -425,8 +424,12 @@ class VmtpTest(object):
                     FILELOG.info(json.dumps(perf_output, sort_keys=True))
                     continue
 
-                self.measure_flow(flow_desc, self.server.internal_ip)
+                # East-West traffic for ipv6 via neutron router on different
+                # networks does not currently work, skip measure_flow
+                # for now until fixed
                 if not self.config.ipv6_mode:
+                    flow_desc = "VM to VM different network fixed IP"
+                    self.measure_flow(flow_desc, self.server.internal_ip)
                     flow_desc = "VM to VM different network floating IP"
                     self.measure_flow(flow_desc, self.server.ssh_access.host)
 
