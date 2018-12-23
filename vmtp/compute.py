@@ -435,7 +435,7 @@ class Compute(object):
         if self.config.ipv6_mode:
             self.neutron.create_security_group_rule(
                 self.generate_security_group_rule_dict(group_id=group["id"],
-                                                       protocol="icmp",
+                                                       protocol="icmpv6",
                                                        ethertype="IPv6"))
 
         # Allow SSH traffic

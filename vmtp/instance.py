@@ -18,6 +18,7 @@ import re
 from log import LOG
 import monitor
 import netaddr
+import re
 import sshutils
 
 
@@ -89,7 +90,7 @@ class Instance(object):
             dns_servers = ','.join(subnet_info['dns_nameservers'])
             network_dict['dns'] = 'dns-nameservers %s\n' % dns_servers
 
-        retStr = (
+        interface_snippet = (
             '# The loopback network interface\n'
             'auto lo\n'
             'iface lo inet loopback\n'
@@ -104,6 +105,37 @@ class Instance(object):
             '        gateway %(gateway)s\n'
             '        %(dns)s'
         ) % network_dict
+        files = {'/etc/network/interfaces': interface_snippet}
+
+        if self.config.vm_image_url:
+            pattern = re.search(r'rhel', self.config.vm_image_url, re.I)
+            if pattern:
+                interface_snippet = \
+                    self.generate_rhel_interface(network_dict)
+                files = {
+                    '/etc/sysconfig/network-scripts/ifcfg-eth0':
+                    interface_snippet
+                }
+
+        return files
+
+    def generate_rhel_interface(self, network_dict):
+        retStr = None
+        # Note: For v6, no network custimizaton is needed. If the
+        # upstream router sends the correct RA in response to the RS
+        # then the interface should get auto-calculated and the default
+        # route should automatically be injected
+        if not self.config.ipv6_mode:
+            retStr = (
+                'DEVICE=eth0\n'
+                'BOOTPROTO=static\n'
+                'ONBOOT=no\n'
+                'DEFROUTE=yes\n'
+                'NM_CONTROLLED=no\n'
+                'IPADDR=%(ip_address)s\n'
+                'NETMASK=%(netmask)s\n'
+                'GATEWAY=%(gateway)s'
+            ) % network_dict
 
         return retStr
 
@@ -142,8 +174,7 @@ class Instance(object):
 
         files = None
         if self.config.no_dhcp:
-            network_interface = self.get_network_interface(self.port)
-            files = {'/etc/network/interfaces': network_interface}
+            files = self.get_network_interface(self.port)
 
         self.instance = self.comp.create_server(self.name,
                                                 image,
