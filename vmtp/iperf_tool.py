@@ -35,7 +35,7 @@ def get_bdw_kbps(bdw, bdw_unit):
 class IperfTool(PerfTool):
 
     def __init__(self, instance):
-        PerfTool.__init__(self, 'iperf-2.0.9', instance)
+        PerfTool.__init__(self, 'iperf-2.0.12', instance)
 
     def get_server_launch_cmd(self):
         '''Return the command to launch the server side.'''
@@ -63,24 +63,32 @@ class IperfTool(PerfTool):
             # (need to find the right iperf options to make it work as there are
             # issues for the server to send back results to the client in reverse
             # direction
-            if proto == 'UDP':
-                bidir = False
-                loop_count = 1
-            else:
+            if proto == 'TCP':
                 # For accuracy purpose, TCP throughput will be measured multiple times
-                bidir = bidirectional
                 loop_count = self.instance.config.tcp_tp_loop_count
-            for pkt_size in pkt_size_list:
-                self.instance.display('Measuring %s Throughput (packet size=%d)...',
-                                      proto, pkt_size)
-                for _ in xrange(loop_count):
+                self.instance.display('Measuring TCP Throughput...')
+                for _ in range(loop_count):
+                    # for bidirectional the function returns a list of 2 results
                     res = self.run_client_dir(target_ip, mss,
                                               bandwidth_kbps=bandwidth,
-                                              bidirectional=bidir,
+                                              bidirectional=bidirectional,
                                               protocol=proto,
-                                              length=pkt_size)
-                    # for bidirectional the function returns a list of 2 results
+                                              length=pkt_size_list[0])
                     res_list.extend(res)
+            else:
+                for pkt_size in pkt_size_list:
+                    self.instance.display('Measuring UDP Throughput (packet size=%d)...', pkt_size)
+                    # Trying a second time if needed, due to iperf bugs...
+                    for _ in range(2):
+                        res = self.run_client_dir(target_ip, mss,
+                                                  bandwidth_kbps=bandwidth,
+                                                  bidirectional=False,
+                                                  protocol=proto,
+                                                  length=pkt_size)
+                        if 'error' not in res:
+                            break
+                    res_list.extend(res)
+
         return res_list
 
     def run_client_dir(self, target_ip,
