@@ -142,7 +142,7 @@ class SSH(object):
     """Represent ssh connection."""
 
     def __init__(self, ssh_access,
-                 connect_timeout=60,
+                 connect_timeout=10,
                  connect_retry_count=30,
                  connect_retry_wait_sec=2):
         """Initialize SSH client.
