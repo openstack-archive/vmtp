@@ -79,7 +79,7 @@ class IperfTool(PerfTool):
                 for pkt_size in pkt_size_list:
                     self.instance.display('Measuring UDP Throughput (packet size=%d)...', pkt_size)
                     # Trying a second time if needed, due to iperf bugs...
-                    for _ in range(2):
+                    for _ in range(3):
                         res = self.run_client_dir(target_ip, mss,
                                                   bandwidth_kbps=bandwidth,
                                                   bidirectional=False,
@@ -160,7 +160,7 @@ class IperfTool(PerfTool):
             # force the timeout value with 20 second extra for the command to
             # complete and do not collect CPU
             cpu_load = None
-            cmd_out = self.instance.exec_command(cmd, duration_sec + 20)
+            cmd_out = self.instance.exec_command(cmd, duration_sec + 30)
         else:
             (cmd_out, cpu_load) = self.instance.exec_with_cpu(cmd)
 
