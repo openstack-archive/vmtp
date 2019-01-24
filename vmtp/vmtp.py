@@ -1258,6 +1258,8 @@ def main():
         run_vmtp(opts)
         # If an exit occurs in run_vmtp such as printing version do not log run summary
         run_summary_required = True
+    except SystemExit as e:
+        return_code = e.code
     except Exception as e:
         LOG.exception(e)
     finally:
