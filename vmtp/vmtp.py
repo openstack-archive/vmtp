@@ -1252,6 +1252,7 @@ def run_vmtp(opts):
 
 def main():
     run_summary_required = False
+    global return_code
     try:
         opts = parse_opts_from_cli()
         log.setup('vmtp', debug=opts.debug, logfile=opts.logfile)
