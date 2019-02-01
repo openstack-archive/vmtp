@@ -30,6 +30,12 @@ def setup(product_name, debug=False, logfile=None):
         file_handler.setFormatter(logging.Formatter(file_formatter_str))
 
     # Add appropriate handlers to loggers
+
+    # This is to workaround the paramiko logging issue when SSH failed
+    paramiko_logger = logging.getLogger("paramiko.transport")
+    paramiko_logger.addHandler(console_handler)
+    paramiko_logger.setLevel(log_level)
+
     console_logger = logging.getLogger(product_name + '_' + 'console')
     console_logger.addHandler(console_handler)
     console_logger.setLevel(log_level)
@@ -43,6 +49,7 @@ def setup(product_name, debug=False, logfile=None):
 
     if file_handler:
         file_logger.addHandler(file_handler)
+        paramiko_logger.addHandler(file_handler)
         all_logger.addHandler(file_handler)
 
 def getLogger(product, target):
