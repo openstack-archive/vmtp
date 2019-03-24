@@ -19,7 +19,7 @@ Installation on Ubuntu/Debian
     $ # create a virtual environment
     $ virtualenv ./vmtpenv
     $ . ./vmtpenv/bin/activate
-    $ git clone git://git.openstack.org/openstack/vmtp
+    $ git clone https://git.openstack.org/openstack/vmtp
     $ cd vmtp
     $ pip install -r requirements-dev.txt
     $ cd vmtp
@@ -36,7 +36,7 @@ Installation on RHEL/CentOS
     $ # create a virtual environment
     $ virtualenv ./vmtpenv
     $ . ./vmtpenv/bin/activate
-    $ git clone git://git.openstack.org/openstack/vmtp
+    $ git clone https://git.openstack.org/openstack/vmtp
     $ cd vmtp
     $ pip install -r requirements-dev.txt
     $ cd vmtp
@@ -61,7 +61,7 @@ First, download XCode from App Store, then execute below commands:
     $ # create a virtual environment
     $ virtualenv ./vmtpenv
     $ . ./vmtpenv/bin/activate
-    $ git clone git://git.openstack.org/openstack/vmtp
+    $ git clone https://git.openstack.org/openstack/vmtp
     $ cd vmtp
     $ pip install -r requirements-dev.txt
     $ cd vmtp
