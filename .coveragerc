@@ -1,7 +1,0 @@
-[run]
-branch = True
-source = vmtp
-omit = vmtp/tests/*,vmtp/openstack/*
-
-[report]
-ignore_errors = True

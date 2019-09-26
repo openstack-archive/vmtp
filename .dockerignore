@@ -1,8 +1,0 @@
-ansible
-installer
-requirements-dev.txt
-cloud_init*
-.git
-.gitignore
-.gitreview
-.pylintrc
